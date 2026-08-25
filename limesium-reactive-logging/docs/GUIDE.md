@@ -456,9 +456,12 @@ backend, no YAML, no Netty are forced onto the host.
 <dependency>
     <groupId>eu.inqudium</groupId>
     <artifactId>limesium-reactive-logging</artifactId>
-    <version>1.0.0</version>
+    <version><!-- current release: see the badge below --></version>
 </dependency>
 ```
+
+The current release is shown live by the Maven Central badge:
+[![Maven Central](https://img.shields.io/maven-central/v/eu.inqudium/limesium-reactive-logging.svg?label=Maven%20Central)](https://central.sonatype.com/artifact/eu.inqudium/limesium-reactive-logging)
 
 That is all: the auto-configuration registers the filter, every exchange is logged on the
 `http-exchange` logger at INFO, the correlation id is read from / echoed on `X-Correlation-Id`, and the

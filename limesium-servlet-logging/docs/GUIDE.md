@@ -460,9 +460,12 @@ YAML, no container are forced onto the host.
 <dependency>
     <groupId>eu.inqudium</groupId>
     <artifactId>limesium-servlet-logging</artifactId>
-    <version>1.0.0</version>
+    <version><!-- current release: see the badge below --></version>
 </dependency>
 ```
+
+The current release is shown live by the Maven Central badge:
+[![Maven Central](https://img.shields.io/maven-central/v/eu.inqudium/limesium-servlet-logging.svg?label=Maven%20Central)](https://central.sonatype.com/artifact/eu.inqudium/limesium-servlet-logging)
 
 That is all: the auto-configuration registers the filter and the listener, every exchange is logged on
 the `http-exchange` logger at INFO, the correlation id is read from / echoed on `X-Correlation-Id`, the
