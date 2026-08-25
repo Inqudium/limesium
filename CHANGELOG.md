@@ -17,5 +17,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `limesium-reactive-logging` — auto-configured WebFlux web filter (Reactor and
   coroutines), field- and configuration-identical twin of the servlet module.
 
-[Unreleased]: https://github.com/Inqudium/limesium/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/Inqudium/limesium/releases/tag/v1.0.0
+[Unreleased]: https://github.com/Inqudium/limesium/compare/1.0.0...HEAD
+[1.0.0]: https://github.com/Inqudium/limesium/releases/tag/1.0.0
