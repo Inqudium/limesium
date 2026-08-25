@@ -13,7 +13,7 @@ import java.nio.charset.StandardCharsets
 /**
  * Tees the request body into [capture] as the APPLICATION reads it - a passive copy, never a pre-read.
  *
- * The predecessor buffered the body up front so it could be replayed; this wrapper instead observes the
+ * A replaying up-front buffer was deliberately rejected; this wrapper instead observes the
  * live stream, which means: no extra memory beyond the capture limit, no interference with streaming or
  * async processing, and the log shows exactly the bytes the application actually consumed (an unread body
  * is logged as absent, which is the truthful answer).
@@ -23,20 +23,20 @@ import java.nio.charset.StandardCharsets
  * contract exactly - the declared request encoding, the spec default ISO-8859-1 when none is declared,
  * and `UnsupportedEncodingException` for an unsupported one; the UTF-8 fallback of [bodyCharset] applies
  * ONLY to how the log line renders the captured bytes, never to what the application reads (finding 1
- * of CODE_ANALYSIS-2026-08-22.md). The LOG charset is bound LATE - when the application first selects
+ * of an internal code analysis). The LOG charset is bound LATE - when the application first selects
  * a body API - not at construction: the servlet contract lets downstream code call
  * `setCharacterEncoding` until the body is consumed, and a charset frozen at filter entry would decode
  * the captured bytes with an encoding the application never used (finding 2 of
- * CODE_ANALYSIS-2026-08-22T19-52-00.md). The wrapper also reproduces the delegate's stream/reader either-or
+ * an internal code analysis). The wrapper also reproduces the delegate's stream/reader either-or
  * contract itself, because the tee satisfies both APIs from ONE delegate stream and the delegate can
  * therefore no longer see which public API the application chose (finding 12 of
- * CODE_ANALYSIS-2026-08-21.md).
+ * an internal code analysis).
  *
  * ASYNC boundary: the tee lives on THIS wrapper. Spring MVC's async support starts async with
  * `startAsync(currentRequest, currentResponse)` and keeps the wrappers; the Servlet-specified
  * zero-argument `startAsync()` initializes its context with the ORIGINAL request/response, so bytes a
  * raw async cycle reads/writes flow beside the tee and are logged as absent - a documented contract
- * boundary, pinned by integration test (finding 3 of CODE_ANALYSIS-2026-08-21.md).
+ * boundary, pinned by integration test (finding 3 of an internal code analysis).
  */
 class CapturingRequestWrapper(
     request: HttpServletRequest,

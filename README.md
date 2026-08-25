@@ -1,5 +1,8 @@
 # Limesium
 
+[![CI](https://github.com/dirkjink/limesium/actions/workflows/ci.yml/badge.svg)](https://github.com/dirkjink/limesium/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+
 Limesium logs one structured endpoint_* line per HTTP exchange at the service's own boundary — 
 named after the Roman Limes, the watched frontier where every crossing was recorded. 
 Two auto-configured Spring Boot twins with identical fields and configuration: a servlet filter 
@@ -46,3 +49,13 @@ mvn verify
 ```
 
 Maven multi-module build (group `eu.inqudium`), Java 21, Kotlin, Spring Boot parent.
+
+## Contributing
+
+Contributions are welcome — please read [CONTRIBUTING.md](CONTRIBUTING.md) first.
+The [Code of Conduct](CODE_OF_CONDUCT.md) applies to all project spaces, and
+security issues should be reported privately as described in [SECURITY.md](SECURITY.md).
+
+## License
+
+Licensed under the [Apache License, Version 2.0](LICENSE).

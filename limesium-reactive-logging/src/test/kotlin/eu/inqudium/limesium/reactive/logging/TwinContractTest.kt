@@ -23,8 +23,7 @@ import reactor.core.publisher.Mono
 class TwinContractTest {
     @Test
     fun `should pin the meter names to the literal twin contract`() {
-        // What is tested: the duplicated meter-name constants, spelled out as literals (assessment
-        //   finding 7) - the cross-module lockstep tests cover configuration and field names, but not
+        // What is tested: the duplicated meter-name constants, spelled out as literals (review        //   finding 7) - the cross-module lockstep tests cover configuration and field names, but not
         //   these.
         // Success criteria: every meter name matches the literal both twins ship.
         // Why it matters: a renamed meter in ONE twin would split every dashboard by stack - silently.
@@ -67,8 +66,7 @@ class TwinContractTest {
     @Test
     fun `should pin the masking fingerprint format to the literal twin contract`() {
         // The expected value is hardcoded, not derived: the first 64 bits of SHA-256 over the UTF-8
-        //   bytes are stable across JVMs - and a format change in one twin (or in web-client's
-        //   ExchangeDiaryLogging) breaks that module's literal here, forcing coordinated change.
+        //   bytes are stable across JVMs - and a format change in one twin breaks that module's literal here, forcing coordinated change.
         // Given/When/Then: one fixed input against its literal fingerprint
         assertThat(HeaderLogProperties.mask("secret-token")).isEqualTo("12:930bbdc51b6aed5c")
     }
@@ -85,7 +83,7 @@ class TwinContractTest {
     fun `should pin the exchange and arrival message format to the literal twin contract`() {
         // What is tested: the MESSAGE half of the twin contract - the field names are locked by
         //   EndpointLogFieldTest, the message text was asserted by KDoc only (finding 4 of
-        //   COMMENT_AUDIT-2026-08-22T22-11-51.md).
+        //   an internal comment audit).
         // Success criteria: a pinned exchange renders the literal messages both twins ship.
         // Why it matters: plain-text appenders and the README's parity promise key on this text; a
         //   divergence in one twin would otherwise ship silently.

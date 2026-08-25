@@ -18,8 +18,7 @@ import java.nio.charset.StandardCharsets
 /**
  * Contract of the [EndpointLogField] family: the wire names (a contract with the log index), the per-field
  * type guarantee, the drop-the-field-not-the-event semantics of the [addKeyValue] overload, and the
- * lockstep with the SERVLET twin's component template (the one index contract both stacks share) -
- * built after `AdapterLogFieldTest` in web-client, which guards the `adapter_*` sibling the same way.
+ * lockstep with the SERVLET twin's component template (the one index contract both stacks share).
  */
 class EndpointLogFieldTest {
     // The ONE template for both stacks lives in the SERVLET twin and reaches this module's test classpath

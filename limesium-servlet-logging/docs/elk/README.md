@@ -4,14 +4,12 @@ Companion text to
 [`limesium-servlet-logging-fields.component-template.json`](limesium-servlet-logging-fields.component-template.json) —
 the mapping of the thirteen structured fields this module writes per inbound HTTP exchange.
 
-> **Status note.** Unlike the `adapter_*` template in `web-client`, this is **the definition, not an
+> **Status note.** This is **the definition, not an
 > extract**: the `endpoint_*` family is not yet part of any upstream data-stream mapping. Whoever wires
 > this module into a log pipeline composes this template there **before** the first event arrives — a
 > field that reaches the index unmapped is mapped dynamically, and for a body or a header that means the
-> value becomes searchable, the one outcome §8 of the
-> [mapping guide](../../../logback-kafka-appender/docs/mapping-settings-elastic-search/mapping-guide-neue-felder.md)
-> forbids. Once an upstream mapping exists, it wins, and this file becomes an extract like its `adapter_*`
-> sibling.
+> value becomes searchable — exactly what the payload fields' `index: false` is meant to prevent.
+> Once an upstream mapping exists, it wins, and this file becomes an extract of it.
 
 ```bash
 curl -X PUT "$ES/_component_template/limesium-servlet-logging-fields" \

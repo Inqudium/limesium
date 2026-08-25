@@ -52,7 +52,7 @@ internal enum class EndpointLogField(
     /**
      * ELK: `keyword`, index true, doc_values ON - aggregate. The low-cardinality handler pattern
      * (`/api/things/{id}`) WebFlux recorded for the request, when there is one - the aggregation half
-     * of the pair, exactly like `adapter_url_template`.
+     * of the pair.
      */
     URL_TEMPLATE("endpoint_url_template", String::class),
 

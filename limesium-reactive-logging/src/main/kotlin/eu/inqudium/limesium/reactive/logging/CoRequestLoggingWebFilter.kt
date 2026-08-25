@@ -37,7 +37,7 @@ import org.springframework.web.server.ServerWebExchange
  * **Fail-open of the MDC hand-off.** The ambient snapshot is a host MDC-adapter call and is guarded like
  * every other logging-owned collaborator call: when it throws, the chain runs WITHOUT the handler MDC
  * (counted `stage=wiring`) instead of failing the request (finding 2 of
- * CODE_ANALYSIS-2026-08-22T23-32-09.md). Residual, deliberately not guarded: [MDCContext] installs and
+ * an internal code analysis). Residual, deliberately not guarded: [MDCContext] installs and
  * restores the map inside kotlinx on every resumption; an adapter throwing THERE surfaces from
  * `withContext` indistinguishably from a handler failure and is treated as one. Such an adapter breaks
  * every `MDCContext` user in the host, not only this filter, so no second mechanism is built around it.
@@ -72,7 +72,7 @@ class CoRequestLoggingWebFilter(
         // every resumption - handing it only the three identity keys would delete every ambient entry
         // (trace ids, baggage, host keys) inside suspend handlers. So the ambient MDC of the current
         // thread is preserved and the module-owned keys overlay it, endpoint_* winning on collision -
-        // the same overlay semantics as MdcScope (finding 2 of CODE_ANALYSIS-2026-08-22.md).
+        // the same overlay semantics as MdcScope (finding 2 of an internal code analysis).
         val handlerMdc = handlerMdcOrNull(ex)
         try {
             if (handlerMdc == null) {

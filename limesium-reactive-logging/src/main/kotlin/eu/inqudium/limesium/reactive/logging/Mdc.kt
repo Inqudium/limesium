@@ -20,7 +20,7 @@ object MdcKeys {
  * the header's trace id IS the trace the server span runs under, so the join holds. The header's
  * parent-id is the CALLER's span and is published as [PARENT_SPAN_ID] - never as `spanId`, where it would
  * read as the local span and, with a tracing bridge active, overwrite the real one inside the emission
- * scope (finding 2 of CODE_ANALYSIS-2026-08-22T20-06-45.md). Absent header means not logged. This module
+ * scope (finding 2 of an internal code analysis). Absent header means not logged. This module
  * owns the literals - no cross-module dependency.
  */
 internal object TraceMdcKeys {
@@ -59,7 +59,7 @@ internal class MdcScope(
         } catch (e: Exception) {
             // Roll back a PARTIAL install before propagating: a broken MDC adapter failing mid-put must
             // not leave half an identity on a pooled thread (twin parity with the servlet module's
-            // finding 8 of CODE_ANALYSIS-2026-08-22.md).
+            // finding 8 of an internal code analysis).
             try {
                 close()
             } catch (rollback: Exception) {

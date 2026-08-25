@@ -6,7 +6,7 @@ import io.micrometer.context.ContextRegistry
  * Test guard for the JVM-global [ContextRegistry]: [snapshot] records which of the module-owned
  * `endpoint_*` accessors a HOST had already registered, [restore] removes only the ones a test added -
  * a pre-existing host accessor is preserved, never deleted blindly. Without this, accessors registered
- * by one test context leak into every later test in the JVM (finding 10 of the 2026-08-22T20-06-45
+ * by one test context leak into every later test in the JVM (finding 10 of the internal
  * analysis).
  */
 internal class EndpointAccessorRegistryGuard(

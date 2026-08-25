@@ -4,10 +4,9 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 
 /**
- * W3C conformance of [Traceparent], driven by the SHARED fixture `traceparent/conformance.txt` that
- * web-client's `ExchangeDiaryLoggingTest` consumes as well - the lockstep between the two parsers is
- * thereby a build contract, not a KDoc rule (finding 5 of COMMENT_AUDIT-2026-08-22T22-11-51.md; the
- * conformance rules themselves are findings 5 of the 2026-08-22T16-35-46 and 2 of the 20-06-45 analysis).
+ * W3C conformance of [Traceparent], driven by the fixture `traceparent/conformance.txt` - the conformance rules are
+ * thereby a build contract, not a KDoc rule (finding 5 of an internal comment audit; the
+ * conformance rules themselves are findings of internal code analyses).
  */
 class TraceparentTest {
     @Test

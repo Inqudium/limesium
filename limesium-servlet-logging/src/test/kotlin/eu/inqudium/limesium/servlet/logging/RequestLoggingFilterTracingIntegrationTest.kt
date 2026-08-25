@@ -43,7 +43,7 @@ class RequestLoggingFilterTracingIntegrationTest {
     private var port: Int = 0
 
     // Every real-HTTP call carries its own deadline: a stalled embedded endpoint must produce a bounded
-    // failing test, not a hung executor (assessment finding 6, 2026-08-22T16-49-01 analysis). The
+    // failing test, not a hung executor (review finding 6). The
     // appender's wait is a SEPARATE bound for the post-response emission.
     private val http: HttpClient = HttpClient.newBuilder().connectTimeout(REQUEST_TIMEOUT).build()
     private lateinit var logger: Logger

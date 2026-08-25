@@ -18,7 +18,7 @@ import org.springframework.mock.web.MockHttpServletResponse
 import java.util.concurrent.atomic.AtomicLong
 
 /**
- * The trace-context integration, built analogous to `ExchangeDiaryLogging` in web-client: the tracing
+ * The trace-context integration: the tracing
  * bridge's `traceId`/`spanId` MDC entries are captured at filter entry and restored around the emission -
  * which runs at request destruction, on a callback whose thread has LOST the bridge's MDC. The bridge is
  * simulated by plain `MDC.put`, exactly the state Boot's logging-correlation convention produces; the
@@ -109,7 +109,7 @@ class RequestLoggingFilterTraceContextTest {
     @Test
     fun `should not adopt a stale trace context of the destruction thread when none was captured`() {
         // What is tested: the emission scope's OWNERSHIP of the trace keys (finding 5 of the
-        //   2026-08-22T23-19-06 analysis) - an id that was not captured at filter entry must be absent
+        //   internal analysis) - an id that was not captured at filter entry must be absent
         //   from the event even when the pooled destruction thread still carries one from elsewhere.
         // Success criteria: the event has neither trace key and no trace suffix; the thread's stale
         //   values are back in place after the emission (owned for the scope only, not cleared).

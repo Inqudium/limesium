@@ -18,8 +18,7 @@ import java.nio.file.Path
 /**
  * Contract of the [EndpointLogField] family: the wire names (a contract with the log index), the per-field
  * type guarantee, the drop-the-field-not-the-event semantics of the [addKeyValue] overload, and the
- * lockstep with `docs/elk/limesium-servlet-logging-fields.component-template.json` - built after
- * `AdapterLogFieldTest` in web-client, which guards the `adapter_*` sibling the same way.
+ * lockstep with `docs/elk/limesium-servlet-logging-fields.component-template.json`.
  */
 class EndpointLogFieldTest {
     private val templatePath: Path = Path.of("docs/elk/limesium-servlet-logging-fields.component-template.json")

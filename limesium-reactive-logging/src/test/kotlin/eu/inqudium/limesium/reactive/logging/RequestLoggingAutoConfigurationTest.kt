@@ -24,8 +24,8 @@ import org.springframework.web.server.CoWebFilter
  * Contract of the reactive [RequestLoggingAutoConfiguration]: present by default in a REACTIVE web
  * application, removable by the identical `endpoint-logging.enabled` property, every bean overridable.
  * The variant-selection tests run BOTH auto-configurations together - the set the imports resource
- * actually ships - across the meaningful classpath combinations (assessment finding 11, 2026-08-22
- * analysis). Kept FLAT - see the Spring Boot test isolation caveat on nested classes in CLAUDE.md.
+ * actually ships - across the meaningful classpath combinations (review finding 11, internal
+ * analysis). Kept FLAT - see the Spring Boot test isolation caveat on nested classes.
  */
 class RequestLoggingAutoConfigurationTest {
     private val contextRunner =
@@ -44,7 +44,7 @@ class RequestLoggingAutoConfigurationTest {
 
     // Nearly every context below activates the Reactor variant and with it the initializer that writes
     // the three accessors into the JVM-global ContextRegistry; the guard restores the registry after
-    // EVERY method, not only the one asserting on it (finding 4 of CODE_ANALYSIS-2026-08-22T23-32-09.md).
+    // EVERY method, not only the one asserting on it (finding 4 of an internal code analysis).
     private val accessorRegistry = EndpointAccessorRegistryGuard()
 
     @BeforeEach
@@ -101,7 +101,7 @@ class RequestLoggingAutoConfigurationTest {
     @Test
     fun `should register the MDC accessors when context-propagation is on the classpath`() {
         // Given: the JVM-global registry, restored by the class-level guard so the accessors do not leak
-        //   into other tests (finding 10 of the 2026-08-22T20-06-45 analysis)
+        //   into other tests (finding 10 of the internal analysis)
         // When: context-propagation on the test classpath, the Reactor variant active
         contextRunner.run { context ->
             // Then: the initializer bean ran (context-propagation IS on this test classpath) and the
@@ -151,7 +151,7 @@ class RequestLoggingAutoConfigurationTest {
     @Test
     fun `should force the reactor variant by property although the coroutine libraries are present`() {
         // What is tested: the explicit override of the classpath-based selection (architecture review
-        //   finding 3, 2026-08-22T17-38-54) - a Reactor-only host that pulls the coroutine libraries in
+        //   finding 3) - a Reactor-only host that pulls the coroutine libraries in
         //   transitively must be able to say so.
         // Success criteria: with endpoint-logging.variant=reactor on the FULL classpath, the single filter
         //   is the Reactor variant.
@@ -226,8 +226,8 @@ class RequestLoggingAutoConfigurationTest {
 
     @Test
     fun `should warn at startup when automatic context propagation is not configured`() {
-        // What is tested: the validated prerequisite of the handler-MDC feature (assessment finding 1,
-        //   2026-08-22 analysis) - Boot's default spring.reactor.context-propagation=limited does not
+        // What is tested: the validated prerequisite of the handler-MDC feature (review finding 1,
+        //   internal analysis) - Boot's default spring.reactor.context-propagation=limited does not
         //   restore MDC around ordinary operators, so registering the accessors without the `auto` mode
         //   must be called out at startup.
         // Success criteria: with the property unset the initializer emits one WARN naming the property;
@@ -263,7 +263,7 @@ class RequestLoggingAutoConfigurationTest {
 
     @Test
     fun `should not warn about context propagation when the coroutine variant owns the filter slot`() {
-        // What is tested: the initializer's activation rule (assessment finding 8, 2026-08-22T16-35-46
+        // What is tested: the initializer's activation rule (review finding 8, internal
         //   analysis) - the accessors and the propagation-mode warning belong to the REACTOR variant only.
         // Success criteria: with both auto-configurations shipped (coroutine variant selected) and the
         //   propagation mode unset, no WARN is logged by the propagation initializer.

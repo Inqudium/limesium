@@ -11,8 +11,7 @@ import org.junit.jupiter.api.Test
 class HeaderLogPropertiesTest {
     @Test
     fun `should reject the wildcard in excludes at construction time`() {
-        // What is tested: the binding-time validation for a plausible misconfiguration (assessment
-        //   finding 14) - '*' means something in includes and masked, but was a silent no-op in excludes.
+        // What is tested: the binding-time validation for a plausible misconfiguration (review        //   finding 14) - '*' means something in includes and masked, but was a silent no-op in excludes.
         // Success criteria: construction fails with a message naming the alternative.
         // Why it matters: a wildcard exclude reads like "log nothing", would have logged EVERYTHING the
         //   includes selected, and gave no feedback - the classic silent misconfiguration.

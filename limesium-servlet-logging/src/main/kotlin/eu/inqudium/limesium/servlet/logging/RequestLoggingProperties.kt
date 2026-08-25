@@ -10,8 +10,8 @@ import java.time.Duration
  *
  * Everything an operator may tune is a Boot property with a safe default, and everything a host
  * application may want to replace wholesale (time source, id generator, the filter itself) is an
- * overridable bean instead of a constructor argument - the predecessor's twenty-parameter filter
- * constructor is what this design replaces.
+ * overridable bean instead of a constructor argument.
+ * A many-parameter filter constructor is exactly what this design avoids.
  *
  * Body values are logged verbatim. Header values are verbatim too unless a header is listed in its
  * section's [HeaderLogProperties.masked] - then a stable short fingerprint replaces the value.
@@ -21,9 +21,8 @@ data class RequestLoggingProperties(
     /** Master switch; `false` removes the filter from the chain entirely (auto-configuration backs off). */
     val enabled: Boolean = true,
     /**
-     * Name of the logger the exchange lines are emitted on. The default deliberately keeps the
-     * predecessor's dedicated logger name, so existing log routing and level configuration keep working
-     * after a migration.
+     * Name of the logger the exchange lines are emitted on. The default is a dedicated, stable name,
+     * so log routing and level configuration can target exactly these lines.
      */
     val loggerName: String = "http-exchange",
     /**
@@ -108,7 +107,7 @@ data class RequestLoggingProperties(
          * RFC 9110 `token` grammar for a field name. The configured name is written to every response;
          * a server adapter that validates field names would reject a non-token at runtime on EVERY
          * request, degrading the filter to an unlogged pass-through without ever failing startup
-         * (finding 5 of CODE_ANALYSIS-2026-08-22T20-06-45.md) - so it is validated at binding time.
+         * (finding 5 of an internal code analysis) - so it is validated at binding time.
          */
         private val HTTP_FIELD_NAME = Regex("[!#$%&'*+\\-.^_`|~0-9A-Za-z]+")
     }
@@ -174,12 +173,12 @@ data class HeaderLogProperties(
 
         /**
          * Redacts a header [value] to its character length followed by the first 64 bits of its SHA-256
-         * digest (UTF-8) in lowercase hex (e.g. `18:930bbdc51b6aed5c`) - the same fingerprint the
-         * servlet twin and the web-client's `ExchangeDiaryLogging` use. STABLE: identical values render
+         * digest (UTF-8) in lowercase hex (e.g. `18:930bbdc51b6aed5c`) - the same fingerprint
+         * the twin module uses. STABLE: identical values render
          * identically, so a masked token can still be correlated across events and modules without
          * exposing the secret itself; a 64-bit cryptographic prefix makes accidental collisions
          * negligible (the former 32-bit `String.hashCode` fingerprint collided trivially - finding 3 of
-         * CODE_ANALYSIS-2026-08-22T20-06-45.md).
+         * an internal code analysis).
          *
          * Privacy model: the fingerprint is unsalted and unkeyed - it prevents PLAINTEXT exposure, not
          * offline guessing. A log reader with a candidate list (low-entropy values: usernames, tenant

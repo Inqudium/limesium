@@ -25,7 +25,7 @@ import java.util.concurrent.atomic.AtomicLong
  * The level/outcome matrix of [ExchangeLogEmitter], driven through the emitter's OWN seam with a
  * hand-built [Exchange] - no filter, no destruction listener, no wiring. The filter-level tests keep
  * proving the end-to-end handshake; this class pins the pure classification where it lives
- * (architecture review finding 6, 2026-08-22T18-12-19).
+ * (architecture review finding 6).
  */
 class ExchangeLogEmitterTest {
     private val ticker = AtomicLong(0)
@@ -153,7 +153,7 @@ class ExchangeLogEmitterTest {
         @Test
         fun `should keep the timeout precedence when onTimeout and onError race on two threads`() {
             // What is tested: the ATOMICITY of the disposition precedence (findings 1 and 2 of the
-            //   2026-08-22T23-19-06 analysis) - the sequential test above proves the ORDER rule, this one
+            //   internal analysis) - the sequential test above proves the ORDER rule, this one
             //   the rule under real contention: the container does not confine the two callbacks to one
             //   thread, and a volatile check-then-set in onError could read NONE, lose the race to
             //   onTimeout and then overwrite TIMED_OUT with ERRORED.

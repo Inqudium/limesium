@@ -37,7 +37,7 @@ import java.time.Duration
  *
  * Determinism: pinned time and id beans (auto-configured defaults back off); event arrival awaited via
  * the semaphore-based [AwaitingAppender], never a sleep. FLAT class with an inner static configuration -
- * see the Spring Boot test isolation caveat in CLAUDE.md.
+ * see the Spring Boot test isolation caveat.
  */
 @SpringBootTest(
     classes = [RequestLoggingWebFilterIntegrationTest.ItApp::class],
@@ -55,7 +55,7 @@ class RequestLoggingWebFilterIntegrationTest {
     private var port: Int = 0
 
     // Every real-HTTP call carries its own deadline: a stalled endpoint must produce a bounded failing
-    // test, not a hung executor (assessment finding 7, 2026-08-22T16-35-46 analysis). The appender's
+    // test, not a hung executor (review finding 7). The appender's
     // wait is a SEPARATE bound for the post-response emission.
     private val http: HttpClient = HttpClient.newBuilder().connectTimeout(REQUEST_TIMEOUT).build()
     private lateinit var logger: Logger
@@ -163,7 +163,7 @@ class RequestLoggingWebFilterIntegrationTest {
             .containsEntry("endpoint_response_status_code", 500)
         assertThat(causeMessages(event.throwableProxy)).anySatisfy { assertThat(it).contains("it boom") }
 
-        // And: the documented capture BOUNDARY (assessment finding 3, 2026-08-22 analysis) - Boot's
+        // And: the documented capture BOUNDARY (review finding 3) - Boot's
         //   OUTER error renderer writes the 500 body through the original, undecorated response, so the
         //   client receives a body but the event must NOT carry endpoint_response_body although
         //   log-response-body is enabled class-wide. This pin keeps the boundary a conscious contract:

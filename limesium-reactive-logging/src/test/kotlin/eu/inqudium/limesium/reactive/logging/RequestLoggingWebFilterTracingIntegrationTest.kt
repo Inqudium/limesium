@@ -40,17 +40,17 @@ import java.time.Duration
  *   event's MDC must carry the same trace id.
  * - **The caller's span is never the local span.** The header's parent-id is published as
  *   `parentSpanId`; the `spanId` key belongs to the bridge and is never written by this module (finding
- *   2 of CODE_ANALYSIS-2026-08-22T20-06-45.md) - the server span's own id differs from the parent, and
+ *   2 of an internal code analysis) - the server span's own id differs from the parent, and
  *   the event must not carry the parent under `spanId`.
  * - **The boundary is explicit.** Without a caller `traceparent` the bridge still traces the exchange,
  *   but the module logs no trace context at all - the documented limitation (finding 4 of
- *   SECURITY_AUDIT-2026-08-23T13-17-50.md), pinned so that a change of that decision is conscious.
+ *   an internal security audit), pinned so that a change of that decision is conscious.
  *
  * Runs the REACTOR variant (demanded explicitly - the coroutine libraries sit on this classpath), with
  * sampling pinned to 1.0. The other integration tests of this module are unaffected by the bridge on the
  * classpath: their events carry trace ids only when a request sends a `traceparent`. Determinism: pinned
  * time and id beans; events awaited via [AwaitingAppender]. FLAT class with an inner static
- * configuration - see the Spring Boot test isolation caveat in CLAUDE.md. The Reactor variant registers
+ * configuration - see the Spring Boot test isolation caveat. The Reactor variant registers
  * the `endpoint_*` accessors in the JVM-global ContextRegistry; the class-level guard removes them again.
  */
 @SpringBootTest(
@@ -136,7 +136,7 @@ class RequestLoggingWebFilterTracingIntegrationTest {
         //   MDC at filter time and the module deliberately avoids an observation-context dependency.
         // Success criteria: the bridge reports a well-formed trace id for the exchange, yet the event
         //   carries neither traceId nor parentSpanId in its MDC and no trace suffix in the message.
-        // Why it matters: this is a conscious limitation (finding 4 of the 2026-08-23 security audit);
+        // Why it matters: this is a conscious limitation (finding 4 of the internal security audit);
         //   pinning it makes a future change of that decision deliberate and visible in both twins.
         // Given/When: the real Netty application; a real GET without any trace header
         val response = get("/tr/things/3")

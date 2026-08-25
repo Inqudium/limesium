@@ -43,8 +43,8 @@ exactly as documented in the servlet twin's README.
 
 Eleven of this module's production files are twins of files in `limesium-servlet-logging`, and roughly
 a thousand lines (field enum, properties and header masking, meters, MDC keys, event rendering, the
-injectable time/id interfaces) are identical. This is a **deliberate decision**, reviewed in the
-2026-08-22 architecture review and kept:
+injectable time/id interfaces) are identical. This is a **deliberate decision**, reviewed in an
+internal architecture review and kept:
 
 - **One twin per host, never both.** An application is either a servlet or a reactive application, so
   the two copies never share a classpath — there is no runtime drift to guard against, only an
@@ -66,7 +66,7 @@ modules. Revisit the decision if a third stack appears or the port frequency sto
 
 ```xml
 <dependency>
-    <groupId>eu.dirk-haase</groupId>
+    <groupId>eu.inqudium</groupId>
     <artifactId>limesium-reactive-logging</artifactId>
 </dependency>
 ```

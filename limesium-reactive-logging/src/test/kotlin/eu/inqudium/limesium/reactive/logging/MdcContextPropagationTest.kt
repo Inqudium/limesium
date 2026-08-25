@@ -19,14 +19,14 @@ import reactor.core.scheduler.Schedulers
 
 /**
  * The handler-MDC parity contract, driven through BOOT's real configuration path instead of manually
- * enabled hooks (assessment finding 8, 2026-08-22 analysis): [ReactorAutoConfiguration] is what decides
+ * enabled hooks (review finding 8): [ReactorAutoConfiguration] is what decides
  * whether `Hooks.enableAutomaticContextPropagation()` runs, and it does so only for
  * `spring.reactor.context-propagation=auto` - the DEFAULT `limited` restores thread-locals around
  * `tap`/`handle` only. Both sides are pinned here: the shipped default does NOT deliver handler MDC in
  * an ordinary operator (the documented prerequisite), and the supported activation mode does, across a
  * real scheduler hop. The hooks AND the registered accessors are global JVM state; the hooks are
  * disabled and the module-owned accessors removed (unless they pre-existed) after every test so no
- * other test inherits them (finding 10 of the 2026-08-22T20-06-45 analysis).
+ * other test inherits them (finding 10 of the internal analysis).
  */
 class MdcContextPropagationTest {
     private val contextRunner =
@@ -96,7 +96,7 @@ class MdcContextPropagationTest {
 
     @Test
     fun `should not deliver handler MDC under Boot's default limited propagation mode`() {
-        // What is tested: the shipped reality of finding 1 (2026-08-22 analysis) - accessors registered
+        // What is tested: the shipped reality of finding 1 (internal analysis) - accessors registered
         //   by the auto-configuration do NOT suffice; Boot's default spring.reactor.context-propagation
         //   mode `limited` never calls Hooks.enableAutomaticContextPropagation(), so an ordinary `map`
         //   operator sees no endpoint_* MDC.

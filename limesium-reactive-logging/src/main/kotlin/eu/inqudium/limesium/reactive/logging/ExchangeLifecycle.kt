@@ -51,7 +51,7 @@ internal class ExchangeLifecycle(
      * segments (path parameters dropped, as in routing). Matching the already-decoded `uri.path`
      * re-parsed into a container decoded twice and accepted `/api%2Fthings` for the `/api/` double-star pattern where the
      * router does not (twin parity with finding 1 of the servlet module's
-     * SECURITY_AUDIT-2026-08-23T13-26-06.md).
+     * an internal security audit).
      */
     fun shouldNotFilter(path: PathContainer): Boolean {
         if (includePathPatterns.isNotEmpty() && includePathPatterns.none { it.matches(path) }) {
@@ -99,9 +99,9 @@ internal class ExchangeLifecycle(
      * [onTerminal] at the error signal, not at filter entry: Spring runs `beforeCommit` actions in
      * registration order, so this one must land BEHIND every action the chain registered (security or
      * session header writers, a status mutation) to observe their effects (finding 1 of
-     * CODE_ANALYSIS-2026-08-22T20-06-45.md).
+     * an internal code analysis).
      *
-     * RESIDUALS of this boundary (finding 1 of CODE_ANALYSIS-2026-08-22T23-32-09.md - a WebFilter has
+     * RESIDUALS of this boundary (finding 1 of an internal code analysis - a WebFilter has
      * no hook that observes commit COMPLETION, only `beforeCommit`, and Spring's commit state is
      * private): an action registered after the terminal signal still runs after this one; an earlier
      * action that fails the commit prevents this one, and Spring's retry from `COMMIT_ACTION_FAILED`
@@ -111,7 +111,7 @@ internal class ExchangeLifecycle(
      *
      * FAIL-OPEN twice over: the callback BODY runs inside the response-commit chain, where an escaping
      * exception would disturb the commit itself; the REGISTRATION runs against a possibly host-provided
-     * response facade whose `beforeCommit` may throw (finding 5 of CODE_ANALYSIS-2026-08-22.md). A failed
+     * response facade whose `beforeCommit` may throw (finding 5 of an internal code analysis). A failed
      * registration leaves the exchange UNARMED and the error path completes at the terminal signal.
      */
     private fun registerCommitCallback(
@@ -265,7 +265,7 @@ internal class ExchangeLifecycle(
                 ?.takeUnless { it.isBlank() }
         val correlationId = headerCorrelationId ?: correlationIds.nextCorrelationId()
         // Guarded inside the metrics: a throwing host counter must not turn the request into an
-        // unlogged pass-through (finding 3 of CODE_ANALYSIS-2026-08-22T23-32-09.md).
+        // unlogged pass-through (finding 3 of an internal code analysis).
         metrics.correlationId(fromHeader = headerCorrelationId != null)
         webExchange.response.headers.set(properties.correlationIdHeader, correlationId)
 
@@ -298,7 +298,7 @@ internal class ExchangeLifecycle(
         // servlet module's requestURI/queryString, and the log-injection guard: java.net.URI's decoded
         // getPath()/getQuery() turn `%0A`/`%0D` into real line breaks that would forge lines in every
         // plain-text sink (message, MDC endpoint_route, handler MDC, fields - finding 1 of
-        // SECURITY_AUDIT-2026-08-23T13-17-50.md). The server rejects unencoded control characters in
+        // an internal security audit). The server rejects unencoded control characters in
         // the request target at framing time, so the raw form carries none. Activation matching keeps
         // the decoded path (the same representation the WebFlux router decodes per segment).
         val exchange =

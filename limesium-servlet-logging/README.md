@@ -3,25 +3,21 @@
 Auto-configured servlet filter for Spring Boot (Tomcat) applications that logs **one structured line per
 HTTP exchange** and carries the exchange identity in the MDC while the request is handled.
 
-This module is the **successor of the `LoggingFilter` family in `common-web`**
-(`AbstractLoggingFilter` → `LoggingFilter` / async variant, ~2,200 lines). It is a redesign around the
-repository's principles, not a port:
+Design in brief:
 
-| Predecessor (`common-web`) | This module |
-|---|---|
-| Template-method hierarchy (`AbstractLoggingFilter` + subclasses) | One final `RequestLoggingFilter`; sync and async share a single, exactly-once emission path |
-| `System.nanoTime()` inline | Injectable `NanoTimeSource` — deterministic tests, no sleeps |
-| Correlation id from a static generator | Injectable `CorrelationIdGenerator`, header adoption + response echo |
-| Hand-rolled body **cache** with `IN_PROGRESS`/`COMPLETE` state machine | Passive bounded **tee** (`BoundedBodyCapture`) — nothing buffered, replayed, or withheld; async-safe by construction |
-| Home-grown `LogWriter`/`LogMode`/formatter layer | SLF4J fluent API with `addKeyValue` — structured encoders pick the fields up directly |
-| 20-parameter constructor, manual registration | Boot auto-configuration + `endpoint-logging.*` properties; every bean overridable |
-| MDC only as a trace-id bridge | `endpoint_request_id`, `endpoint_method`, `endpoint_route` in the MDC for the whole chain, previous values restored |
+- One final `RequestLoggingFilter`; sync and async share a single, exactly-once emission path.
+- Injectable `NanoTimeSource` — deterministic tests, no sleeps.
+- Injectable `CorrelationIdGenerator`, header adoption + response echo.
+- Passive bounded **tee** (`BoundedBodyCapture`) — nothing buffered, replayed, or withheld;
+  async-safe by construction.
+- SLF4J fluent API with `addKeyValue` — structured encoders pick the fields up directly.
+- Boot auto-configuration + `endpoint-logging.*` properties; every bean overridable.
+- `endpoint_request_id`, `endpoint_method`, `endpoint_route` in the MDC for the whole chain,
+  previous values restored.
 
 Deliberately **out of scope**: body masking transformers and per-key response sampling. (Header masking
-exists as the `masked` list per header section; an optional arrival line replaces the predecessor's
-separate request log.) The predecessor is **superseded and frozen** — see
-[`common-web/README.md`](../common-web/README.md) for its status, the migration steps, and the two
-features that remain available only there.
+exists as the `masked` list per header section; an optional arrival line can announce the request
+before the handler runs.)
 
 The long-form guide — introduction, architecture, integration into a foreign project, configuration,
 metrics and the stack-specific behaviours — is [`docs/GUIDE.md`](docs/GUIDE.md).
@@ -32,7 +28,7 @@ Add the module to a servlet-stack Spring Boot application — the filter registe
 
 ```xml
 <dependency>
-    <groupId>eu.dirk-haase</groupId>
+    <groupId>eu.inqudium</groupId>
     <artifactId>limesium-servlet-logging</artifactId>
 </dependency>
 ```
@@ -43,8 +39,7 @@ Example line (on the `http-exchange` logger):
 Endpoint http exchange GET /api/things -> 200 [endpoint_request_id=0f7c...]
 ```
 
-plus the structured `endpoint_*` key-values — the inbound counterpart of the `adapter_*` family in
-`web-client` (`ExchangeDiaryLogging`/`AdapterLogFields`), same design: the wire names are a contract with
+plus the structured `endpoint_*` key-values: the wire names are a contract with
 the log index, each field owns its JSON shape (`EndpointLogFields.kt`), a badly typed value drops that
 field with a warning but never the event, and the correlation id rides the MDC (plus the message suffix
 for plain-text appenders) rather than a key-value. The index-side mapping ships as a component template
@@ -74,7 +69,7 @@ must exist, every value must be the built-in default.
 | Property | Default | Meaning |
 |---|---|---|
 | `enabled` | `true` | `false` removes the filter (auto-configuration backs off entirely) |
-| `logger-name` | `http-exchange` | Logger of the exchange lines (kept from the predecessor, so routing/levels keep working) |
+| `logger-name` | `http-exchange` | Logger of the exchange lines (dedicated name, so routing/levels can target exactly these lines) |
 | `correlation-id-header` | `X-Correlation-Id` | Header the id is read from and echoed to |
 | `include-query-string` | `true` | Append the query string to the logged path |
 | `log-request-start` | `false` | Additionally log an arrival line before the chain runs — it carries no outcome/status/duration, so outcome-keyed dashboards still count one line per exchange |
@@ -133,7 +128,7 @@ component template (`docs/elk/`) are shipped here and bound by the twin's lockst
 
 Eleven production files exist in both modules, roughly a thousand lines identical (field enum, properties
 and header masking, meters, MDC keys, event rendering, the injectable time/id interfaces). This is a
-**deliberate decision**, reviewed in the 2026-08-22 architecture review and kept:
+**deliberate decision**, reviewed in an internal architecture review and kept:
 
 - **One twin per host, never both.** An application is either a servlet or a reactive application, so
   the two copies never share a classpath — there is no runtime drift to guard against, only an

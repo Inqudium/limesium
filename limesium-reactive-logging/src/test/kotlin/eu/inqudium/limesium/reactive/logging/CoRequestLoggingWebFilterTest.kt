@@ -142,7 +142,7 @@ class CoRequestLoggingWebFilterTest {
     @Test
     fun `should run the chain without handler MDC and still log when the ambient MDC snapshot throws`() {
         // What is tested: the fail-open boundary around the ambient MDC snapshot (finding 2 of the
-        //   2026-08-22T23-32-09 analysis) - MDC.getCopyOfContextMap() is a host-adapter call made by the
+        //   internal analysis) - MDC.getCopyOfContextMap() is a host-adapter call made by the
         //   filter, outside the handler's try/catch.
         // Success criteria: the chain runs and completes normally, nothing propagates to the host, the
         //   exchange event is emitted with outcome success, the degradation is counted stage=wiring, and
@@ -177,7 +177,7 @@ class CoRequestLoggingWebFilterTest {
 
     @Test
     fun `should preserve ambient MDC entries under the endpoint overlay inside suspend handlers`() {
-        // What is tested: the ADDITIVE MDC contract (assessment finding 2, 2026-08-22 analysis) -
+        // What is tested: the ADDITIVE MDC contract (review finding 2) -
         //   MDCContext installs its map as the coroutine's COMPLETE MDC, so the filter must snapshot the
         //   ambient MDC (trace ids, host keys) and overlay only the endpoint_* identity; an
         //   implementation handing MDCContext just the three identity keys would delete everything else
@@ -255,7 +255,7 @@ class CoRequestLoggingWebFilterTest {
     @Test
     fun `should observe status and header mutations of later commit actions on the deferred error path`() {
         // What is tested: the commit-action ordering of the deferred error path in the COROUTINE
-        //   variant (finding 1 of the 2026-08-22T20-06-45 analysis) - the callback is registered in the
+        //   variant (finding 1 of the internal analysis) - the callback is registered in the
         //   catch block, after the chain ran, behind every action a downstream filter registered.
         // Success criteria: a later action turns the rendered 500 into a 503 and adds a selected
         //   header; the single ERROR event carries both.

@@ -104,7 +104,7 @@ class RequestLoggingFilterBodyAndHeaderTest {
 
         @Test
         fun `should hand the application container-default decoded text when no encoding is declared`() {
-            // What is tested: the reader's charset transparency (assessment finding 1, 2026-08-22
+            // What is tested: the reader's charset transparency (review finding 1, internal
             //   analysis) - with no declared request encoding, the wrapper's reader must decode with the
             //   servlet default ISO-8859-1 like an unwrapped request, NOT with the log-side UTF-8
             //   fallback.
@@ -128,7 +128,7 @@ class RequestLoggingFilterBodyAndHeaderTest {
 
         @Test
         fun `should log the body with the encoding the chain set before reading, not the one at filter entry`() {
-            // What is tested: the late binding of the LOG charset (finding 2 of the 2026-08-22T19-52-00
+            // What is tested: the late binding of the LOG charset (finding 2 of the internal
             //   analysis) - the servlet contract allows setCharacterEncoding until the body is consumed,
             //   so downstream code may change the encoding after the filter constructed its wrapper.
             // Success criteria: with ISO-8859-1 declared at entry and the chain switching to UTF-8
@@ -158,7 +158,7 @@ class RequestLoggingFilterBodyAndHeaderTest {
         @Test
         fun `should enforce the stream-reader either-or contract like an unwrapped request`() {
             // What is tested: the servlet exclusivity contract the wrapper must reproduce itself
-            //   (finding 12 of CODE_ANALYSIS-2026-08-21.md) - the tee serves both public APIs from ONE delegate stream, so
+            //   (finding 12 of an internal code analysis) - the tee serves both public APIs from ONE delegate stream, so
             //   the delegate can no longer see which API the application chose.
             // Success criteria: reader-after-stream and stream-after-reader both throw
             //   IllegalStateException; the same accessor repeated stays legal (cached object).
@@ -191,7 +191,7 @@ class RequestLoggingFilterBodyAndHeaderTest {
         fun `should omit the request body key when the application read nothing`() {
             // What is tested: the tee's truthfulness - a body that was never consumed by the application.
             // Success criteria: no requestBody key at all, rather than an empty or fabricated value.
-            // Why it matters: the predecessor pre-buffered bodies and therefore logged bytes the
+            // Why it matters: a pre-buffering design would log bytes the
             //   application never touched; the tee design makes "logged" mean "actually flowed".
             // Given: a request body that the chain ignores
             val request = MockHttpServletRequest("POST", "/api/things")
@@ -252,7 +252,7 @@ class RequestLoggingFilterBodyAndHeaderTest {
 
         @Test
         fun `should encode a surrogate pair split across writer calls exactly like the client bytes`() {
-            // What is tested: the writer tee's byte fidelity (assessment finding 6, 2026-08-22
+            // What is tested: the writer tee's byte fidelity (review finding 6, internal
             //   analysis) - the capture runs through ONE stateful encoder with the writer's lifecycle,
             //   so a surrogate pair whose halves arrive in separate write calls is encoded as one
             //   character; the old chunk-local String.toByteArray produced replacement bytes for each
@@ -283,7 +283,7 @@ class RequestLoggingFilterBodyAndHeaderTest {
 
         @Test
         fun `should surface the delegate writer's suppressed error state through checkError`() {
-            // What is tested: the PrintWriter error contract (assessment finding 7, 2026-08-22
+            // What is tested: the PrintWriter error contract (review finding 7, internal
             //   analysis) - the container's writer IS a PrintWriter that swallows IOExceptions into an
             //   internal flag; the wrapper's outer PrintWriter used to consult only its own healthy tee
             //   and answered false after the real writer had failed.
@@ -327,7 +327,7 @@ class RequestLoggingFilterBodyAndHeaderTest {
     inner class `Response reset handling` {
         @Test
         fun `should log only the content that survived a resetBuffer`() {
-            // What is tested: the tee's alignment with container buffer semantics (finding 3 of CODE_ANALYSIS-2026-08-21.md) -
+            // What is tested: the tee's alignment with container buffer semantics (finding 3 of an internal code analysis) -
             //   a reset of an uncommitted response discards everything written so far.
             // Success criteria: after write-reset-write, the logged body and the client body BOTH show
             //   only the post-reset content.
@@ -354,8 +354,8 @@ class RequestLoggingFilterBodyAndHeaderTest {
 
         @Test
         fun `should hand out a fresh writer over the delegate after a full reset`() {
-            // What is tested: the accessor-state half of reset() (assessment finding 1,
-            //   2026-08-22T16-49-01 analysis) - Servlet 6.1 clears the writer/stream selection on
+            // What is tested: the accessor-state half of reset() (review finding 1,
+            //   internal analysis) - Servlet 6.1 clears the writer/stream selection on
             //   reset(), so the accessor returned afterwards must be a NEW tee over the delegate's new
             //   writer, not the cached one over a stale delegate object.
             // Success criteria: the post-reset writer is a different instance, both the client body and
@@ -422,8 +422,7 @@ class RequestLoggingFilterBodyAndHeaderTest {
 
         @Test
         fun `should discard the capture when sendError replaces the buffered response`() {
-            // What is tested: the buffer-replacing operations beyond reset()/resetBuffer() (assessment
-            //   finding 4, 2026-08-22 analysis) - sendError clears the delegate's buffer per the servlet
+            // What is tested: the buffer-replacing operations beyond reset()/resetBuffer() (review            //   finding 4) - sendError clears the delegate's buffer per the servlet
             //   spec WITHOUT calling the reset overrides, so the capture must follow the buffer through
             //   the wrapper's own sendError override.
             // Success criteria: after write-then-sendError, the event carries NO response-body field -
@@ -523,7 +522,7 @@ class RequestLoggingFilterBodyAndHeaderTest {
         @Test
         fun `should render equal-length values that collided under String hashCode as distinct fingerprints`() {
             // What is tested: the collision model of the fingerprint after its widening (finding 3 of the
-            //   reactive twin's 2026-08-22T20-06-45 analysis, applied in lockstep) - length plus 32-bit
+            //   reactive twin's internal analysis, applied in lockstep) - length plus 32-bit
             //   String.hashCode was NOT injective; length plus a 64-bit SHA-256 prefix separates the
             //   well-known colliding pair.
             // Success criteria: "Aa" and "BB" (equal hashCode, both length 2) mask to DIFFERENT strings
@@ -617,7 +616,7 @@ class RequestLoggingFilterBodyAndHeaderTest {
 
         @Test
         fun `should log every value of a repeated header, comma-joined`() {
-            // What is tested: multi-value header resolution (finding 7 of CODE_ANALYSIS-2026-08-21.md) - a single-value
+            // What is tested: multi-value header resolution (finding 7 of an internal code analysis) - a single-value
             //   getHeader would silently truncate repeated headers.
             // Success criteria: both Accept values appear in the rendered field, comma-joined.
             // Why it matters: repeated headers (Accept, Set-Cookie) are exactly the ones whose LOSS is
