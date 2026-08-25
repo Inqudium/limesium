@@ -36,14 +36,24 @@ Two paradigm twins with identical fields and identical configuration:
 
 | Module | Stack | Root package |
 |---|---|---|
-| `limesium-servlet-logging` | Spring MVC / servlet filter | `eu.inqudium.limesium.servlet.logging` |
-| `limesium-reactive-logging` | Spring WebFlux (Reactor and coroutines) | `eu.inqudium.limesium.reactive.logging` |
+| [`limesium-servlet-logging`](limesium-servlet-logging/README.md) | Spring MVC / servlet filter | `eu.inqudium.limesium.servlet.logging` |
+| [`limesium-reactive-logging`](limesium-reactive-logging/README.md) | Spring WebFlux (Reactor and coroutines) | `eu.inqudium.limesium.reactive.logging` |
 
 Both are auto-configured Spring Boot libraries — no starter, no forced logging transitives;
 the host application brings the runtime (Tomcat resp. Netty) and the Logback binding.
-See each module's `README.md` and `docs/GUIDE.md` for usage, and
-`limesium-servlet-logging/docs/endpoint-logging-reference.yml` for the shared
-configuration reference that both twins are contract-tested against.
+
+## Documentation
+
+- [Servlet guide](limesium-servlet-logging/docs/GUIDE.md) — the long-form guide of the
+  reference implementation: architecture, integration, configuration, metrics.
+- [Reactive guide](limesium-reactive-logging/docs/GUIDE.md) — the twin's guide, including
+  the deliberate stack differences and the coroutine variant.
+- [Module READMEs](limesium-servlet-logging/README.md) ([reactive](limesium-reactive-logging/README.md)) —
+  summary, field family, property table.
+- [Configuration reference](limesium-servlet-logging/docs/endpoint-logging-reference.yml) —
+  every `endpoint-logging.*` key with its default, contract-tested against both twins.
+- [Elasticsearch mapping](limesium-servlet-logging/docs/elk/README.md) — the ready-made
+  component template for the `endpoint_*` fields.
 
 ## Build
 
