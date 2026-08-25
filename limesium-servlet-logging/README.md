@@ -11,7 +11,7 @@ Design in brief:
 - Passive bounded **tee** (`BoundedBodyCapture`) — nothing buffered, replayed, or withheld;
   async-safe by construction.
 - SLF4J fluent API with `addKeyValue` — structured encoders pick the fields up directly.
-- Boot auto-configuration + `endpoint-logging.*` properties; every bean overridable.
+- Boot auto-configuration + `endpoint-logging.*` properties; the functional beans (filter, time source, id generator) overridable.
 - `endpoint_request_id`, `endpoint_method`, `endpoint_route` in the MDC for the whole chain,
   previous values restored.
 
@@ -79,9 +79,10 @@ must exist, every value must be the built-in default.
 | `request-headers.*` / `response-headers.*` | *(empty)* | Per-direction sections with `includes` (names or `*`), `excludes`, and `masked` — masked values become a stable `length:hash` fingerprint (equal values, equal fingerprint) |
 | `log-request-body` / `log-response-body` | `false` | Capture bodies as they flow (tee, never a pre-read) |
 | `max-body-bytes` | `4096` | Capture limit per body; beyond it the log truncates (and says so), the exchange is untouched |
+| `measure-request-body-size` / `measure-response-body-size` | `false` | Count body bytes for the size meters (`endpoint.request/response.body.size`) without logging content |
 
 Levels carry severity only (`endpoint_outcome` carries the semantic): ERROR when the chain threw (the
-exception is rethrown unchanged), WARN for a 5xx, a container timeout, or a slow-but-successful exchange,
+exception is rethrown unchanged) or the async lifecycle reported an error, WARN for a 5xx, a container timeout, or a slow-but-successful exchange,
 INFO otherwise.
 
 ## Emission point
@@ -111,7 +112,7 @@ deliberately left to Boot's own `http.server.requests` and to the structured log
 
 | Meter | Type | Tags | Meaning |
 |---|---|---|---|
-| `endpoint.logging.failopen` | counter | `stage` = `emission` \| `arrival` \| `wiring` | Logging failures the fail-open path swallowed: `emission` = an exchange event was **lost**, `arrival` = a start line was lost, `wiring` = post-chain bookkeeping failed (the event usually still follows). A lost log line cannot reliably report itself through the same pipeline — this counter is the independent channel. |
+| `endpoint.logging.failopen` | counter | `stage` = `emission` \| `arrival` \| `wiring` | Logging failures the fail-open path swallowed: `emission` = an exchange event was **lost**, `arrival` = a start line was lost, `wiring` = wiring or bookkeeping around the chain failed - a pre-chain wiring failure degrades the filter to an unlogged pass-through, a post-chain one usually still emits the event. A lost log line cannot reliably report itself through the same pipeline — this counter is the independent channel. |
 | `endpoint.logging.events` | counter | `outcome` | Exchange events actually **emitted** (after the level gate; arrival lines excluded). The reconciliation ground truth: compare its sum against the count of indexed events — any difference is loss in the log pipeline itself (appender overflow, broker loss, index rejection). |
 | `endpoint.request.body.size` / `endpoint.response.body.size` | distribution summary (bytes) | `uri` (handler pattern, `UNKNOWN` without one) | Bytes that **actually flowed**, opt-in via `measure-request-body-size` / `measure-response-body-size` and independent of body logging and log level. Exact beyond `max-body-bytes` (the tee counts past the capture cap); zero-byte bodies record no sample. |
 | `endpoint.request.body.read` | counter | `uri` (handler pattern), `state` = `unread` \| `partial` \| `complete` | How far the application **consumed** the request body, opt-in via `measure-request-body-size`. The tee mirrors consumption, not transmission, so neither the logged body nor the size sample can tell a body the client sent but the application ignored from one that was never sent — this counter can. `partial` = consumption started but the end of the stream was never observed (an early-exiting parser, an exception mid-read). |

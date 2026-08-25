@@ -18,16 +18,16 @@ import java.nio.charset.StandardCharsets
 /**
  * Contract of the [EndpointLogField] family: the wire names (a contract with the log index), the per-field
  * type guarantee, the drop-the-field-not-the-event semantics of the [addKeyValue] overload, and the
- * lockstep with the SERVLET twin's component template (the one index contract both stacks share).
+ * lockstep with the repository-shared component template (the one index contract both stacks share).
  */
 class EndpointLogFieldTest {
-    // The ONE template for both stacks lives in the SERVLET twin and reaches this module's test classpath
+    // The ONE template for both stacks lives in the repository-shared /docs and reaches this module's test classpath
     // through the declared test resource in the POM - the drift guard of the duplication: both enums
     // must stay in lockstep with the same index contract.
     private val template: String by lazy {
         val resource = ClassPathResource("elk/limesium-servlet-logging-fields.component-template.json")
         assertThat(resource.exists())
-            .describedAs("the component template must be on the test classpath (declared test resource from the servlet twin's docs)")
+            .describedAs("the component template must be on the test classpath (declared test resource from the shared /docs)")
             .isTrue()
         resource.inputStream.use { String(it.readAllBytes(), StandardCharsets.UTF_8) }
     }

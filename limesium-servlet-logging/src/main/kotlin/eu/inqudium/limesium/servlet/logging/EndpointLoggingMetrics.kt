@@ -230,7 +230,8 @@ internal class EndpointLoggingMetrics(
         /**
          * Meter counting logging failures the fail-open path swallowed, tagged `stage=emission` (the
          * exchange event was LOST), `stage=arrival` (the optional start line was lost) or `stage=wiring`
-         * (post-chain bookkeeping failed; the event itself usually still follows). Requests are never
+         * (wiring or bookkeeping around the chain failed; a pre-chain wiring failure degrades to an
+         * unlogged pass-through, a post-chain one usually still emits the event). Requests are never
          * affected by what this counts - that is the fail-open contract; the counter makes its price
          * visible on a channel independent of the possibly-broken log pipeline.
          */
