@@ -1,4 +1,6 @@
-# Limesium
+<p align="center">
+  <img src="docs/logo/limesium-banner.svg" alt="Limesium — one structured endpoint_* line per HTTP exchange" width="640">
+</p>
 
 [![CI](https://github.com/Inqudium/limesium/actions/workflows/ci.yml/badge.svg)](https://github.com/Inqudium/limesium/actions/workflows/ci.yml)
 [![Maven Central](https://img.shields.io/maven-central/v/eu.inqudium/limesium.svg?label=Maven%20Central)](https://central.sonatype.com/namespace/eu.inqudium)
