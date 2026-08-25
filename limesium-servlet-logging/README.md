@@ -78,7 +78,7 @@ must exist, every value must be the built-in default.
 | `slow-request-threshold` | `5s` | At/above this duration the line escalates to WARN and is flagged `slow` |
 | `request-headers.*` / `response-headers.*` | *(empty)* | Per-direction sections with `includes` (names or `*`), `excludes`, and `masked` — masked values become a stable `length:hash` fingerprint (equal values, equal fingerprint) |
 | `log-request-body` / `log-response-body` | `false` | Capture bodies as they flow (tee, never a pre-read) |
-| `max-body-bytes` | `4096` | Capture limit per body; beyond it the log truncates (and says so), the exchange is untouched |
+| `max-body-bytes` | `16384` | Capture limit per body; beyond it the log truncates (and says so), the exchange is untouched |
 | `measure-request-body-size` / `measure-response-body-size` | `false` | Count body bytes for the size meters (`endpoint.request/response.body.size`) without logging content |
 
 Levels carry severity only (`endpoint_outcome` carries the semantic): ERROR when the chain threw (the

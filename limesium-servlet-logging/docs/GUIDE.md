@@ -703,7 +703,7 @@ identical across the stacks (the twin adds one reactive-only key, `variant`, whi
 | `log-response-body` | boolean | `false` | Tee the response body into `endpoint_response_body`, up to `max-body-bytes`. |
 | `measure-request-body-size` | boolean | `false` | Record `endpoint.request.body.size`; independent of `log-request-body`. |
 | `measure-response-body-size` | boolean | `false` | Record `endpoint.response.body.size`; independent of `log-response-body`. |
-| `max-body-bytes` | int > 0 | `4096` | Capture limit per body. Bounds **memory**, not the exchange: bytes beyond it still flow; the logged value is truncated with a note of the total size. |
+| `max-body-bytes` | int > 0 | `16384` | Capture limit per body. Bounds **memory**, not the exchange: bytes beyond it still flow; the logged value is truncated with a note of the total size. |
 
 ### 4.2 Header sections
 

@@ -108,7 +108,7 @@ endpoint-logging:
   # Capture limit per body, in bytes. Bounds MEMORY, not the exchange: bytes beyond the limit still
   # reach the application respectively the client unchanged - only the logged value is truncated, with
   # an explicit note of the total size.
-  max-body-bytes: 4096
+  max-body-bytes: 16384
 
 logging:
   level:

@@ -82,7 +82,7 @@ data class RequestLoggingProperties(
      * Capture limit per body. The limit bounds MEMORY, not the exchange: bytes beyond it still flow to the
      * application respectively the client unchanged, only the log line is truncated (and says so).
      */
-    val maxBodyBytes: Int = 4096,
+    val maxBodyBytes: Int = 16384,
 ) {
     init {
         require(loggerName.isNotBlank()) { "loggerName must not be blank" }

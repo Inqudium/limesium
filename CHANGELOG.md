@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Default `endpoint-logging.max-body-bytes` raised from `4096` to `16384` in both
+  modules. The limit still bounds only the logged/captured prefix per body — bytes
+  beyond it flow to the application and client unchanged.
+
 ## [1.0.0] - 2026-08-25
 
 ### Added
