@@ -456,7 +456,7 @@ backend, no YAML, no Netty are forced onto the host.
 <dependency>
     <groupId>eu.inqudium</groupId>
     <artifactId>limesium-reactive-logging</artifactId>
-    <version>${tool-box.version}</version>
+    <version>1.0.0</version>
 </dependency>
 ```
 

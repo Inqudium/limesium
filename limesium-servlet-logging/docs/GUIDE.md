@@ -460,7 +460,7 @@ YAML, no container are forced onto the host.
 <dependency>
     <groupId>eu.inqudium</groupId>
     <artifactId>limesium-servlet-logging</artifactId>
-    <version>${tool-box.version}</version>
+    <version>1.0.0</version>
 </dependency>
 ```
 
