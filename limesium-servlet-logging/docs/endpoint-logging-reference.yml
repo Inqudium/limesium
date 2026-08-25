@@ -1,0 +1,123 @@
+# =====================================================================================================
+# endpoint-logging - complete reference configuration
+#
+# Every property of the limesium-servlet-logging module with its DEFAULT value and the reasoning behind
+# it. Copy the block into an application.yml and change only what you need: every value shown here is
+# the built-in default, so an entry you leave out (or delete) behaves exactly like an entry you keep.
+# Bound by RequestLoggingProperties; invalid values (blank names, non-positive sizes/durations) fail
+# the context start with a message naming the property.
+# =====================================================================================================
+
+endpoint-logging:
+  # Master switch. `false` removes the module entirely - the auto-configuration backs off, no filter,
+  # no listener, no beans. This is a context-start decision, not a runtime toggle; for a runtime
+  # off-switch use the logger level below instead (a disabled level skips the event assembly too).
+  enabled: true
+
+  # Logger the exchange events are emitted on. Deliberately the same name the common-web predecessor
+  # used, so existing log routing and level configuration keep working after a migration. The level of
+  # THIS logger decides which exchanges are visible: INFO shows every exchange, WARN keeps only
+  # failures, timeouts and slow requests, ERROR only thrown chains (see `logging.level` below).
+  logger-name: http-exchange
+
+  # Header the correlation id is read from; absent or blank means a new id is generated (UUID by
+  # default - override the CorrelationIdGenerator bean to change the format). The id is echoed back
+  # to the client on the response under this same header name - set ONCE at filter entry, before the
+  # chain runs; the filter does not re-assert it, so downstream code that sets this header itself or
+  # calls HttpServletResponse.reset() decides what the client finally sees, while the event and the
+  # MDC keep the id resolved at entry. It rides the MDC as `endpoint_request_id` while the request is
+  # handled.
+  correlation-id-header: X-Correlation-Id
+
+  # Whether the query string is logged (as its own field `endpoint_url_query`, never as part of the
+  # path - grouping by path must not be defeated by varying queries). Disable when query parameters
+  # may carry personal data.
+  include-query-string: true
+
+  # Optionally log an ARRIVAL line the moment the request comes in, before the handler runs - useful
+  # when long-running or hanging exchanges must be visible while still in flight. The arrival line
+  # carries no outcome/status/duration, so dashboards keyed on `endpoint_outcome` still count exactly
+  # one line per exchange even with this enabled.
+  log-request-start: false
+
+  # URL patterns (Spring PathPattern syntax) that determine for which endpoints the filter is active
+  # AT ALL. Empty (the default) means every endpoint; a request is logged when it matches ANY include
+  # pattern and NO exclude prefix - an exclude always wins. Invalid patterns fail the context start.
+  include-path-patterns: []
+  #  - /api/**
+
+  # Request-URI prefixes the filter skips entirely - no event, no MDC, no correlation echo. Prefix
+  # match against the DECODED request path (percent-encoding resolved, path parameters dropped - the
+  # representation the router matches, so an encoded variant cannot slip past). Default is empty
+  # (everything is logged); health probes are the typical exclusion:
+  exclude-path-prefixes: []
+  #  - /actuator/health
+
+  # At or above this duration the exchange escalates from INFO to WARN and is flagged
+  # `endpoint_slow: true` - the outcome stays `success`, slowness raises severity, it does not turn a
+  # completed exchange into a failure. Duration is measured until the request is fully finished
+  # (request occupancy including error rendering), not bare handler time. Compared at millisecond
+  # resolution: values below 1ms are rejected at startup.
+  slow-request-threshold: 5s
+
+  # Header logging, one section per direction, rendered into one display-only field each
+  # (`endpoint_request_headers` / `endpoint_response_headers`). Matching is case-insensitive
+  # throughout, as header names are.
+  request-headers:
+    # Names to log. Empty (the default) logs NOTHING; the entry "*" logs every header the request
+    # carries.
+    includes: []
+    #  - Accept
+    #  - "*"
+    # Names removed from the included set - meaningful mainly together with the "*" include; an
+    # exclude always wins over an include.
+    excludes: []
+    #  - Cookie
+    # Names whose VALUE is replaced by a stable short fingerprint (length:hex-hash, e.g. "18:a8b3c4d5"
+    # - the same scheme the web-client's diary uses). Non-reversible, but identical values yield
+    # identical fingerprints, so a masked token can still be correlated across events without exposing
+    # the secret. "*" masks every logged header. Masking only affects headers that are logged at all -
+    # listing a name here does not include it.
+    masked: []
+    #  - Authorization
+  response-headers:
+    # Same contract as request-headers, applied to the response.
+    includes: []
+    #  - Content-Type
+    excludes: []
+    masked: []
+
+  # Body capture per direction. The bodies are TEED as they flow - never pre-read, never replayed, so
+  # streaming and async behaviour are untouched and the log shows exactly the bytes that actually
+  # moved (an unread request body is logged as absent). Fields `endpoint_request_body` /
+  # `endpoint_response_body` appear only when bytes flowed.
+  log-request-body: false
+  log-response-body: false
+
+  # Body SIZE measurement per direction (meters `endpoint.request.body.size` /
+  # `endpoint.response.body.size`, tagged by the handler pattern). Deliberately independent of the
+  # log-*-body flags - a metric must not appear and disappear with a logging flag. Measure-only
+  # installs a count-only tee (nothing buffered); measured is what actually flowed, exact even beyond
+  # max-body-bytes. Zero-byte bodies record no sample. The request side additionally records the
+  # counter `endpoint.request.body.read` (tag `state` = unread | partial | complete): the tee mirrors
+  # what the application CONSUMED, so this is the one signal that tells a body the client sent but the
+  # application ignored from a body that was never sent.
+  measure-request-body-size: false
+  measure-response-body-size: false
+
+  # Capture limit per body, in bytes. Bounds MEMORY, not the exchange: bytes beyond the limit still
+  # reach the application respectively the client unchanged - only the logged value is truncated, with
+  # an explicit note of the total size.
+  max-body-bytes: 4096
+
+logging:
+  level:
+    # The exchange stream. INFO = every exchange (the default expectation); WARN = only failures,
+    # container timeouts and slow requests; ERROR = only exchanges whose chain threw. Severity and
+    # semantic are decoupled: dashboards key on the `endpoint_outcome` field, the level only decides
+    # how loud - and whether - a line is emitted.
+    http-exchange: INFO
+    # The module's own logger: the immediate WARN breadcrumb when a chain throws (the full ERROR event
+    # follows on the exchange logger once the request is destroyed), and errors of the logging itself.
+    # Keep at WARN or lower - silencing it hides the breadcrumb.
+    eu.inqudium.limesium.servlet.logging: WARN

@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>eu.inqudium</groupId>
+        <artifactId>limesium</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>limesium-reactive-logging</artifactId>
+    <name>limesium-reactive-logging</name>
+    <description>WebFlux twin of limesium-servlet-logging: one structured endpoint_* line per HTTP exchange, identical fields and configuration</description>
+
+    <dependencies>
+        <!-- A library, not an application: only what the auto-configuration and the properties class
+             need - no starter, no logging/YAML transitives forced onto the host (architecture review
+             finding 4, 2026-08-22T18-12-19). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
+        <!-- Used directly (fluent LoggingEventBuilder, MDC), so declared directly rather than inherited
+             from a starter. The binding (Logback) is the host's. -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+        <!-- WebFilter, ServerWebExchange and the reactive request/response decorators live in spring-web;
+             reactor-core supplies the reactive types. The module is a library - the reactive runtime
+             (Netty) comes from the hosting application. -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.projectreactor</groupId>
+            <artifactId>reactor-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-core</artifactId>
+        </dependency>
+        <!-- OPTIONAL by design: its presence on the host classpath opts in the endpoint_* MDC
+             ThreadLocalAccessors. Handler-side MDC restoration around every operator ADDITIONALLY
+             requires spring.reactor.context-propagation=auto (Boot's default 'limited' does not cover
+             ordinary operators; the auto-configuration warns at startup when the prerequisite is
+             missing). Absent, the module works unchanged without handler MDC. -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>context-propagation</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <!-- OPTIONAL by design: their presence is the opt-in for the coroutine filter variant
+             (CoRequestLoggingWebFilter) - CoWebFilter needs -reactor, the handler-side MDC parity needs
+             -slf4j's MDCContext. Absent, the Reactor variant registers and nothing changes. -->
+        <dependency>
+            <groupId>org.jetbrains.kotlinx</groupId>
+            <artifactId>kotlinx-coroutines-reactor</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.jetbrains.kotlinx</groupId>
+            <artifactId>kotlinx-coroutines-slf4j</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.jetbrains.kotlin</groupId>
+            <artifactId>kotlin-stdlib</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Real Netty + WebFlux runtime for the integration test; the module itself stays a library. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.projectreactor</groupId>
+            <artifactId>reactor-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Real Micrometer Tracing (Brave bridge) for the tracing integration test. Unlike the servlet
+             twin, this module does NOT read the bridge's MDC - it parses the caller's traceparent - so
+             the test pins the two things that design promises against a real bridge: the logged traceId
+             is the trace the server span runs under (the log-to-trace join holds), and the module never
+             publishes the caller's parent span under the local spanId key. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-micrometer-tracing-brave</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- The Boot module above carries only the auto-configuration; the bridge itself and the
+             ObservationRegistry auto-configuration (which the WebFlux observation filter is conditional
+             on) must come explicitly. -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing-bridge-brave</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-micrometer-observation</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <sourceDirectory>${project.basedir}/src/main/kotlin</sourceDirectory>
+        <testSourceDirectory>${project.basedir}/src/test/kotlin</testSourceDirectory>
+        <!-- The cross-stack contract files (configuration reference, ELK component template) are shipped
+             by the servlet twin; the lockstep tests read them from the TEST CLASSPATH, so the dependency
+             on the sibling module's docs is declared HERE, in the build, rather than hidden in a relative
+             path inside a test (architecture review finding 2, 2026-08-22T17-38-54). A missing sibling
+             checkout fails at resource processing with a clear message, not as a contract violation. -->
+        <testResources>
+            <testResource>
+                <directory>${project.basedir}/src/test/resources</directory>
+            </testResource>
+            <testResource>
+                <directory>${project.basedir}/../limesium-servlet-logging/docs</directory>
+                <includes>
+                    <include>endpoint-logging-reference.yml</include>
+                    <include>elk/limesium-servlet-logging-fields.component-template.json</include>
+                </includes>
+            </testResource>
+        </testResources>
+        <plugins>
+            <plugin>
+                <groupId>org.jetbrains.kotlin</groupId>
+                <artifactId>kotlin-maven-plugin</artifactId>
+                <version>${kotlin.version}</version>
+                <configuration>
+                    <jvmTarget>${java.version}</jvmTarget>
+                    <javaParameters>true</javaParameters>
+                    <args>
+                        <arg>-Xjsr305=strict</arg>
+                    </args>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>compile</id>
+                        <phase>compile</phase>
+                        <goals>
+                            <goal>compile</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>test-compile</id>
+                        <phase>test-compile</phase>
+                        <goals>
+                            <goal>test-compile</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <useModulePath>false</useModulePath>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip> <!-- Skip repackaging - we're a library, not a standalone app -->
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

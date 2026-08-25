@@ -1,0 +1,317 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="1720" viewBox="0 0 1100 1720" font-family="Helvetica, Arial, sans-serif">
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#1a1a1a"/></marker></defs>
+<rect x="0" y="0" width="1100" height="1720" fill="#ffffff"/>
+<rect x="10" y="10" width="1080" height="1700" fill="none" stroke="#1a1a1a" stroke-width="1.4"/>
+<polygon points="10,10 420,10 420,30 408,42 10,42" fill="#ffffff" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="18" y="30" text-anchor="start" font-size="14" font-weight="bold" fill="#1a1a1a">
+<tspan x="18" dy="0">act limesium-reactive-logging :: one HTTP exchange</tspan>
+</text>
+<text x="1080" y="30" text-anchor="end" font-size="11" font-weight="normal" fill="#555" font-style="italic">
+<tspan x="1080" dy="0">Reactor variant (RequestLoggingWebFilter); the coroutine variant follows the identical flow</tspan>
+</text>
+<circle cx="300" cy="70" r="10" fill="#1a1a1a"/>
+<polyline points="300,80 300,100" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<rect x="170" y="100" width="260" height="34" rx="10" ry="10" fill="#fffbe6" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="300" y="120" text-anchor="middle" font-size="13" font-weight="normal" fill="#1a1a1a">
+<tspan x="300" dy="0">WebFilter.filter(exchange, chain)</tspan>
+</text>
+<polyline points="300,134 300,173" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<polygon points="300,173 322,195 300,217 278,195" fill="#ffffff" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="270" y="188" text-anchor="end" font-size="12" font-weight="normal" fill="#1a1a1a" font-style="italic">
+<tspan x="270" dy="0">[path active?]</tspan>
+</text>
+<polyline points="300,217 300,240" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<text x="308" y="232" text-anchor="start" font-size="12" font-weight="normal" fill="#1a1a1a" font-style="italic">
+<tspan x="308" dy="0">[yes]</tspan>
+</text>
+<rect x="150" y="240" width="300" height="98" rx="10" ry="10" fill="#fffbe6" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="300" y="260" text-anchor="middle" font-size="13" font-weight="bold" fill="#1a1a1a">
+<tspan x="300" dy="0">Wire exchange</tspan>
+</text>
+<text x="300" y="276" text-anchor="middle" font-size="12" font-weight="normal" fill="#1a1a1a">
+<tspan x="300" dy="0">correlation id (header | generated), echo on response</tspan>
+</text>
+<text x="300" y="292" text-anchor="middle" font-size="12" font-weight="normal" fill="#1a1a1a">
+<tspan x="300" dy="0">body captures + decorators (log | measure)</tspan>
+</text>
+<text x="300" y="308" text-anchor="middle" font-size="12" font-weight="normal" fill="#1a1a1a">
+<tspan x="300" dy="0">traceparent, selected request headers</tspan>
+</text>
+<text x="300" y="324" text-anchor="middle" font-size="12" font-weight="normal" fill="#1a1a1a">
+<tspan x="300" dy="0">startNanos, gauge exchanges.open += 1</tspan>
+</text>
+<polyline points="300,338 300,338" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<polygon points="300,338 322,360 300,382 278,360" fill="#ffffff" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="270" y="353" text-anchor="end" font-size="12" font-weight="normal" fill="#1a1a1a" font-style="italic">
+<tspan x="270" dy="0">[wiring ok?]</tspan>
+</text>
+<polyline points="300,382 300,402" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<text x="308" y="397" text-anchor="start" font-size="12" font-weight="normal" fill="#1a1a1a" font-style="italic">
+<tspan x="308" dy="0">[yes]</tspan>
+</text>
+<polygon points="300,402 322,424 300,446 278,424" fill="#ffffff" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="270" y="417" text-anchor="end" font-size="12" font-weight="normal" fill="#1a1a1a" font-style="italic">
+<tspan x="270" dy="0">[log-request-start?]</tspan>
+</text>
+<polyline points="300,446 300,482" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<text x="308" y="468" text-anchor="start" font-size="12" font-weight="normal" fill="#1a1a1a" font-style="italic">
+<tspan x="308" dy="0">[no]</tspan>
+</text>
+<polygon points="300,478 322,500 300,522 278,500" fill="#ffffff" stroke="#1a1a1a" stroke-width="1.4"/>
+<polyline points="300,522 300,545" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<rect x="100" y="545" width="400" height="82" rx="10" ry="10" fill="#fffbe6" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="300" y="565" text-anchor="middle" font-size="13" font-weight="bold" fill="#1a1a1a">
+<tspan x="300" dy="0">Run the chain</tspan>
+</text>
+<text x="300" y="581" text-anchor="middle" font-size="12" font-weight="normal" fill="#1a1a1a">
+<tspan x="300" dy="0">Mono.defer { chain.filter(mutatedExchange) }</tspan>
+</text>
+<text x="300" y="597" text-anchor="middle" font-size="12" font-weight="normal" fill="#1a1a1a">
+<tspan x="300" dy="0">.doOnError / .doOnCancel / .doFinally</tspan>
+</text>
+<text x="300" y="613" text-anchor="middle" font-size="12" font-weight="normal" fill="#1a1a1a">
+<tspan x="300" dy="0">.contextWrite(endpoint_request_id, endpoint_method, endpoint_route)</tspan>
+</text>
+<polyline points="300,627 300,665" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<rect x="150" y="665" width="300" height="50" rx="10" ry="10" fill="#fffbe6" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="300" y="685" text-anchor="middle" font-size="13" font-weight="normal" fill="#1a1a1a">
+<tspan x="300" dy="0">Terminal signal: read handler template</tspan>
+</text>
+<text x="300" y="701" text-anchor="middle" font-size="13" font-weight="normal" fill="#1a1a1a">
+<tspan x="300" dy="0">(HandlerMapping.bestMatchingPattern)</tspan>
+</text>
+<polyline points="300,715 300,748" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<polygon points="300,748 322,770 300,792 278,770" fill="#ffffff" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="330" y="763" text-anchor="start" font-size="12" font-weight="normal" fill="#1a1a1a" font-style="italic">
+<tspan x="330" dy="0">[signal?]</tspan>
+</text>
+<polyline points="300,792 300,878" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<text x="308" y="840" text-anchor="start" font-size="12" font-weight="normal" fill="#1a1a1a" font-style="italic">
+<tspan x="308" dy="0">[COMPLETE]</tspan>
+</text>
+<polygon points="300,878 322,900 300,922 278,900" fill="#ffffff" stroke="#1a1a1a" stroke-width="1.4"/>
+<polyline points="300,922 300,998" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<polygon points="300,998 322,1020 300,1042 278,1020" fill="#ffffff" stroke="#1a1a1a" stroke-width="1.4"/>
+<polyline points="300,1042 300,1128" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<polygon points="300,1128 322,1150 300,1172 278,1150" fill="#ffffff" stroke="#1a1a1a" stroke-width="1.4"/>
+<polyline points="300,1172 300,1253" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<polygon points="300,1253 322,1275 300,1297 278,1275" fill="#ffffff" stroke="#1a1a1a" stroke-width="1.4"/>
+<polyline points="300,1297 300,1320" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<rect x="170" y="1320" width="260" height="34" rx="10" ry="10" fill="#fffbe6" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="300" y="1340" text-anchor="middle" font-size="13" font-weight="normal" fill="#1a1a1a">
+<tspan x="300" dy="0">complete(exchange)</tspan>
+</text>
+<polyline points="300,1354 300,1388" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<polygon points="300,1388 322,1410 300,1432 278,1410" fill="#ffffff" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="270" y="1403" text-anchor="end" font-size="12" font-weight="normal" fill="#1a1a1a" font-style="italic">
+<tspan x="270" dy="0">[state CAS -&gt; COMPLETED won?]</tspan>
+</text>
+<polyline points="322,1410 520,1410" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<text x="340" y="1403" text-anchor="start" font-size="12" font-weight="normal" fill="#1a1a1a" font-style="italic">
+<tspan x="340" dy="0">[no]</tspan>
+</text>
+<circle cx="532" cy="1410" r="11" fill="#ffffff" stroke="#1a1a1a" stroke-width="1.4"/><line x1="525" y1="1403" x2="539" y2="1417" stroke="#1a1a1a" stroke-width="1.4"/><line x1="525" y1="1417" x2="539" y2="1403" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="532" y="1440" text-anchor="middle" font-size="11" font-weight="normal" fill="#555">
+<tspan x="532" dy="0">already completed</tspan>
+<tspan x="532" dy="14">(terminal / commit race)</tspan>
+</text>
+<polyline points="300,1432 300,1465" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<text x="308" y="1455" text-anchor="start" font-size="12" font-weight="normal" fill="#1a1a1a" font-style="italic">
+<tspan x="308" dy="0">[yes]</tspan>
+</text>
+<rect x="170" y="1465" width="260" height="34" rx="10" ry="10" fill="#fffbe6" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="300" y="1485" text-anchor="middle" font-size="13" font-weight="normal" fill="#1a1a1a">
+<tspan x="300" dy="0">Gauge exchanges.open -= 1</tspan>
+</text>
+<polyline points="300,1499 300,1530" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<rect x="140" y="1530" width="320" height="114" rx="10" ry="10" fill="#fffbe6" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="300" y="1550" text-anchor="middle" font-size="13" font-weight="bold" fill="#1a1a1a">
+<tspan x="300" dy="0">Emit exchange event</tspan>
+</text>
+<text x="300" y="1566" text-anchor="middle" font-size="12" font-weight="normal" fill="#1a1a1a">
+<tspan x="300" dy="0">freeze body captures</tspan>
+</text>
+<text x="300" y="1582" text-anchor="middle" font-size="12" font-weight="normal" fill="#1a1a1a">
+<tspan x="300" dy="0">duration, status, outcome, level</tspan>
+</text>
+<text x="300" y="1598" text-anchor="middle" font-size="12" font-weight="normal" fill="#1a1a1a">
+<tspan x="300" dy="0">record body metrics (size, read state)</tspan>
+</text>
+<text x="300" y="1614" text-anchor="middle" font-size="12" font-weight="normal" fill="#1a1a1a">
+<tspan x="300" dy="0">level gate; MdcScope (identity + trace)</tspan>
+</text>
+<text x="300" y="1630" text-anchor="middle" font-size="12" font-weight="normal" fill="#1a1a1a">
+<tspan x="300" dy="0">log() on the exchange logger; events counter</tspan>
+</text>
+<polyline points="300,1644 300,1668" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<circle cx="300" cy="1682" r="12" fill="#ffffff" stroke="#1a1a1a" stroke-width="1.4"/><circle cx="300" cy="1682" r="7" fill="#1a1a1a"/>
+<polyline points="322,195 678,195" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<text x="340" y="188" text-anchor="start" font-size="12" font-weight="normal" fill="#1a1a1a" font-style="italic">
+<tspan x="340" dy="0">[no]</tspan>
+</text>
+<polygon points="700,173 722,195 700,217 678,195" fill="#ffffff" stroke="#1a1a1a" stroke-width="1.4"/>
+<polyline points="700,217 700,240" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<rect x="570" y="240" width="260" height="50" rx="10" ry="10" fill="#fffbe6" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="700" y="260" text-anchor="middle" font-size="13" font-weight="normal" fill="#1a1a1a">
+<tspan x="700" dy="0">Pass through: chain.filter(exchange)</tspan>
+</text>
+<text x="700" y="276" text-anchor="middle" font-size="13" font-weight="normal" fill="#1a1a1a">
+<tspan x="700" dy="0">(no event, no MDC, no gauge)</tspan>
+</text>
+<polyline points="700,290 700,320" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<circle cx="700" cy="334" r="12" fill="#ffffff" stroke="#1a1a1a" stroke-width="1.4"/><circle cx="700" cy="334" r="7" fill="#1a1a1a"/>
+<polyline points="322,360 850,360" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<text x="340" y="353" text-anchor="start" font-size="12" font-weight="normal" fill="#1a1a1a" font-style="italic">
+<tspan x="340" dy="0">[no]</tspan>
+</text>
+<rect x="850" y="340" width="220" height="50" rx="10" ry="10" fill="#fffbe6" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="960" y="360" text-anchor="middle" font-size="13" font-weight="normal" fill="#1a1a1a">
+<tspan x="960" dy="0">Count failopen{stage=wiring}</tspan>
+</text>
+<text x="960" y="376" text-anchor="middle" font-size="13" font-weight="normal" fill="#1a1a1a">
+<tspan x="960" dy="0">log error</tspan>
+</text>
+<polyline points="960,340 960,195 722,195" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<polyline points="322,424 570,424" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<text x="340" y="417" text-anchor="start" font-size="12" font-weight="normal" fill="#1a1a1a" font-style="italic">
+<tspan x="340" dy="0">[yes]</tspan>
+</text>
+<rect x="570" y="404" width="260" height="50" rx="10" ry="10" fill="#fffbe6" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="700" y="424" text-anchor="middle" font-size="13" font-weight="normal" fill="#1a1a1a">
+<tspan x="700" dy="0">Emit arrival line</tspan>
+</text>
+<text x="700" y="440" text-anchor="middle" font-size="13" font-weight="normal" fill="#1a1a1a">
+<tspan x="700" dy="0">(INFO, inside MdcScope)</tspan>
+</text>
+<polyline points="700,454 700,500 322,500" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<polygon points="570,545 1058,545 1070,557 1070,604 570,604" fill="#f4f4f4" stroke="#555" stroke-width="1"/><polyline points="1058,545 1058,557 1070,557" fill="none" stroke="#555" stroke-width="1"/>
+<text x="578" y="562" text-anchor="start" font-size="11.5" font-weight="normal" fill="#333">
+<tspan x="578" dy="0">CoRequestLoggingWebFilter: identical flow and the same ExchangeLifecycle;</tspan>
+</text>
+<text x="578" y="577" text-anchor="start" font-size="11.5" font-weight="normal" fill="#333">
+<tspan x="578" dy="0">signals come from try/catch (CancellationException -&gt; CANCEL, Throwable -&gt; ERROR,</tspan>
+</text>
+<text x="578" y="592" text-anchor="start" font-size="11.5" font-weight="normal" fill="#333">
+<tspan x="578" dy="0">both rethrown) and the chain runs inside withContext(MDCContext(ambient + identity)).</tspan>
+</text>
+<polyline points="278,770 110,770 110,790" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<text x="270" y="763" text-anchor="end" font-size="12" font-weight="normal" fill="#1a1a1a" font-style="italic">
+<tspan x="270" dy="0">[CANCEL]</tspan>
+</text>
+<rect x="20" y="790" width="180" height="34" rx="10" ry="10" fill="#fffbe6" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="110" y="810" text-anchor="middle" font-size="13" font-weight="normal" fill="#1a1a1a">
+<tspan x="110" dy="0">Mark cancelled</tspan>
+</text>
+<polyline points="110,824 110,900 278,900" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<polyline points="322,770 700,770 700,790" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<text x="640" y="763" text-anchor="start" font-size="12" font-weight="normal" fill="#1a1a1a" font-style="italic">
+<tspan x="640" dy="0">[ERROR]</tspan>
+</text>
+<rect x="570" y="790" width="260" height="50" rx="10" ry="10" fill="#fffbe6" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="700" y="810" text-anchor="middle" font-size="13" font-weight="normal" fill="#1a1a1a">
+<tspan x="700" dy="0">Record failure;</tspan>
+</text>
+<text x="700" y="826" text-anchor="middle" font-size="13" font-weight="normal" fill="#1a1a1a">
+<tspan x="700" dy="0">WARN breadcrumb on the module logger</tspan>
+</text>
+<polyline points="700,840 700,878" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<polygon points="700,878 722,900 700,922 678,900" fill="#ffffff" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="730" y="893" text-anchor="start" font-size="12" font-weight="normal" fill="#1a1a1a" font-style="italic">
+<tspan x="730" dy="0">[response committed?]</tspan>
+</text>
+<polyline points="678,900 322,900" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<text x="640" y="893" text-anchor="end" font-size="12" font-weight="normal" fill="#1a1a1a" font-style="italic">
+<tspan x="640" dy="0">[yes]</tspan>
+</text>
+<polyline points="700,922 700,945" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<text x="708" y="938" text-anchor="start" font-size="12" font-weight="normal" fill="#1a1a1a" font-style="italic">
+<tspan x="708" dy="0">[no]</tspan>
+</text>
+<rect x="570" y="945" width="260" height="50" rx="10" ry="10" fill="#fffbe6" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="700" y="965" text-anchor="middle" font-size="13" font-weight="normal" fill="#1a1a1a">
+<tspan x="700" dy="0">Register beforeCommit callback</tspan>
+</text>
+<text x="700" y="981" text-anchor="middle" font-size="13" font-weight="normal" fill="#1a1a1a">
+<tspan x="700" dy="0">(behind every action the chain registered)</tspan>
+</text>
+<polyline points="700,995 700,998" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<polygon points="700,998 722,1020 700,1042 678,1020" fill="#ffffff" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="730" y="1013" text-anchor="start" font-size="12" font-weight="normal" fill="#1a1a1a" font-style="italic">
+<tspan x="730" dy="0">[callback armed?]</tspan>
+</text>
+<polyline points="678,1020 322,1020" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<text x="640" y="1013" text-anchor="end" font-size="12" font-weight="normal" fill="#1a1a1a" font-style="italic">
+<tspan x="640" dy="0">[no]</tspan>
+</text>
+<polyline points="700,1042 700,1065" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<text x="708" y="1058" text-anchor="start" font-size="12" font-weight="normal" fill="#1a1a1a" font-style="italic">
+<tspan x="708" dy="0">[yes]</tspan>
+</text>
+<rect x="570" y="1065" width="260" height="34" rx="10" ry="10" fill="#fffbe6" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="700" y="1085" text-anchor="middle" font-size="13" font-weight="normal" fill="#1a1a1a">
+<tspan x="700" dy="0">state := AWAITING_COMMIT</tspan>
+</text>
+<polyline points="700,1099 700,1128" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<polygon points="700,1128 722,1150 700,1172 678,1150" fill="#ffffff" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="730" y="1143" text-anchor="start" font-size="12" font-weight="normal" fill="#1a1a1a" font-style="italic">
+<tspan x="730" dy="0">[committed meanwhile?]</tspan>
+</text>
+<polyline points="678,1150 322,1150" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<text x="640" y="1143" text-anchor="end" font-size="12" font-weight="normal" fill="#1a1a1a" font-style="italic">
+<tspan x="640" dy="0">[yes]</tspan>
+</text>
+<polyline points="700,1172 700,1200" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<text x="708" y="1188" text-anchor="start" font-size="12" font-weight="normal" fill="#1a1a1a" font-style="italic">
+<tspan x="708" dy="0">[no]</tspan>
+</text>
+<polygon points="570,1200 830,1200 830,1250 570,1250 586,1225" fill="#eef5ff" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="708" y="1220" text-anchor="middle" font-size="13" font-weight="normal" fill="#1a1a1a">
+<tspan x="708" dy="0">Response commit</tspan>
+</text>
+<text x="708" y="1236" text-anchor="middle" font-size="13" font-weight="normal" fill="#1a1a1a">
+<tspan x="708" dy="0">(beforeCommit callback runs)</tspan>
+</text>
+<polyline points="700,1250 700,1255" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<rect x="570" y="1255" width="260" height="34" rx="10" ry="10" fill="#fffbe6" stroke="#1a1a1a" stroke-width="1.4"/>
+<text x="700" y="1275" text-anchor="middle" font-size="13" font-weight="normal" fill="#1a1a1a">
+<tspan x="700" dy="0">Capture committedStatus</tspan>
+</text>
+<polyline points="570,1275 322,1275" fill="none" stroke="#1a1a1a" stroke-width="1.4" marker-end="url(#arrow)"/>
+<polygon points="850,1195 1058,1195 1070,1207 1070,1314 850,1314" fill="#f4f4f4" stroke="#555" stroke-width="1"/><polyline points="1058,1195 1058,1207 1070,1207" fill="none" stroke="#555" stroke-width="1"/>
+<text x="858" y="1212" text-anchor="start" font-size="11.5" font-weight="normal" fill="#333">
+<tspan x="858" dy="0">A commit that never happens</tspan>
+</text>
+<text x="858" y="1227" text-anchor="start" font-size="11.5" font-weight="normal" fill="#333">
+<tspan x="858" dy="0">(connection died while rendering,</tspan>
+</text>
+<text x="858" y="1242" text-anchor="start" font-size="11.5" font-weight="normal" fill="#333">
+<tspan x="858" dy="0">an earlier commit action failed)</tspan>
+</text>
+<text x="858" y="1257" text-anchor="start" font-size="11.5" font-weight="normal" fill="#333">
+<tspan x="858" dy="0">leaves the exchange in</tspan>
+</text>
+<text x="858" y="1272" text-anchor="start" font-size="11.5" font-weight="normal" fill="#333">
+<tspan x="858" dy="0">AWAITING_COMMIT: no event, still</tspan>
+</text>
+<text x="858" y="1287" text-anchor="start" font-size="11.5" font-weight="normal" fill="#333">
+<tspan x="858" dy="0">open on the gauge - the liveness</tspan>
+</text>
+<text x="858" y="1302" text-anchor="start" font-size="11.5" font-weight="normal" fill="#333">
+<tspan x="858" dy="0">signal, never a wrong status.</tspan>
+</text>
+<polyline points="830,1218 850,1218" fill="none" stroke="#555" stroke-width="1" stroke-dasharray="4,3"/>
+<polygon points="570,1530 1058,1530 1070,1542 1070,1604 570,1604" fill="#f4f4f4" stroke="#555" stroke-width="1"/><polyline points="1058,1530 1058,1542 1070,1542" fill="none" stroke="#555" stroke-width="1"/>
+<text x="578" y="1547" text-anchor="start" font-size="11.5" font-weight="normal" fill="#333">
+<tspan x="578" dy="0">Fail-open everywhere: every host call (MDC adapter, appender, MeterRegistry,</tspan>
+</text>
+<text x="578" y="1562" text-anchor="start" font-size="11.5" font-weight="normal" fill="#333">
+<tspan x="578" dy="0">response facade) is guarded. A failure is counted on endpoint.logging.failopen</tspan>
+</text>
+<text x="578" y="1577" text-anchor="start" font-size="11.5" font-weight="normal" fill="#333">
+<tspan x="578" dy="0">(stage = wiring | arrival | emission), reported on the module's own logger, and</tspan>
+</text>
+<text x="578" y="1592" text-anchor="start" font-size="11.5" font-weight="normal" fill="#333">
+<tspan x="578" dy="0">never reaches the request. Emission and gauge-close are exactly-once.</tspan>
+</text>
+<polyline points="460,1580 570,1580" fill="none" stroke="#555" stroke-width="1" stroke-dasharray="4,3"/>
+</svg>
