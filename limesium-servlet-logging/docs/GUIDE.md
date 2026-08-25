@@ -212,7 +212,7 @@ Fifteen Kotlin files in one package, `eu.inqudium.limesium.servlet.logging`, in 
 | `EndpointMdcCallableInterceptor` | Restores the `endpoint_*` MDC on the Spring MVC `Callable`/`WebAsyncTask` worker thread. |
 | `ExchangeLogEmitter` | Builds and emits the arrival line and the completion event; resolves level, outcome and cause; records body sizes; opens the emission `MdcScope` with trace ownership. |
 | `EndpointLogField` | The wire names and the exact JVM type of each structured field; a wrongly typed value drops the field with a warning, never the event. |
-| `EndpointLoggingMetrics` | The five meters, pre-registered, with per-meter fallback to a private registry on registration conflict. |
+| `EndpointLoggingMetrics` | The six meters - the fixed-tag meters pre-registered, the body meters created lazily per tag - with per-meter fallback to a private registry on registration conflict. |
 | `CapturingRequestWrapper` / `CapturingResponseWrapper` | The servlet stream/reader and stream/writer tees. |
 | `BoundedBodyCapture` | The bounded capture target; count-only mode with limit `0`; the request-side read state (`BodyReadState`); single-writer/late-reader visibility via a volatile total. |
 | `MdcScope` | Puts identity (and, for the emission, trace keys) into the MDC and restores the previous values on close. |
@@ -469,7 +469,7 @@ The current release is shown live by the Maven Central badge:
 
 That is all: the auto-configuration registers the filter and the listener, every exchange is logged on
 the `http-exchange` logger at INFO, the correlation id is read from / echoed on `X-Correlation-Id`, the
-`endpoint_*` keys are in the MDC for the chain, and the five meters are registered in the host's
+`endpoint_*` keys are in the MDC for the chain, and the six meters are registered in the host's
 `MeterRegistry` if one exists.
 
 To remove the module again without touching the classpath:
@@ -555,7 +555,7 @@ Logback ≥ 1.3 renders the key-value pairs with the `%kvp` conversion word and 
 ```xml
 <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
     <encoder>
-        <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg %kvp{NONE} [%mdc]%n</pattern>
+        <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg %kvp{NONE} [%mdc]%n</pattern>
     </encoder>
 </appender>
 ```
@@ -695,7 +695,7 @@ identical across the stacks (the twin adds one reactive-only key, `variant`, whi
 | `include-query-string` | boolean | `true` | Log the query string as its own field `endpoint_url_query` (never part of the path). Disable when query parameters may carry personal data. |
 | `log-request-start` | boolean | `false` | Additionally log an arrival line before the chain runs, at INFO, inside the chain MDC scope. Carries no outcome/status/duration. |
 | `include-path-patterns` | list of `PathPattern` | `[]` | Endpoints the filter is active for at all; empty = every endpoint. Parsed once at startup; an invalid pattern fails the context. |
-| `exclude-path-prefixes` | list of strings | `[]` | Request-URI prefixes the filter skips entirely — no event, no MDC, no correlation echo, no gauge movement. Plain `startsWith`. An exclude always wins over an include. |
+| `exclude-path-prefixes` | list of strings | `[]` | Request-URI prefixes the filter skips entirely — no event, no MDC, no correlation echo, no gauge movement. Prefix match against the decoded request path. An exclude always wins over an include. |
 | `slow-request-threshold` | duration | `5s` | At/above this duration an INFO exchange escalates to WARN and is flagged `endpoint_slow: true`; the outcome stays `success`. Measured as request occupancy ([§6.2](#62-duration-is-request-occupancy)). Must be ≥ 1 ms. |
 | `request-headers.includes` / `.excludes` / `.masked` | lists of header names | `[]` | See [§4.2](#42-header-sections). |
 | `response-headers.includes` / `.excludes` / `.masked` | lists of header names | `[]` | See [§4.2](#42-header-sections). |
@@ -1140,7 +1140,7 @@ limesium-servlet-logging/
     │   ├── EndpointMdcCallableInterceptor.kt      MDC on the MVC async worker
     │   ├── ExchangeLogEmitter.kt                  arrival line and completion event
     │   ├── EndpointLogFields.kt                   field enum and builder helpers (owns the family)
-    │   ├── EndpointLoggingMetrics.kt              the five meters
+    │   ├── EndpointLoggingMetrics.kt              the six meters
     │   ├── CapturingRequestWrapper.kt             request stream/reader tee
     │   ├── CapturingResponseWrapper.kt            response stream/writer tee
     │   ├── BoundedBodyCapture.kt                  bounded capture target, BodyReadState

@@ -208,7 +208,7 @@ layers:
 | `Exchange` / `ExchangeState` | Per-exchange state between entry and emission; one atomic `OPEN → AWAITING_COMMIT → COMPLETED` state instead of loose flags. |
 | `ExchangeLogEmitter` | Builds and emits the arrival line and the completion event; resolves level and outcome; records body sizes; opens the emission `MdcScope`. |
 | `EndpointLogField` | The wire names and the exact JVM type of each structured field; a wrongly typed value drops the field with a warning, never the event. |
-| `EndpointLoggingMetrics` | The five meters, pre-registered, with per-meter fallback to a private registry on registration conflict. |
+| `EndpointLoggingMetrics` | The six meters - the fixed-tag meters pre-registered, the body meters created lazily per tag - with per-meter fallback to a private registry on registration conflict. |
 | `CapturingRequestDecorator` / `CapturingResponseDecorator` | The `DataBuffer` map-tee around request body reads and response body writes. |
 | `BoundedBodyCapture` | The lock-guarded, freezable capture target; count-only mode with limit `0`; the request-side read state (`BodyReadState`). |
 | `MdcScope` | Puts identity and trace keys into the MDC for the duration of one emission and restores the previous values. |
@@ -465,7 +465,7 @@ The current release is shown live by the Maven Central badge:
 
 That is all: the auto-configuration registers the filter, every exchange is logged on the
 `http-exchange` logger at INFO, the correlation id is read from / echoed on `X-Correlation-Id`, and the
-five meters are registered in the host's `MeterRegistry` if one exists.
+six meters are registered in the host's `MeterRegistry` if one exists.
 
 To remove the module again without touching the classpath:
 
@@ -1159,7 +1159,7 @@ limesium-reactive-logging/
     │   ├── Exchange.kt                            per-exchange state, ExchangeState
     │   ├── ExchangeLogEmitter.kt                  arrival line and completion event
     │   ├── EndpointLogFields.kt                   field enum and builder helpers
-    │   ├── EndpointLoggingMetrics.kt              the five meters
+    │   ├── EndpointLoggingMetrics.kt              the six meters
     │   ├── CapturingDecorators.kt                 request/response DataBuffer tee
     │   ├── BoundedBodyCapture.kt                  bounded, freezable capture target, BodyReadState
     │   ├── Mdc.kt                                 MdcKeys, TraceMdcKeys, MdcScope
