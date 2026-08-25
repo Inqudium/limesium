@@ -22,6 +22,36 @@
         service's own boundary (the "limes"). Two paradigm twins with identical fields and
         configuration: a servlet filter and a WebFlux/coroutines web filter.
     </description>
+    <url>https://github.com/dirkjink/limesium</url>
+    <inceptionYear>2026</inceptionYear>
+
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <id>dirkjink</id>
+            <name>Dirk Haase</name>
+            <email>dirkjink@posteo.de</email>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:https://github.com/dirkjink/limesium.git</connection>
+        <developerConnection>scm:git:git@github.com:dirkjink/limesium.git</developerConnection>
+        <url>https://github.com/dirkjink/limesium</url>
+        <tag>HEAD</tag>
+    </scm>
+
+    <issueManagement>
+        <system>GitHub Issues</system>
+        <url>https://github.com/dirkjink/limesium/issues</url>
+    </issueManagement>
 
     <modules>
         <module>limesium-servlet-logging</module>
