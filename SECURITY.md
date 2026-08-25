@@ -10,7 +10,7 @@ Please **do not** report security vulnerabilities through public GitHub issues.
 
 Instead, report them privately via
 [GitHub Security Advisories](https://github.com/dirkjink/limesium/security/advisories/new)
-or by email to **dirkjink@posteo.de**.
+or by email to **limesium@inqudium.eu**.
 
 Please include:
 
