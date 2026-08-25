@@ -1,0 +1,70 @@
+{
+  "template": {
+    "mappings": {
+      "properties": {
+        "endpoint_outcome": {
+          "type": "keyword"
+        },
+        "endpoint_duration_ms": {
+          "type": "long",
+          "meta": {
+            "unit": "ms",
+            "metric_type": "gauge"
+          }
+        },
+        "endpoint_request_method": {
+          "type": "keyword"
+        },
+        "endpoint_response_status_code": {
+          "type": "short"
+        },
+
+        "endpoint_url_template": {
+          "type": "keyword"
+        },
+        "endpoint_url_path": {
+          "type": "keyword",
+          "doc_values": false
+        },
+        "endpoint_url_query": {
+          "type": "keyword",
+          "doc_values": false
+        },
+
+        "endpoint_slow": {
+          "type": "boolean"
+        },
+        "endpoint_async": {
+          "type": "boolean"
+        },
+
+        "endpoint_request_headers": {
+          "type": "keyword",
+          "index": false,
+          "doc_values": false
+        },
+        "endpoint_response_headers": {
+          "type": "keyword",
+          "index": false,
+          "doc_values": false
+        },
+        "endpoint_request_body": {
+          "type": "keyword",
+          "index": false,
+          "doc_values": false
+        },
+        "endpoint_response_body": {
+          "type": "keyword",
+          "index": false,
+          "doc_values": false
+        }
+      }
+    }
+  },
+  "_meta": {
+    "description": "Field mappings for the endpoint_* exchange-log fields emitted by the limesium-servlet-logging module. Unlike the adapter_* template in web-client this is the DEFINITION, not an extract: the family is not yet part of any upstream data-stream mapping, and whoever wires the module into a log pipeline composes this template there. The MDC-carried fields (endpoint_request_id, endpoint_method, endpoint_route, traceId, spanId) are deliberately absent - how MDC entries land in the document is the encoder's decision, not this module's.",
+    "source": "limesium-servlet-logging/docs/elk/README.md",
+    "authority": "limesium-servlet-logging/src/main/kotlin/eu/inqudium/limesium/servlet/logging/EndpointLogFields.kt",
+    "guide": "logback-kafka-appender/docs/mapping-settings-elastic-search/mapping-guide-neue-felder.md"
+  }
+}
