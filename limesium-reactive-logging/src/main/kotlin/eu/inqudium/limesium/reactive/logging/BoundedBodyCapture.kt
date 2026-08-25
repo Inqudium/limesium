@@ -24,7 +24,7 @@ import kotlin.concurrent.withLock
  * itself instead of relying on a single-writer assumption: every mutation and every read runs under
  * one uncontended [ReentrantLock], and the emitter calls [freeze] FIRST - from then on the capture is
  * immutable, a late tee call is a no-op, and the logged body and the size sample are one consistent
- * snapshot instead of a moving target (finding 1 of CODE_ANALYSIS-2026-08-22T16-35-46.md).
+ * snapshot instead of a moving target (finding 1 of an internal code analysis).
  *
  * With `maxBytes = 0` the capture runs in COUNT-ONLY mode: nothing is buffered, [totalBytes] still
  * counts every byte - the mode the body-size metrics use when body logging is off. The tee is fed from
@@ -180,7 +180,7 @@ enum class BodyReadState(
 /**
  * Decodes a byte-bounded PREFIX of a text: the capture limit bounds bytes, not characters, so the cut can
  * fall inside a multi-byte sequence; decoded as a whole, that incomplete tail would render as a
- * replacement character and corrupt the logged prefix (finding 8 of CODE_ANALYSIS-2026-08-22T20-06-45.md).
+ * replacement character and corrupt the logged prefix (finding 8 of an internal code analysis).
  * Decoding with `endOfInput = false` leaves an incomplete trailing sequence undecoded (underflow) instead
  * of reporting it as malformed; malformed bytes INSIDE the prefix are still replaced, as `String(bytes,
  * charset)` would. Shared by both endpoint-logging twins.

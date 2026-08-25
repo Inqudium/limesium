@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.AtomicLong
  * body-size registration would suppress the exchange event. Every registration therefore falls back to a
  * private [SimpleMeterRegistry] for the conflicting meter, logged once per meter name: the module keeps
  * working and the affected meter is simply not exported (twin parity with the reactive module's
- * finding 2 of CODE_ANALYSIS-2026-08-22T16-35-46.md).
+ * finding 2 of an internal code analysis).
  */
 internal class EndpointLoggingMetrics(
     private val meterRegistry: MeterRegistry,
@@ -132,7 +132,7 @@ internal class EndpointLoggingMetrics(
     /**
      * Counts one EMITTED exchange event; [outcome] must be one of the [OUTCOME_SUCCESS] family. Guarded:
      * the event is already on the logger when this runs, so a failing host counter must neither be
-     * reported as a lost emission nor disturb the caller (finding 4 of CODE_ANALYSIS-2026-08-22T23-19-06.md).
+     * reported as a lost emission nor disturb the caller (finding 4 of an internal code analysis).
      */
     fun eventEmitted(outcome: String) = updateQuietly(EVENTS_METER) { eventCounters.getValue(outcome).increment() }
 

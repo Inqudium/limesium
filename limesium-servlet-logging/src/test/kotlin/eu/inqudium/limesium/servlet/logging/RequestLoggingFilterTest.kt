@@ -265,7 +265,7 @@ class RequestLoggingFilterTest {
         @Test
         fun `should compare the slow threshold at full precision instead of truncated milliseconds`() {
             // What is tested: twin parity with the reactive module's threshold fix (its finding 4,
-            //   2026-08-22T16-35-46 analysis) - a 1.5 ms threshold used to truncate to 1 ms and flag a
+            //   internal analysis) - a 1.5 ms threshold used to truncate to 1 ms and flag a
             //   1 ms exchange.
             // Success criteria: 1.0 ms is NOT slow, 1.5 ms IS slow, under a 1.5 ms threshold.
             // Why it matters: both twins must classify identically, or the same request would be WARN on
@@ -528,7 +528,7 @@ class RequestLoggingFilterTest {
 
             // Then: it fails fast with the PARSER's exception, and the diagnostic names the malformed
             //   pattern - a bare non-null check would pass for any unrelated constructor failure
-            //   (assessment finding 13, 2026-08-22 analysis).
+            //   (review finding 13).
             assertThat(thrown).isInstanceOf(PatternParseException::class.java)
             assertThat((thrown as PatternParseException).toDetailedString())
                 .contains("/api/{unclosed")
@@ -537,7 +537,7 @@ class RequestLoggingFilterTest {
         @Test
         fun `should exclude a percent-encoded variant of an excluded prefix`() {
             // What is tested: the exclude rule sees the request target the way the router does (finding
-            //   1 of SECURITY_AUDIT-2026-08-23T13-26-06.md) - a byte-wise startsWith on the raw URI let
+            //   1 of an internal security audit) - a byte-wise startsWith on the raw URI let
             //   `/%61ctuator/health` through although the container serves it as /actuator/health.
             // Success criteria: the encoded variant produces no event, exactly like the plain one.
             // Why it matters: operators exclude paths to keep probes out of the log - or to keep

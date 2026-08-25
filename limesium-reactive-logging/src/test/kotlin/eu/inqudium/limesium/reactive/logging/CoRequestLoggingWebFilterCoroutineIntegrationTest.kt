@@ -54,7 +54,7 @@ import java.time.Duration
  * auto-configuration must NOT install while this variant owns the slot.
  *
  * Determinism: pinned time and id beans; events awaited via [AwaitingAppender]. FLAT class with an inner
- * static configuration - see the Spring Boot test isolation caveat in CLAUDE.md.
+ * static configuration - see the Spring Boot test isolation caveat.
  */
 @SpringBootTest(
     classes = [CoRequestLoggingWebFilterCoroutineIntegrationTest.ItApp::class],
@@ -122,7 +122,7 @@ class CoRequestLoggingWebFilterCoroutineIntegrationTest {
         // Success criteria: exactly one EndpointLoggingFilter bean, of the coroutine type; no Reactor
         //   filter; no endpoint_* accessor in the JVM-global ContextRegistry.
         // Why it matters: accessors registered alongside the coroutine variant would be dead weight at
-        //   best and a false startup warning at worst (finding 8 of CODE_ANALYSIS-2026-08-22T16-35-46.md).
+        //   best and a false startup warning at worst (finding 8 of an internal code analysis).
         // Given/When: the application started with the coroutine variant demanded
         // Then: the coroutine filter owns the slot, the Reactor variant is absent, no accessors registered
         assertThat(context.getBeansOfType(EndpointLoggingFilter::class.java).values)

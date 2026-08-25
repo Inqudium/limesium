@@ -9,7 +9,7 @@ import java.util.concurrent.Callable
  * Restores the `endpoint_*` MDC identity on the Spring MVC async WORKER thread: the filter's chain
  * scope closes as soon as `doFilter` returns, but a `Callable`/`WebAsyncTask` controller keeps working
  * on an MVC task-executor thread afterwards - its application logs carried no correlation keys although
- * the module advertises request identity in MDC while the request is handled (finding 2 of CODE_ANALYSIS-2026-08-22.md).
+ * the module advertises request identity in MDC while the request is handled (finding 2 of an internal code analysis).
  *
  * Spring MVC invokes [preProcess] on exactly that worker thread immediately before the task and
  * [postProcess] on the same thread immediately after (applied in a `finally` around the invocation), so

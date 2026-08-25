@@ -17,7 +17,7 @@ code under `src/main/kotlin/eu/inqudium/limesium/servlet/logging/`; when the two
    1. [What the module does](#11-what-the-module-does)
    2. [What the module deliberately does not do](#12-what-the-module-deliberately-does-not-do)
    3. [The exchange line](#13-the-exchange-line)
-   4. [Predecessor and the reactive twin](#14-predecessor-and-the-reactive-twin)
+   4. [The reactive twin](#14-the-reactive-twin)
 2. [Architecture](#2-architecture)
    1. [Component overview](#21-component-overview)
    2. [Auto-configuration and registration](#22-auto-configuration-and-registration)
@@ -35,8 +35,7 @@ code under `src/main/kotlin/eu/inqudium/limesium/servlet/logging/`; when the two
    4. [Overriding beans](#34-overriding-beans)
    5. [Logging backend and structured output](#35-logging-backend-and-structured-output)
    6. [Index mapping (ELK)](#36-index-mapping-elk)
-   7. [Migrating from common-web's LoggingFilter](#37-migrating-from-common-webs-loggingfilter)
-   8. [Verifying the integration](#38-verifying-the-integration)
+   7. [Verifying the integration](#37-verifying-the-integration)
 4. [Configuration](#4-configuration)
    1. [Property reference](#41-property-reference)
    2. [Header sections](#42-header-sections)
@@ -101,8 +100,8 @@ emission, metrics — can ever fail, delay or alter the request it describes.
 - **No request rates, latencies or status distributions as metrics.** Boot's `http.server.requests` and
   the structured log fields cover those; the module's meters observe only what those cannot show
   ([§5.4](#54-meters)).
-- **No body masking transformers and no per-key response sampling.** Both existed in the predecessor
-  and were dropped on purpose; bodies are logged verbatim up to the capture limit, and the logger level
+- **No body masking transformers and no per-key response sampling.** Both were considered
+  and dropped on purpose; bodies are logged verbatim up to the capture limit, and the logger level
   is the only volume control ([§4.5](#45-logger-levels)).
 - **No replaying body cache.** The tee is passive; an unread request body is logged as absent.
 - **No exporting of a `MeterRegistry`.** The host's registry is consumed if present; otherwise a private
@@ -156,15 +155,9 @@ Endpoint http exchange started GET /api/things/42 [endpoint_request_id=0f7c1a2e-
 The arrival line carries no outcome, status or duration, so a dashboard keyed on `endpoint_outcome`
 still sees exactly one event per exchange.
 
-### 1.4 Predecessor and the reactive twin
+### 1.4 The reactive twin
 
-The module is the **successor of the `LoggingFilter` family in `common-web`** — a redesign around the
-repository's principles, not a port. The predecessor is superseded and frozen; see
-[`common-web/README.md`](../../common-web/README.md) for its status and the migration steps, and
-[§3.7](#37-migrating-from-common-webs-loggingfilter) for the behavioural differences that matter when
-migrating.
-
-The module is also the **reference implementation** for the reactive twin. It owns the cross-stack
+The module is the **reference implementation** for the reactive twin. It owns the cross-stack
 contract files, and the twin's build binds them:
 
 | Contract | Shipped here | Pinned in the twin by |
@@ -375,7 +368,7 @@ actually reads or writes — no more. A request body the handler never consumes 
 no size sample, even though the client sent one; a body read only partially is captured to exactly that
 extent, and the `[truncated, N bytes total]` note counts what flowed, not `Content-Length`. The same holds
 on the response side: what the application writes through the tee is what the log shows. This is the
-deliberate trade-off against the predecessor's replaying buffer — the log tells the truth about what the
+deliberate trade-off against a replaying buffer — the log tells the truth about what the
 application processed, and streaming stays untouched. Because of that, the log cannot tell a body the client
 sent but the application ignored from one that was never sent; the counter `endpoint.request.body.read`
 ([§5.4](#54-meters)) exists for exactly that distinction.
@@ -465,7 +458,7 @@ YAML, no container are forced onto the host.
 
 ```xml
 <dependency>
-    <groupId>eu.dirk-haase</groupId>
+    <groupId>eu.inqudium</groupId>
     <artifactId>limesium-servlet-logging</artifactId>
     <version>${tool-box.version}</version>
 </dependency>
@@ -653,23 +646,7 @@ field would be mapped dynamically and become searchable, which the payload field
 deliberately prevents. The MDC-carried keys are intentionally not in the template: where they land
 depends on the host's encoder layout; map them where the encoder configuration lives.
 
-### 3.7 Migrating from common-web's LoggingFilter
-
-| Predecessor (`common-web`) | This module | Migration note |
-|---|---|---|
-| `AbstractLoggingFilter` + `LoggingFilter` / async subclass | one final `RequestLoggingFilter` | remove the subclass; configure via properties |
-| 20-parameter constructor, manual registration | Boot auto-configuration, `endpoint-logging.*` | delete the registration code |
-| `System.nanoTime()` inline | injectable `NanoTimeSource` | tests: inject an `AtomicLong`-backed source |
-| static correlation generator | injectable `CorrelationIdGenerator`, header adoption + echo | define a bean if the id format matters |
-| replaying body **cache** (`IN_PROGRESS`/`COMPLETE`) | passive bounded **tee** | unread bodies are now logged as absent; nothing is replayed to the application |
-| home-grown `LogWriter` / `LogMode` / formatter | SLF4J fluent API with `addKeyValue` | structured encoders pick the fields up directly |
-| MDC only as trace-id bridge | `endpoint_request_id` / `endpoint_method` / `endpoint_route` for the whole chain | pattern layouts: `%X{endpoint_request_id}` |
-| separate request log | optional arrival line (`log-request-start`) | outcome-keyed dashboards unaffected |
-| body masking transformers | **dropped** | leave `log-*-body` off for sensitive endpoints |
-| per-key response sampling | **dropped** | use the logger level and path activation |
-| logger name | `http-exchange`, kept | existing routing and level configuration keep working |
-
-### 3.8 Verifying the integration
+### 3.7 Verifying the integration
 
 1. Start the application and call any endpoint:
 
@@ -1004,7 +981,7 @@ The emission scope **owns** the trace keys: a captured id is installed, an uncap
 the scope's lifetime, so a stale id on the pooled destruction thread can never join the event to a
 foreign trace. Without a bridge, nothing is captured and nothing is decorated.
 
-The ids ride the MDC only, never the key-values — the same rule `web-client`'s exchange diary follows —
+The ids ride the MDC only, never the key-values,
 so the log-to-trace join uses Boot's standard `traceId` key. `RequestLoggingFilterTracingIntegrationTest`
 pins the ordering and the scope semantics against a real Brave bridge.
 
@@ -1116,7 +1093,7 @@ one registry inherits this limitation knowingly.
 ### 6.11 Masking is a fingerprint, not a secret
 
 `masked` replaces a header value with `length:sha256-prefix64` — stable, so a masked token can still be
-correlated across events and modules (the reactive twin and `web-client`'s exchange diary use the same
+correlated across events and modules (the reactive twin uses the same
 scheme), and a 64-bit cryptographic prefix makes accidental collisions negligible. It is **unsalted and
 unkeyed**: it prevents plaintext exposure, not offline guessing. A reader with a candidate list
 (usernames, tenant names, short API keys) can confirm a candidate by hashing it. Do not treat `masked` as
@@ -1126,7 +1103,7 @@ a security boundary for guessable values; omit such headers from the selection i
 
 Eleven production files — roughly a thousand lines: field enum, properties and masking, meters, MDC keys,
 event rendering, the injectable interfaces — are near-identical twins of files in
-`limesium-reactive-logging`. There is **no shared base module**, by decision of the 2026-08-22
+`limesium-reactive-logging`. There is **no shared base module**, by decision of the internal
 architecture review:
 
 - an application is either servlet or reactive, so the two copies never share a classpath;
@@ -1147,13 +1124,12 @@ third stack appears or ports stop being occasional.
 ```
 limesium-servlet-logging/
 ├── pom.xml                                   library deps only; servlet API provided
-├── README.md                                 module summary, predecessor table, twin decision
+├── README.md                                 module summary, twin decision
 ├── docs/
 │   ├── GUIDE.md                              this document
 │   ├── activity-diagram.svg                  UML activity diagram of one exchange
 │   ├── endpoint-logging-reference.yml        the complete commented configuration reference (bound by both twins)
-│   ├── elk/                                  component template + README for the endpoint_* fields
-│   └── assessment/                           code analyses, architecture review, style/comment audits
+│   └── elk/                                  component template + README for the endpoint_* fields
 └── src/
     ├── main/kotlin/eu/inqudium/limesium/servlet/logging/
     │   ├── RequestLoggingAutoConfiguration.kt     filter, registration, listener, defaults
@@ -1177,7 +1153,7 @@ limesium-servlet-logging/
 
 ### 7.2 Related documents
 
-- [`README.md`](../README.md) — module summary, the predecessor comparison, the twin decision.
+- [`README.md`](../README.md) — module summary and the twin decision.
 - [`docs/endpoint-logging-reference.yml`](endpoint-logging-reference.yml) — the complete commented
   configuration reference; every key and default, bound by `EndpointLoggingReferenceConfigTest` here and
   in the twin.
@@ -1185,6 +1161,3 @@ limesium-servlet-logging/
   fields and the access pattern behind each mapping decision.
 - [`limesium-reactive-logging/docs/GUIDE.md`](../../limesium-reactive-logging/docs/GUIDE.md) — the
   twin's guide; [§6.1](#61-differences-to-the-reactive-twin) lists every deliberate difference.
-- [`common-web/README.md`](../../common-web/README.md) — the superseded predecessor and its migration
-  notes.
-- [`docs/assessment/`](assessment/) — the analyses whose findings the code comments reference by date.

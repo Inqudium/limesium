@@ -29,14 +29,14 @@ import java.nio.charset.Charset
  * it: [reset]/[resetBuffer], [sendError], and the buffer-clearing [sendRedirect] variants - `sendError`
  * and redirects clear the buffer per the servlet spec WITHOUT calling the reset overrides, so relying on
  * those alone logged discarded pre-error bytes as if delivered (finding 4 of
- * CODE_ANALYSIS-2026-08-22.md). The committed-response rule is documented on [reset].
+ * an internal code analysis). The committed-response rule is documented on [reset].
  *
  * ## Boundary - container error rendering
  *
  * The final body of an error dispatch (Boot's error page after `sendError` or an unhandled exception) is
  * written through the ORIGINAL response: `OncePerRequestFilter` skips the ERROR dispatch, so those bytes
  * bypass this tee and `endpoint_response_body` stays absent for container-rendered error responses -
- * a documented capture boundary, pinned by integration test (finding 4 of CODE_ANALYSIS-2026-08-21.md).
+ * a documented capture boundary, pinned by integration test (finding 4 of an internal code analysis).
  *
  * ## Writer fidelity
  *
@@ -97,7 +97,7 @@ class CapturingResponseWrapper(
      * returned object is stale). The cached tee accessors are dropped in lockstep, so the next accessor
      * call goes through the delegate again - its either-or check, its freshly resolved charset, a fresh
      * capture encoder - instead of handing back a stale tee over a stale delegate object (finding 1 of
-     * CODE_ANALYSIS-2026-08-22T16-49-01.md).
+     * an internal code analysis).
      */
     override fun reset() {
         super.reset()
@@ -113,7 +113,7 @@ class CapturingResponseWrapper(
 
     // sendError and the buffer-clearing redirects reset the DELEGATE's buffer per the servlet spec
     // without traversing reset()/resetBuffer(); the capture must follow the buffer (finding 4 of
-    // CODE_ANALYSIS-2026-08-22.md). Every variant is overridden because HttpServletResponseWrapper
+    // an internal code analysis). Every variant is overridden because HttpServletResponseWrapper
     // delegates each one directly.
 
     override fun sendError(sc: Int) {
@@ -172,7 +172,7 @@ class CapturingResponseWrapper(
         // ONE stateful encoder with the writer's lifecycle: a surrogate half pending at the end of a
         // write chunk stays in the encoder until its partner arrives (or close finalizes it) - the
         // chunk-local String.toByteArray conversion it replaces emitted replacement bytes for every
-        // split sequence (finding 6 of CODE_ANALYSIS-2026-08-21.md).
+        // split sequence (finding 6 of an internal code analysis).
         val captureEncoder =
             OutputStreamWriter(
                 object : OutputStream() {
@@ -211,7 +211,7 @@ class CapturingResponseWrapper(
         // checkError() must also reflect the DELEGATE PrintWriter's suppressed-error state: the servlet
         // container hands out a PrintWriter that swallows IOExceptions into an internal flag, and an
         // outer PrintWriter over the tee would otherwise answer false after the real writer failed
-        // (finding 7 of CODE_ANALYSIS-2026-08-21.md). Note real.checkError() flushes, exactly as it would unwrapped.
+        // (finding 7 of an internal code analysis). Note real.checkError() flushes, exactly as it would unwrapped.
         return object : PrintWriter(tee, false) {
             override fun checkError(): Boolean {
                 val outer = super.checkError()

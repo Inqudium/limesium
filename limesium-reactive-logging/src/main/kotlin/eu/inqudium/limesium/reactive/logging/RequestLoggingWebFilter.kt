@@ -72,7 +72,7 @@ class RequestLoggingWebFilter(
         // Mono.defer: a downstream filter that THROWS while assembling its publisher (instead of
         // returning Mono.error) must become THIS pipeline's error signal - invoked bare, the exception
         // would propagate synchronously past doOnError/doFinally, lose the exchange event and leak the
-        // open-exchange gauge (finding 4 of CODE_ANALYSIS-2026-08-22.md).
+        // open-exchange gauge (finding 4 of an internal code analysis).
         return Mono
             .defer { chain.filter(wiring.mutatedExchange) }
             .doOnError { ex.failure = it }

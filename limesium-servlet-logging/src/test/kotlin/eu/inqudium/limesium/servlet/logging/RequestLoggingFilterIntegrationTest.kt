@@ -55,7 +55,7 @@ import java.util.concurrent.Callable
  * never a sleep.
  *
  * The class is deliberately FLAT and uses an inner static configuration - see the Spring Boot test
- * isolation caveat on @Nested classes in CLAUDE.md. Each test drives its own endpoint, so the shared
+ * isolation caveat on @Nested classes. Each test drives its own endpoint, so the shared
  * context holds no per-test state beyond the appender, which is fresh per test.
  */
 @SpringBootTest(
@@ -78,7 +78,7 @@ class RequestLoggingFilterIntegrationTest {
     private var port: Int = 0
 
     // Every real-HTTP call carries its own deadline: a stalled embedded endpoint must produce a bounded
-    // failing test, not a hung executor (assessment finding 6, 2026-08-22T16-49-01 analysis). The
+    // failing test, not a hung executor (review finding 6). The
     // appender's wait is a SEPARATE bound for the post-response emission.
     private val http: HttpClient = HttpClient.newBuilder().connectTimeout(REQUEST_TIMEOUT).build()
     private lateinit var logger: Logger
@@ -192,13 +192,13 @@ class RequestLoggingFilterIntegrationTest {
     fun `should log a real async exchange after completion with the async flag set`() {
         // What is tested: the genuine servlet async lifecycle - MVC's Callable support calls startAsync,
         //   the response is written on a worker thread, the CONTAINER fires onComplete - AND the
-        //   worker-thread MDC (assessment finding 2, 2026-08-22 analysis): the Callable itself reads its
+        //   worker-thread MDC (review finding 2): the Callable itself reads its
         //   own MDC and echoes the correlation id it saw there, so the response body is the proof that
         //   the identity reached the ASYNC WORKER, not merely the final emitter overlay.
         // Success criteria: the body carries the correlation id the worker observed in ITS MDC; one INFO
         //   event, endpoint_async=true, correct status, correlation id in the event's MDC.
-        // Why it matters: the async path is where the predecessor's synchronous logging silently reported
-        //   wrong data, and worker logs without the identity were finding 2's exact defect - the mock
+        // Why it matters: the async path is where naive synchronous logging silently reports
+        //   wrong data, and worker logs without the identity were review finding 2's exact defect - the mock
         //   test drives the listener by hand, only Tomcat proves the real thread hand-off.
         // Given/When: the real Tomcat application; a real GET against a Callable controller method that echoes its worker MDC
         val response = get("/it/async")
@@ -219,7 +219,7 @@ class RequestLoggingFilterIntegrationTest {
     @Test
     fun `should carry the endpoint MDC into the real async dispatch that renders the result`() {
         // What is tested: the ASYNC-dispatch pass against real Tomcat and real MVC (finding 1 of the
-        //   2026-08-22T19-52-00 analysis) - the Callable's result is rendered in the container's ASYNC
+        //   internal analysis) - the Callable's result is rendered in the container's ASYNC
         //   dispatch, where a ResponseBodyAdvice observes the MDC.
         // Success criteria: the advice appends the correlation id it saw during rendering; the body
         //   therefore carries it twice - from the worker AND from the rendering dispatch.
@@ -271,7 +271,7 @@ class RequestLoggingFilterIntegrationTest {
 
     @Test
     fun `should pin that zero-argument servlet async bypasses the body tee by contract`() {
-        // What is tested: the documented async capture BOUNDARY (assessment finding 3, 2026-08-22
+        // What is tested: the documented async capture BOUNDARY (review finding 3, internal
         //   analysis) - Jakarta Servlet specifies that zero-argument startAsync() initializes its
         //   AsyncContext with the ORIGINAL request/response, so a raw async worker writes beside the
         //   tee; only the wrapper-preserving two-argument path (which Spring MVC uses) captures.
@@ -291,7 +291,7 @@ class RequestLoggingFilterIntegrationTest {
 
     @Test
     fun `should discard buffered output replaced by sendError and log no stale body`() {
-        // What is tested: the sendError half of assessment finding 4 (2026-08-22 analysis) against the
+        // What is tested: the sendError half of review finding 4 (internal analysis) against the
         //   real container - the controller writes into the buffer and then replaces the response via
         //   sendError; the wrapper's sendError override discards the capture with the buffer, and the
         //   rendered error page is written through the ERROR dispatch outside the tee (the documented
@@ -319,7 +319,7 @@ class RequestLoggingFilterIntegrationTest {
     @Test
     fun `should echo the correlation id even on the error-dispatched 500 response`() {
         // What is tested: the client-visible half of the error path - whether the correlation echo set at
-        //   filter entry survives the container's error dispatch (assessment findings 5 and 6).
+        //   filter entry survives the container's error dispatch (review findings 5 and 6).
         // Success criteria: the 500 response carries the X-Correlation-Id header.
         // Why it matters: the reference configuration promises the id is ALWAYS echoed; failures are
         //   exactly the responses a support case needs to correlate.
@@ -356,7 +356,7 @@ class RequestLoggingFilterIntegrationTest {
             .containsEntry("endpoint_response_status_code", 500)
         assertThat(causeMessages(event.throwableProxy)).anySatisfy { assertThat(it).contains("it boom") }
 
-        // And: the documented capture BOUNDARY (assessment findings 4/10, 2026-08-22 analysis) - the
+        // And: the documented capture BOUNDARY (review findings 4/10) - the
         //   error body is rendered by the container's ERROR dispatch through the ORIGINAL response, so
         //   the client receives a body while the event must NOT carry endpoint_response_body although
         //   log-response-body is enabled class-wide. Whoever routes error rendering through an
@@ -402,7 +402,7 @@ class RequestLoggingFilterIntegrationTest {
         /**
          * A RAW servlet using the Servlet-specified zero-argument startAsync(): per spec its
          * AsyncContext holds the ORIGINAL request/response, so its worker writes beside the tee - the
-         * boundary of assessment finding 3, pinned by the raw-async test.
+         * boundary of review finding 3, pinned by the raw-async test.
          */
         @Bean
         fun rawAsyncServlet(): ServletRegistrationBean<HttpServlet> {
@@ -440,7 +440,7 @@ class RequestLoggingFilterIntegrationTest {
         /**
          * A genuinely asynchronous MVC endpoint: startAsync, worker-thread completion, async dispatch.
          * The Callable echoes the correlation id it observes in ITS OWN MDC - the worker-side proof of
-         * the async MDC propagation (finding 2 of CODE_ANALYSIS-2026-08-22.md).
+         * the async MDC propagation (finding 2 of an internal code analysis).
          */
         @GetMapping("/it/async")
         fun async(): Callable<String> = Callable { "async-done:" + (MDC.get(MdcKeys.REQUEST_ID) ?: "absent") }
@@ -461,7 +461,7 @@ class RequestLoggingFilterIntegrationTest {
                 )
             }
 
-        /** Writes into the buffer, then replaces the response via sendError - assessment finding 4. */
+        /** Writes into the buffer, then replaces the response via sendError - review finding 4. */
         @GetMapping("/it/partial-error")
         fun partialError(response: HttpServletResponse) {
             response.outputStream.write("partial".toByteArray())

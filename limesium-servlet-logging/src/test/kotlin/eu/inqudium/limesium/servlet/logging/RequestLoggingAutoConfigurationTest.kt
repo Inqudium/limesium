@@ -15,7 +15,7 @@ import org.springframework.context.annotation.Configuration
  * Contract of [RequestLoggingAutoConfiguration]: present by default in a servlet web application,
  * removable by property, and every bean overridable by the host. Uses Boot's [WebApplicationContextRunner]
  * (a real context, no mocking); kept FLAT deliberately - see the Spring Boot test isolation caveat on
- * nested classes in CLAUDE.md.
+ * nested classes.
  */
 class RequestLoggingAutoConfigurationTest {
     private val contextRunner =

@@ -19,7 +19,7 @@ import java.nio.charset.CodingErrorAction
  * established by THIS class, not borrowed from container internals: [totalBytes] is `@Volatile` and is
  * written LAST in every mutation, so the reader's initial [totalBytes] read publishes all preceding
  * buffer writes (a piggybacked happens-before edge; relying on the async state machine's incidental
- * synchronization instead was finding 4 of CODE_ANALYSIS-2026-08-21.md).
+ * synchronization instead was finding 4 of an internal code analysis).
  *
  * With `maxBytes = 0` the capture runs in COUNT-ONLY mode: nothing is buffered, [totalBytes] still
  * counts every byte - the mode the body-size metrics use when body logging is off.
@@ -87,7 +87,7 @@ class BoundedBodyCapture(
      * Discards everything captured so far. Called by [CapturingResponseWrapper] when the application
      * resets an UNCOMMITTED response (`reset()`/`resetBuffer()`): nothing written before the reset ever
      * reached the client, so dropping it keeps the logged body and the size metric aligned with what was
-     * actually delivered (finding 3 of CODE_ANALYSIS-2026-08-21.md).
+     * actually delivered (finding 3 of an internal code analysis).
      */
     fun clear() {
         buffer.reset()
@@ -130,7 +130,7 @@ enum class BodyReadState(
 /**
  * Decodes a byte-bounded PREFIX of a text: the capture limit bounds bytes, not characters, so the cut can
  * fall inside a multi-byte sequence; decoded as a whole, that incomplete tail would render as a
- * replacement character and corrupt the logged prefix (finding 8 of CODE_ANALYSIS-2026-08-22T20-06-45.md).
+ * replacement character and corrupt the logged prefix (finding 8 of an internal code analysis).
  * Decoding with `endOfInput = false` leaves an incomplete trailing sequence undecoded (underflow) instead
  * of reporting it as malformed; malformed bytes INSIDE the prefix are still replaced, as `String(bytes,
  * charset)` would. Shared by both endpoint-logging twins.

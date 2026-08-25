@@ -78,7 +78,7 @@ class RequestLoggingAutoConfiguration {
          * propagation-mode warning is about that variant's handler MDC. With the coroutine variant
          * active (handler MDC natively via `MDCContext`) or a host filter of another type, nothing here
          * applies and a startup warning would be false noise (finding 8 of
-         * CODE_ANALYSIS-2026-08-22T16-35-46.md). Resolved at initialization time rather than by
+         * an internal code analysis). Resolved at initialization time rather than by
          * `@ConditionalOnBean`, whose evaluation order against the sibling bean methods is not guaranteed.
          */
         @Bean

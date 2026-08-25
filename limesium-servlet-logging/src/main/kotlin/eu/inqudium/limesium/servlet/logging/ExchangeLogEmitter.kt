@@ -43,7 +43,7 @@ internal class ExchangeLogEmitter(
     fun logRequestStart(exchange: Exchange) {
         // The guard covers the COMPLETE arrival operation including the level gate: isInfoEnabled is a
         // call into the host's logging backend and as fallible as the emission itself - outside the
-        // guard it could fail the request this line merely announces (finding 8 of CODE_ANALYSIS-2026-08-22.md).
+        // guard it could fail the request this line merely announces (finding 8 of an internal code analysis).
         try {
             if (!exchangeLog.isInfoEnabled) {
                 return
@@ -93,7 +93,7 @@ internal class ExchangeLogEmitter(
         if (!exchange.logged.compareAndSet(false, true)) {
             return
         }
-        // The fail-open guard covers EVERYTHING after the exactly-once CAS (finding 2 of CODE_ANALYSIS-2026-08-21.md): the
+        // The fail-open guard covers EVERYTHING after the exactly-once CAS (finding 2 of an internal code analysis): the
         // pre-gate section reads host-provided beans (the time source) and the response object at
         // destruction time - an exception there used to escape into the container's listener invocation
         // and lose the event WITHOUT the emission counter seeing it, defeating that counter's purpose.
@@ -131,7 +131,7 @@ internal class ExchangeLogEmitter(
         val slow = Duration.ofNanos(elapsedNanos) >= properties.slowRequestThreshold
         // Metrics BEFORE the level gate: a metric must not depend on how loud the logger is configured.
         // Guarded on their own: a host registry that rejects the body-size summary (meter-id conflict)
-        // costs the sample, never the event (twin parity with finding 2 of the reactive module's CODE_ANALYSIS-2026-08-22T16-35-46.md).
+        // costs the sample, never the event (twin parity with finding 2 of the reactive module's internal code analysis).
         try {
             recordBodySizes(exchange)
         } catch (e: Exception) {
@@ -153,7 +153,7 @@ internal class ExchangeLogEmitter(
         // The async disposition is classified by WHICH CALLBACK occurred (Exchange.asyncDisposition),
         // never by throwable presence: onTimeout MAY carry a throwable (attached as cause, still a
         // timeout) and onError may carry none (still a failure) - inferring from the optional cause
-        // misfiled both complements (finding 5 of CODE_ANALYSIS-2026-08-22.md). The precedence (timeout
+        // misfiled both complements (finding 5 of an internal code analysis). The precedence (timeout
         // wins over a subsequent onError) is a property of the disposition value itself.
         val classification =
             when {
@@ -173,10 +173,10 @@ internal class ExchangeLogEmitter(
         }
         // The emission scope overlays the trace context captured at filter entry, so the encoder emits
         // the SAME traceId/spanId the exchange ran under - the destruction thread has lost them. The ids
-        // ride the MDC only, not the key-values (the web-client's rule); the message suffix below is the
+        // ride the MDC only, not the key-values; the message suffix below is the
         // one extra, for plain-text appenders that drop the MDC. The scope OWNS both trace keys: an id
         // that was not captured is removed for the emission, so a stale id on the pooled destruction
-        // thread cannot join the event to a foreign trace (finding 5 of CODE_ANALYSIS-2026-08-22T23-19-06.md).
+        // thread cannot join the event to a foreign trace (finding 5 of an internal code analysis).
         val mdcScope =
             MdcScope(exchange.correlationId, exchange.method, exchange.path, exchange.traceId, exchange.spanId, ownsTraceKeys = true)
         val traceSuffix =
@@ -231,7 +231,7 @@ internal class ExchangeLogEmitter(
                 .addKeyValueIfPresent(EndpointLogField.RESPONSE_BODY, responseBody)
                 .log()
             // Guarded inside the metrics: a throwing host counter after a successful log() must not be
-            // reported as a lost emission (finding 4 of CODE_ANALYSIS-2026-08-22T23-19-06.md).
+            // reported as a lost emission (finding 4 of an internal code analysis).
             metrics.eventEmitted(outcome)
         } finally {
             mdcScope.close()

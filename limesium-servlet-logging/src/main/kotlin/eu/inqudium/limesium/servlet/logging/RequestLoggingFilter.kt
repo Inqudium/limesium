@@ -23,7 +23,7 @@ import org.springframework.web.util.pattern.PathPatternParser
  *
  * The chain scope covers the initial dispatch thread; for MVC async controllers the per-request
  * [EndpointMdcCallableInterceptor] restores the identity on the `Callable`/`WebAsyncTask` WORKER thread
- * as well (finding 2 of CODE_ANALYSIS-2026-08-22.md), and the filter PARTICIPATES in the container's
+ * as well (finding 2 of an internal code analysis), and the filter PARTICIPATES in the container's
  * ASYNC dispatch (see below), so the result/error rendering phase carries the identity too. Boundary:
  * `DeferredResult` producers and raw Servlet async workers run on APPLICATION-owned threads that neither
  * the container nor Spring routes through this module - propagating context there is the application's
@@ -39,7 +39,7 @@ import org.springframework.web.util.pattern.PathPatternParser
  * an exception propagating out of it as the exchange's failure, exactly like the initial dispatch. Without
  * this pass, an async handler failure reached the event only as a bare `status >= 500` (WARN, no cause)
  * while the synchronous equivalent logged ERROR with its cause, and every log line of the rendering
- * phase lacked the `endpoint_*` identity (finding 1 of CODE_ANALYSIS-2026-08-22T19-52-00.md). A handled
+ * phase lacked the `endpoint_*` identity (finding 1 of an internal code analysis). A handled
  * async exception (resolved by an `@ExceptionHandler` in the dispatch) never propagates and is
  * classified by its status - parity with the sync path.
  *
@@ -48,8 +48,7 @@ import org.springframework.web.util.pattern.PathPatternParser
  * A raw zero-argument `startAsync()` cycle reads/writes beside the tee wrappers and its bytes are logged
  * as absent - see [CapturingRequestWrapper] for the mechanism and the pinning test.
  *
- * This is the successor of the `LoggingFilter` family in `common-web`, redesigned around this repository's
- * principles rather than ported. This class owns the SERVLET side only - correlation resolution, the tee
+ * This class owns the SERVLET side only - correlation resolution, the tee
  * wrappers, the [Exchange] handoff, the MDC chain scope, and the listeners; the collaborators own the
  * rest:
  *
@@ -111,7 +110,7 @@ class RequestLoggingFilter(
      * as `PathPattern`-based handler mapping does), and the exclude prefixes are compared against the
      * decoded path rebuilt from those segments. A byte-wise `startsWith` on the raw URI let a
      * percent-encoded variant (`/%61ctuator/health`) slip past an exclude while the container served it
-     * under the excluded route (finding 1 of SECURITY_AUDIT-2026-08-23T13-26-06.md - the include side
+     * under the excluded route (finding 1 of an internal security audit - the include side
      * was already consistent). Path parameters (`;x=1`) are dropped, as in routing.
      */
     override fun shouldNotFilter(request: HttpServletRequest): Boolean {
@@ -143,8 +142,7 @@ class RequestLoggingFilter(
         }
         // The WIRING is fail-open too, not only the emission: correlation resolution and the time source
         // are host-provided beans, and header enumeration touches container edges - an exception in any of
-        // them must degrade this filter to a plain pass-through, never fail the request (assessment
-        // finding 1: the documented fail-open contract used to start only at the chain call below).
+        // them must degrade this filter to a plain pass-through, never fail the request (review        // finding 1: the documented fail-open contract used to start only at the chain call below).
         val exchange: Exchange? =
             try {
                 wireExchange(request, response)
@@ -171,7 +169,7 @@ class RequestLoggingFilter(
 
         // The chain-wide MDC scope is logging-owned work and therefore fail-open too: a throwing MDC
         // adapter degrades the identity feature, never the request (finding 8 of
-        // CODE_ANALYSIS-2026-08-22.md - construction used to run unguarded before the chain try).
+        // an internal code analysis - construction used to run unguarded before the chain try).
         // MdcScope itself rolls back a partial install before rethrowing, so the pooled thread never
         // keeps half an identity.
         val mdcScope: MdcScope? =
@@ -243,7 +241,7 @@ class RequestLoggingFilter(
             } finally {
                 // Restoration is guarded separately: a throwing MDC adapter here must neither fail the
                 // request nor MASK an application exception already propagating out of the chain
-                // (finding 8 of CODE_ANALYSIS-2026-08-21.md) - it costs the restoration, counted as stage=wiring.
+                // (finding 8 of an internal code analysis) - it costs the restoration, counted as stage=wiring.
                 try {
                     mdcScope?.close()
                 } catch (e: Exception) {
@@ -301,7 +299,7 @@ class RequestLoggingFilter(
             // container's error handling - recorded like a sync chain failure, breadcrumb included. The
             // breadcrumb is a host-backend call and guarded like the initial dispatch's: a throwing
             // backend must not REPLACE the application exception on its way to the container (finding 3
-            // of CODE_ANALYSIS-2026-08-22T23-19-06.md).
+            // of an internal code analysis).
             exchange.failure = e
             try {
                 internalLog.warn(
@@ -347,7 +345,7 @@ class RequestLoggingFilter(
     /**
      * Registers the per-request [EndpointMdcCallableInterceptor], so `Callable`/`WebAsyncTask`
      * controllers see the `endpoint_*` identity on their MVC worker thread (finding 2 of
-     * CODE_ANALYSIS-2026-08-22.md). `WebAsyncUtils` lives in spring-web, so this adds no MVC dependency;
+     * an internal code analysis). `WebAsyncUtils` lives in spring-web, so this adds no MVC dependency;
      * in a non-MVC servlet application the registered interceptor is simply never consulted. Fail-open like
      * everything else the filter wires.
      */
@@ -386,7 +384,7 @@ class RequestLoggingFilter(
         val headerCorrelationId = request.getHeader(properties.correlationIdHeader)?.takeUnless { it.isBlank() }
         val correlationId = headerCorrelationId ?: correlationIds.nextCorrelationId()
         // Guarded inside the metrics: a throwing host counter must not turn the request into an
-        // unlogged pass-through (finding 4 of CODE_ANALYSIS-2026-08-22T23-19-06.md).
+        // unlogged pass-through (finding 4 of an internal code analysis).
         metrics.correlationId(fromHeader = headerCorrelationId != null)
         response.setHeader(properties.correlationIdHeader, correlationId)
 

@@ -172,7 +172,7 @@ class RequestLoggingFilterAsyncTest {
 
         @Test
         fun `should keep outcome timeout when the timeout event carries a throwable`() {
-            // What is tested: the callback-vs-throwable classification (assessment finding 5, 2026-08-22
+            // What is tested: the callback-vs-throwable classification (review finding 5, internal
             //   analysis) - the servlet API permits onTimeout WITH a throwable, and inferring the outcome
             //   from throwable presence misfiled such a timeout as a generic failure.
             // Success criteria: WARN with endpoint_outcome=timeout - the CALLBACK classifies - while the
@@ -198,7 +198,7 @@ class RequestLoggingFilterAsyncTest {
 
         @Test
         fun `should log outcome failure at ERROR when onError arrives without a throwable`() {
-            // What is tested: the complement of the previous case (finding 5 of CODE_ANALYSIS-2026-08-22.md) - the servlet API
+            // What is tested: the complement of the previous case (finding 5 of an internal code analysis) - the servlet API
             //   explicitly permits an onError event with a NULL throwable, and an implementation keying on
             //   the throwable logged such an exchange as a clean success.
             // Success criteria: ERROR with endpoint_outcome=failure and no cause on the event.
@@ -267,7 +267,7 @@ class RequestLoggingFilterAsyncTest {
         @Test
         fun `should carry the MDC into the async dispatch and record its failure on the existing exchange`() {
             // What is tested: the second filter pass for the container's ASYNC dispatch (finding 1 of
-            //   the 2026-08-22T19-52-00 analysis) - Spring MVC renders the async result or rethrows the
+            //   the internal analysis) - Spring MVC renders the async result or rethrows the
             //   async failure in that dispatch; the filter used to skip it entirely.
             // Success criteria: the dispatch chain observes the endpoint_* MDC; an exception thrown
             //   there propagates unchanged; at destruction exactly ONE event exists, ERROR/failure with
@@ -316,7 +316,7 @@ class RequestLoggingFilterAsyncTest {
         @Test
         fun `should rethrow the application exception although the async breadcrumb backend throws`() {
             // What is tested: the fail-open guard around the async dispatch's breadcrumb (finding 3 of
-            //   the 2026-08-22T23-19-06 analysis) - a double fault: the async handler fails AND the
+            //   the internal analysis) - a double fault: the async handler fails AND the
             //   module logger's backend throws (a throwing TurboFilter, consulted inside warn()).
             // Success criteria: the container receives the APPLICATION exception, not the backend's; the
             //   failure is recorded on the exchange (the event at destruction carries it); the breadcrumb

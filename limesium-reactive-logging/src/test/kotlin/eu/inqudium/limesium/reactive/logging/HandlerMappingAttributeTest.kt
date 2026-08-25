@@ -9,7 +9,7 @@ import org.springframework.web.reactive.HandlerMapping
  * name itself to stay free of a `spring-webflux` dependency; the constant is computed from the class
  * name, so it cannot be inlined at compile time. This test - `spring-webflux` IS on the test classpath -
  * turns a silent rename into a build failure (twin parity with the servlet module's architecture review
- * finding 5, 2026-08-22T18-12-19).
+ * finding 5).
  */
 class HandlerMappingAttributeTest {
     @Test

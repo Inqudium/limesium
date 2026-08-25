@@ -1,20 +1,18 @@
 package eu.inqudium.limesium.reactive.logging
 
 /**
- * Minimal W3C `traceparent` parsing (`version-traceid-parentid-flags`), the same routine
- * `ExchangeDiaryLogging.parseTraceparent` uses in web-client. On the INBOUND side the header carries the
+ * Minimal W3C `traceparent` parsing (`version-traceid-parentid-flags`). On the INBOUND side the header carries the
  * caller's context: the trace id is shared with the server span this exchange runs under (that is what
  * makes the log-to-trace join work), the parent-id is the CALLER's span - it is published as
  * `parentSpanId`, never under the conventional local `spanId` key (see [TraceMdcKeys]).
  *
  * Validity follows the W3C Trace Context Recommendation in full (finding 5 of
- * CODE_ANALYSIS-2026-08-22T16-35-46.md, completed by finding 2 of CODE_ANALYSIS-2026-08-22T20-06-45.md):
+ * an internal code analysis, completed by finding 2 of an internal code analysis):
  * both ids are lowercase hexadecimal of fixed length and neither may be all zeros; the version is two
  * lowercase-hex characters and `ff` is forbidden; the flags are two lowercase-hex characters. Version
  * `00` is exactly four fields; a higher version is parsed by the version-00 rules for its first four
  * fields and may carry additional fields, as the specification prescribes for forward compatibility.
- * Lockstep with web-client's routine is pinned by the shared `traceparent/conformance.txt` fixture both
- * modules' tests read.
+ * Conformance is pinned by the `traceparent/conformance.txt` fixture the tests read.
  */
 internal object Traceparent {
     const val HEADER = "traceparent"

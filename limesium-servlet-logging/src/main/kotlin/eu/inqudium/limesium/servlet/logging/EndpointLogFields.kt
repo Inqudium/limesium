@@ -6,8 +6,7 @@ import kotlin.reflect.KClass
 
 /**
  * The structured log fields of an INBOUND HTTP exchange: their wire names, and the one rendering each name
- * is allowed to carry. The inbound counterpart of the `adapter_*` family in
- * `web-client` (`AdapterLogFields.kt`), same design, `endpoint_*` prefix.
+ * is allowed to carry.
  *
  * These names are a CONTRACT with the log index, not local identifiers: renaming a constant below is free,
  * changing a [wireName] breaks every dashboard, saved search and alert rule keying on it. The mapping is
@@ -66,7 +65,7 @@ internal enum class EndpointLogField(
     /**
      * ELK: `keyword`, index true, doc_values ON - aggregate. The low-cardinality handler pattern
      * (`/api/things/{id}`) Spring MVC recorded for the request, when there is one - the aggregation half
-     * of the pair, exactly like `adapter_url_template`.
+     * of the pair.
      */
     URL_TEMPLATE("endpoint_url_template", String::class),
 

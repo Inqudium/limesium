@@ -15,7 +15,7 @@ import java.nio.charset.StandardCharsets
 /**
  * The freeze contract of the reactive [BoundedBodyCapture]: the emission freezes the capture FIRST, so a
  * body chunk delivered after a cancellation can no longer move the logged text or the size sample
- * (assessment finding 1, 2026-08-22T16-35-46 analysis).
+ * (review finding 1).
  */
 class BoundedBodyCaptureTest {
     private fun bytes(text: String) = text.toByteArray(StandardCharsets.UTF_8)
@@ -94,7 +94,7 @@ class BoundedBodyCaptureTest {
         @Test
         fun `should drop an incomplete trailing UTF-8 sequence instead of decoding a replacement character`() {
             // What is tested: byte-bounded truncation of multi-byte text (finding 8 of the
-            //   2026-08-22T20-06-45 analysis) - the cap counts bytes, so it can split a character.
+            //   internal analysis) - the cap counts bytes, so it can split a character.
             // Success criteria: with a 2-byte cap over "h\u00e9" (3 bytes: 68 c3 a9) the logged prefix is
             //   "h", not "h\uFFFD"; the byte count stays exact.
             // Why it matters: a replacement character in the logged prefix is corruption the reader

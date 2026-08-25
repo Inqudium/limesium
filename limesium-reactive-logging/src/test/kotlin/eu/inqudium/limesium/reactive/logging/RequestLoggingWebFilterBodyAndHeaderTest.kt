@@ -112,7 +112,7 @@ class RequestLoggingWebFilterBodyAndHeaderTest {
 
         @Test
         fun `should forward the original buffer untouched and copy only the bounded prefix`() {
-            // What is tested: the tee's memory contract (assessment finding 6, 2026-08-22 analysis) -
+            // What is tested: the tee's memory contract (review finding 6) -
             //   counting never clones the buffer; at most the capture's remaining capacity is copied
             //   via a non-advancing read, and the ORIGINAL buffer flows downstream with its read
             //   position untouched.
@@ -164,7 +164,7 @@ class RequestLoggingWebFilterBodyAndHeaderTest {
 
         @Test
         fun `should tee only the first subscription of a replayable request body`() {
-            // What is tested: the subscription-aware tee (finding 7 of the 2026-08-22T20-06-45
+            // What is tested: the subscription-aware tee (finding 7 of the internal
             //   analysis) - a replay-capable request (Flux.just replays) subscribed twice, as a caching
             //   filter or a second reader may do.
             // Success criteria: both subscriptions receive the body, but the capture holds the logical
@@ -231,7 +231,7 @@ class RequestLoggingWebFilterBodyAndHeaderTest {
         @Test
         fun `should hand a Mono body to the delegate as a Mono so Spring keeps its optimized path`() {
             // What is tested: publisher specialization through the tee (finding 9 of the
-            //   2026-08-22T20-06-45 analysis) - AbstractServerHttpResponse.writeWith has an optimized
+            //   internal analysis) - AbstractServerHttpResponse.writeWith has an optimized
             //   Mono branch that a Flux-wrapped body would defeat whenever capture is enabled.
             // Success criteria: a Mono body arrives at the delegate as a Mono, a Flux as a Flux; the
             //   capture sees the bytes in both cases.
@@ -276,7 +276,7 @@ class RequestLoggingWebFilterBodyAndHeaderTest {
     inner class `Zero-copy boundary` {
         @Test
         fun `should not advertise zero-copy so file responses fall back through the tee`() {
-            // What is tested: the mechanism the capture correctness rests on (finding 3 of CODE_ANALYSIS-2026-08-21.md) -
+            // What is tested: the mechanism the capture correctness rests on (finding 3 of an internal code analysis) -
             //   writers check the RESPONSE instance for ZeroCopyHttpOutputMessage; because the decorator
             //   does not implement it, file-serving handlers fall back to the buffered path and their
             //   bytes flow THROUGH the tee.

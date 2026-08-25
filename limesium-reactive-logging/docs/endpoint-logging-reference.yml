@@ -30,8 +30,7 @@ endpoint-logging:
   # context-propagation accessors plus spring.reactor.context-propagation=auto).
   variant: auto
 
-  # Logger the exchange events are emitted on. Deliberately the same name the common-web predecessor
-  # used, so existing log routing and level configuration keep working after a migration. The level of
+  # Logger the exchange events are emitted on. The level of
   # THIS logger decides which exchanges are visible: INFO shows every exchange, WARN keeps only
   # failures, cancellations and slow requests, ERROR only chains that errored (see `logging.level`
   # below).
@@ -91,8 +90,8 @@ endpoint-logging:
     # exclude always wins over an include.
     excludes: []
     #  - Cookie
-    # Names whose VALUE is replaced by a stable short fingerprint (length:hex-hash, e.g. "18:a8b3c4d5"
-    # - the same scheme the web-client's diary uses). Non-reversible, but identical values yield
+    # Names whose VALUE is replaced by a stable short fingerprint (length:hex-hash, e.g. "18:a8b3c4d5").
+    # Non-reversible, but identical values yield
     # identical fingerprints, so a masked token can still be correlated across events without exposing
     # the secret. "*" masks every logged header. Masking only affects headers that are logged at all -
     # listing a name here does not include it.

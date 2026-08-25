@@ -355,7 +355,7 @@ actually reads or writes — no more. A request body the handler never consumes 
 no size sample, even though the client sent one; a body read only partially is captured to exactly that
 extent, and the `[truncated, N bytes total]` note counts what flowed, not `Content-Length`. The same holds
 on the response side: what the application writes through the tee is what the log shows. This is the
-deliberate trade-off against the predecessor's replaying buffer — the log tells the truth about what the
+deliberate trade-off against a replaying buffer — the log tells the truth about what the
 application processed, and streaming stays untouched. Because of that, the log cannot tell a body the client
 sent but the application ignored from one that was never sent; the counter `endpoint.request.body.read`
 ([§5.4](#54-meters)) exists for exactly that distinction.
@@ -454,7 +454,7 @@ backend, no YAML, no Netty are forced onto the host.
 
 ```xml
 <dependency>
-    <groupId>eu.dirk-haase</groupId>
+    <groupId>eu.inqudium</groupId>
     <artifactId>limesium-reactive-logging</artifactId>
     <version>${tool-box.version}</version>
 </dependency>
@@ -1024,8 +1024,7 @@ traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
 - Parsing follows the W3C Trace Context Recommendation strictly: lowercase hex of fixed length, no
   all-zero ids, version `ff` forbidden, version `00` exactly four fields, higher versions parsed by the
   version-00 rules for their first four fields. A non-conformant header is ignored — nothing is logged.
-- The conformance is pinned by `traceparent/conformance.txt`, a fixture shared with `web-client`'s
-  outbound parser.
+- The conformance is pinned by `traceparent/conformance.txt`.
 
 Inside handlers, with a Micrometer tracing bridge active, the local `spanId` is the bridge's — the
 module never touches that key.
@@ -1110,7 +1109,7 @@ one registry inherits this limitation knowingly.
 ### 6.8 Masking is a fingerprint, not a secret
 
 `masked` replaces a header value with `length:sha256-prefix64` — stable, so a masked token can still be
-correlated across events and modules (the servlet twin and `web-client`'s exchange diary use the same
+correlated across events and modules (the servlet twin uses the same
 scheme), and a 64-bit cryptographic prefix makes accidental collisions negligible. It is **unsalted and
 unkeyed**: it prevents plaintext exposure, not offline guessing. A reader with a candidate list
 (usernames, tenant names, short API keys) can confirm a candidate by hashing it. Do not treat `masked` as
@@ -1120,7 +1119,7 @@ a security boundary for guessable values; omit such headers from the selection i
 
 Eleven production files — roughly a thousand lines: field enum, properties and masking, meters, MDC keys,
 event rendering, the injectable interfaces — are near-identical twins of files in
-`limesium-servlet-logging`. There is **no shared base module**, by decision of the 2026-08-22
+`limesium-servlet-logging`. There is **no shared base module**, by decision of the internal
 architecture review:
 
 - an application is either servlet or reactive, so the two copies never share a classpath;
@@ -1144,8 +1143,7 @@ limesium-reactive-logging/
 ├── docs/
 │   ├── GUIDE.md                              this document
 │   ├── activity-diagram.svg                  UML activity diagram of one exchange
-│   ├── endpoint-logging-reference.yml        complete commented configuration reference (namespace + variant)
-│   └── assessment/                           code analyses, architecture review, style/comment audits
+│   └── endpoint-logging-reference.yml        complete commented configuration reference (namespace + variant)
 └── src/
     ├── main/kotlin/eu/inqudium/limesium/reactive/logging/
     │   ├── RequestLoggingAutoConfiguration.kt     Reactor variant, defaults, MDC accessors
@@ -1182,4 +1180,3 @@ limesium-reactive-logging/
   servlet twin's file by `EndpointLoggingReferenceConfigTest`.
 - [`limesium-servlet-logging/docs/elk/README.md`](../../limesium-servlet-logging/docs/elk/README.md) —
   the Elasticsearch component template for the `endpoint_*` fields.
-- [`docs/assessment/`](assessment/) — the analyses whose findings the code comments reference by date.

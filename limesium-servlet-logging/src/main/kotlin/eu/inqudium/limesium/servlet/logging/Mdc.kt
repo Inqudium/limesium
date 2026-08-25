@@ -20,7 +20,7 @@ object MdcKeys {
  * container thread at entry - the destruction callback the emission runs on carries no MDC of its own,
  * so without the capture the exchange event could not be joined with its trace. Absent (no bridge,
  * observation off) means not captured and not logged. Standalone by design: this module owns the
- * literals, no cross-module dependency - the same choice `ExchangeDiaryLogging` makes in web-client.
+ * literals, no cross-module dependency.
  */
 internal object TraceMdcKeys {
     const val TRACE_ID = "traceId"
@@ -34,7 +34,7 @@ internal object TraceMdcKeys {
  * still active and authoritative, so the trace keys are left alone) and by the emitter around the
  * emission with [ownsTraceKeys]: there the scope is the ONLY authority on the trace keys - a captured id
  * is installed, an uncaptured one is REMOVED for the scope's lifetime, so a stale id on the pooled
- * destruction thread cannot be attached to the event (finding 5 of CODE_ANALYSIS-2026-08-22T23-19-06.md).
+ * destruction thread cannot be attached to the event (finding 5 of an internal code analysis).
  * Either way every touched key is restored on close.
  */
 internal class MdcScope(
@@ -70,7 +70,7 @@ internal class MdcScope(
             removed.forEach { MDC.remove(it) }
         } catch (e: Exception) {
             // Roll back a PARTIAL install before propagating: a broken MDC adapter failing mid-put must
-            // not leave half an identity on a pooled thread (finding 8 of CODE_ANALYSIS-2026-08-22.md).
+            // not leave half an identity on a pooled thread (finding 8 of an internal code analysis).
             try {
                 close()
             } catch (rollback: Exception) {
