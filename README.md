@@ -50,9 +50,9 @@ the host application brings the runtime (Tomcat resp. Netty) and the Logback bin
   the deliberate stack differences and the coroutine variant.
 - [Module READMEs](limesium-servlet-logging/README.md) ([reactive](limesium-reactive-logging/README.md)) —
   summary, field family, property table.
-- [Configuration reference](limesium-servlet-logging/docs/endpoint-logging-reference.yml) —
+- [Configuration reference](docs/endpoint-logging-reference.yml) —
   every `endpoint-logging.*` key with its default, contract-tested against both twins.
-- [Elasticsearch mapping](limesium-servlet-logging/docs/elk/README.md) — the ready-made
+- [Elasticsearch mapping](docs/elk/README.md) — the ready-made
   component template for the `endpoint_*` fields.
 
 ## Build

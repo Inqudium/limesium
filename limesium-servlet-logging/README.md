@@ -43,7 +43,7 @@ plus the structured `endpoint_*` key-values: the wire names are a contract with
 the log index, each field owns its JSON shape (`EndpointLogFields.kt`), a badly typed value drops that
 field with a warning but never the event, and the correlation id rides the MDC (plus the message suffix
 for plain-text appenders) rather than a key-value. The index-side mapping ships as a component template
-in [`docs/elk/`](docs/elk/README.md), kept in lockstep with the enum by `EndpointLogFieldTest`.
+in [`/docs/elk/`](../docs/elk/README.md), kept in lockstep with the enum by `EndpointLogFieldTest`.
 
 | Field | Shape | When |
 |---|---|---|
@@ -62,7 +62,7 @@ in [`docs/elk/`](docs/elk/README.md), kept in lockstep with the enum by `Endpoin
 ## Configuration (`endpoint-logging.*`)
 
 A complete, commented reference configuration with every property at its default lives in
-[`docs/endpoint-logging-reference.yml`](docs/endpoint-logging-reference.yml) — copy the block and change
+[`/docs/endpoint-logging-reference.yml`](../docs/endpoint-logging-reference.yml) — copy the block and change
 only what you need. `EndpointLoggingReferenceConfigTest` keeps it in lockstep with the code: every key
 must exist, every value must be the built-in default.
 
@@ -123,8 +123,9 @@ deliberately left to Boot's own `http.server.requests` and to the structured log
 [`limesium-reactive-logging`](../limesium-reactive-logging/README.md) is the WebFlux twin of this module:
 identical message format, field family, `endpoint-logging.*` configuration and meters, so that a
 dashboard or index mapping never cares which stack produced an event. This module is the **reference
-implementation** — the configuration reference (`docs/endpoint-logging-reference.yml`) and the ELK
-component template (`docs/elk/`) are shipped here and bound by the twin's lockstep tests.
+implementation** — the configuration reference (`/docs/endpoint-logging-reference.yml`) and the ELK
+component template (`/docs/elk/`) live in the repository-shared `/docs` and are bound by both
+modules' lockstep tests.
 
 Eleven production files exist in both modules, roughly a thousand lines identical (field enum, properties
 and header masking, meters, MDC keys, event rendering, the injectable time/id interfaces). This is a

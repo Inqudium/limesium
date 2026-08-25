@@ -7,7 +7,7 @@
 # keep. Bound by RequestLoggingProperties; invalid values (blank names, non-positive sizes/durations)
 # fail the context start with a message naming the property.
 #
-# The namespace is IDENTICAL to the servlet twin's (limesium-servlet-logging/docs/
+# The namespace is IDENTICAL to the repository-shared reference (/docs/
 # endpoint-logging-reference.yml) with exactly ONE reactive-only addition, `variant` - this module's
 # EndpointLoggingReferenceConfigTest binds BOTH files against the properties class and pins that
 # parity, so neither file can drift from the code or from its twin.

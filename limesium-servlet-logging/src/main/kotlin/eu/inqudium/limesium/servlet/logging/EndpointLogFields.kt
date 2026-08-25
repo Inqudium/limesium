@@ -10,7 +10,7 @@ import kotlin.reflect.KClass
  *
  * These names are a CONTRACT with the log index, not local identifiers: renaming a constant below is free,
  * changing a [wireName] breaks every dashboard, saved search and alert rule keying on it. The mapping is
- * shipped as `docs/elk/limesium-servlet-logging-fields.component-template.json` - the DEFINITION of the
+ * shipped as the repository-shared `/docs/elk/limesium-servlet-logging-fields.component-template.json` - the DEFINITION of the
  * family (no upstream data-stream mapping exists yet), composed into the log pipeline by whoever wires the
  * module in; `EndpointLogFieldTest` keeps enum and template in lockstep, build-breaking in both directions.
  *

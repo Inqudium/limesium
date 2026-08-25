@@ -9,7 +9,7 @@ import org.springframework.core.env.EnumerablePropertySource
 import org.springframework.core.io.FileSystemResource
 
 /**
- * Lockstep between `docs/endpoint-logging-reference.yml` and [RequestLoggingProperties]: the reference
+ * Lockstep between the repository-shared `/docs/endpoint-logging-reference.yml` and [RequestLoggingProperties]: the reference
  * documents every property WITH ITS DEFAULT, so this test fails whenever a property is added, renamed or
  * re-defaulted without the reference following - and whenever the reference documents a key that does not
  * exist. The file is loaded exactly as Boot would load it (YamlPropertySourceLoader + Binder), so what the
@@ -17,7 +17,7 @@ import org.springframework.core.io.FileSystemResource
  */
 class EndpointLoggingReferenceConfigTest {
     private val referenceSources =
-        YamlPropertySourceLoader().load("reference", FileSystemResource("docs/endpoint-logging-reference.yml"))
+        YamlPropertySourceLoader().load("reference", FileSystemResource("../docs/endpoint-logging-reference.yml"))
 
     @Test
     fun `should bind the reference configuration to exactly the built-in defaults`() {

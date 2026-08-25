@@ -16,7 +16,7 @@
     <dependencies>
         <!-- A library, not an application: only what the auto-configuration and the properties class
              need - no starter, no logging/YAML transitives forced onto the host (architecture review
-             finding 4, 2026-08-22T18-12-19). -->
+             finding 4). -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-autoconfigure</artifactId>
@@ -114,17 +114,17 @@
     <build>
         <sourceDirectory>${project.basedir}/src/main/kotlin</sourceDirectory>
         <testSourceDirectory>${project.basedir}/src/test/kotlin</testSourceDirectory>
-        <!-- The cross-stack contract files (configuration reference, ELK component template) are shipped
-             by the servlet twin; the lockstep tests read them from the TEST CLASSPATH, so the dependency
-             on the sibling module's docs is declared HERE, in the build, rather than hidden in a relative
-             path inside a test (architecture review finding 2, 2026-08-22T17-38-54). A missing sibling
-             checkout fails at resource processing with a clear message, not as a contract violation. -->
+        <!-- The cross-stack contract files (configuration reference, ELK component template) live in
+             the repository-shared /docs; the lockstep tests read them from the TEST CLASSPATH, so the
+             dependency on the shared docs is declared HERE, in the build, rather than hidden in a
+             relative path inside a test (architecture review finding 2). A missing checkout fails at
+             resource processing with a clear message, not as a contract violation. -->
         <testResources>
             <testResource>
                 <directory>${project.basedir}/src/test/resources</directory>
             </testResource>
             <testResource>
-                <directory>${project.basedir}/../limesium-servlet-logging/docs</directory>
+                <directory>${project.basedir}/../docs</directory>
                 <includes>
                     <include>endpoint-logging-reference.yml</include>
                     <include>elk/limesium-servlet-logging-fields.component-template.json</include>

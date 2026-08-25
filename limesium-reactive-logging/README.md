@@ -11,12 +11,12 @@ metrics and the stack-specific behaviours — is [`docs/GUIDE.md`](docs/GUIDE.md
 The servlet module is the reference implementation; its documentation applies here too:
 
 - **Configuration:** the complete commented reference for THIS module is
-  [`docs/endpoint-logging-reference.yml`](docs/endpoint-logging-reference.yml) (the servlet twin's
+  [`docs/endpoint-logging-reference.yml`](docs/endpoint-logging-reference.yml) (the shared
   namespace plus the one reactive-only `variant` key) — this module's
   `EndpointLoggingReferenceConfigTest` **binds both files against this module's properties class** and
   pins the key parity, so neither reference can drift from the code or from its twin.
-- **Index mapping:** the one component template for both stacks is the servlet twin's
-  [`docs/elk/`](../limesium-servlet-logging/docs/elk/README.md) — this module's `EndpointLogFieldTest`
+- **Index mapping:** the one component template for both stacks is the repository-shared
+  [`/docs/elk/`](../docs/elk/README.md) — this module's `EndpointLogFieldTest`
   locks this module's field enum against that same template across the reactor.
 - **Metrics:** the same six meters (`endpoint.logging.failopen`, `endpoint.logging.events`,
   `endpoint.logging.exchanges.open`, `endpoint.logging.correlation.id`, `endpoint.request/response.body.size`,

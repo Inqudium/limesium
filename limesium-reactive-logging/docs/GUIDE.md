@@ -155,8 +155,8 @@ implementation and owns the cross-stack contract:
 
 | Contract | Owner | Lockstep test in this module |
 |---|---|---|
-| Configuration keys and defaults | `limesium-servlet-logging/docs/endpoint-logging-reference.yml` | `EndpointLoggingReferenceConfigTest` binds that YAML against this module's `RequestLoggingProperties` |
-| Field family and index mapping | `limesium-servlet-logging/docs/elk/…component-template.json` | `EndpointLogFieldTest` locks this module's `EndpointLogField` enum against the template |
+| Configuration keys and defaults | [`/docs/endpoint-logging-reference.yml`](../../docs/endpoint-logging-reference.yml) | `EndpointLoggingReferenceConfigTest` binds that YAML against this module's `RequestLoggingProperties` |
+| Field family and index mapping | [`/docs/elk/…component-template.json`](../../docs/elk/README.md) | `EndpointLogFieldTest` locks this module's `EndpointLogField` enum against the template |
 | Message text and meter names | the servlet module's emitter and metrics | `TwinContractTest` |
 
 The build pulls those two files from the sibling checkout as **test resources** (declared in this
@@ -678,7 +678,7 @@ WARN breadcrumb on a thrown chain and the module's own failure reports.
 ### 3.7 Index mapping (ELK)
 
 The thirteen `endpoint_*` fields have a ready-made Elasticsearch component template in the servlet
-twin's [`docs/elk/`](../../limesium-servlet-logging/docs/elk/README.md). Compose it into the data-stream
+repository-shared [`/docs/elk/`](../../docs/elk/README.md). Compose it into the data-stream
 mapping **before** the first event arrives — an unmapped body or header field would be mapped
 dynamically and become searchable, which the payload fields' `index: false` deliberately prevents.
 
@@ -1181,5 +1181,5 @@ limesium-reactive-logging/
 - [`docs/endpoint-logging-reference.yml`](endpoint-logging-reference.yml) — this module's complete
   commented configuration reference (the shared namespace plus `variant`), bound together with the
   servlet twin's file by `EndpointLoggingReferenceConfigTest`.
-- [`limesium-servlet-logging/docs/elk/README.md`](../../limesium-servlet-logging/docs/elk/README.md) —
+- [`/docs/elk/README.md`](../../docs/elk/README.md) —
   the Elasticsearch component template for the `endpoint_*` fields.

@@ -21,7 +21,7 @@ ask first.
 
 The twin symmetry is a hard invariant: a new field or configuration property must land
 in **both** modules, with the shared contract in
-`limesium-servlet-logging/docs/endpoint-logging-reference.yml` updated and the
+`docs/endpoint-logging-reference.yml` updated and the
 contract tests passing in both.
 
 ## Development setup

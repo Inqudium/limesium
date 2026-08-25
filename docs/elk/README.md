@@ -2,7 +2,7 @@
 
 Companion text to
 [`limesium-servlet-logging-fields.component-template.json`](limesium-servlet-logging-fields.component-template.json) —
-the mapping of the thirteen structured fields this module writes per inbound HTTP exchange.
+the mapping of the thirteen structured fields the Limesium modules write per inbound HTTP exchange.
 
 > **Status note.** This is **the definition, not an
 > extract**: the `endpoint_*` family is not yet part of any upstream data-stream mapping. Whoever wires
@@ -17,8 +17,8 @@ curl -X PUT "$ES/_component_template/limesium-servlet-logging-fields" \
      --data-binary @limesium-servlet-logging-fields.component-template.json
 ```
 
-[`EndpointLogFieldTest`](../../src/test/kotlin/eu/inqudium/limesium/servlet/logging/EndpointLogFieldTest.kt)
-compares this template's field set against `EndpointLogField.entries` at build time and fails in both
+[`EndpointLogFieldTest`](../../limesium-servlet-logging/src/test/kotlin/eu/inqudium/limesium/servlet/logging/EndpointLogFieldTest.kt)
+(and its reactive twin) compares this template's field set against `EndpointLogField.entries` at build time and fails in both
 directions — a field added to the enum without a mapping, and a mapping left behind for a removed field.
 
 ## The mapping, and the access pattern each line follows
@@ -40,10 +40,9 @@ directions — a field added to the enum without a mapping, and a mapping left b
 | `endpoint_response_body` | `keyword` | **false** | off | display only |
 
 The per-field rationale sits next to each constant as an `ELK:` line in
-[`EndpointLogFields.kt`](../../src/main/kotlin/eu/inqudium/limesium/servlet/logging/EndpointLogFields.kt); the two
+[`EndpointLogFields.kt`](../../limesium-servlet-logging/src/main/kotlin/eu/inqudium/limesium/servlet/logging/EndpointLogFields.kt); the two
 decisions most easily undone by accident — `index: false` on payload fields (sensitivity precedes
-analytics, guide §8) and `doc_values: false` on the high-cardinality path pair half (repetition factor,
-guide §5) — each have their own explicit assertion in the lockstep test.
+analytics) and `doc_values: false` on the high-cardinality path pair half (repetition factor) — each have their own explicit assertion in the lockstep test.
 
 ## Deliberately not in this template
 
@@ -53,5 +52,5 @@ The **MDC-carried fields** — `endpoint_request_id`, `endpoint_method`, `endpoi
 picks a different encoder layout. Map them where the encoder configuration lives.
 
 **Related:** the reference configuration in
-[`../endpoint-logging-reference.yml`](../endpoint-logging-reference.yml) · the module
-[README](../../README.md).
+[`../endpoint-logging-reference.yml`](../endpoint-logging-reference.yml) · the module READMEs:
+[servlet](../../limesium-servlet-logging/README.md) · [reactive](../../limesium-reactive-logging/README.md).

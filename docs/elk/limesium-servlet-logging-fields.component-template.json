@@ -63,7 +63,7 @@
   },
   "_meta": {
     "description": "Field mappings for the endpoint_* exchange-log fields emitted by the limesium-servlet-logging module. This is the DEFINITION, not an extract: the family is not yet part of any upstream data-stream mapping, and whoever wires the module into a log pipeline composes this template there. The MDC-carried fields (endpoint_request_id, endpoint_method, endpoint_route, traceId, spanId) are deliberately absent - how MDC entries land in the document is the encoder's decision, not this module's.",
-    "source": "limesium-servlet-logging/docs/elk/README.md",
+    "source": "docs/elk/README.md",
     "authority": "limesium-servlet-logging/src/main/kotlin/eu/inqudium/limesium/servlet/logging/EndpointLogFields.kt"
   }
 }

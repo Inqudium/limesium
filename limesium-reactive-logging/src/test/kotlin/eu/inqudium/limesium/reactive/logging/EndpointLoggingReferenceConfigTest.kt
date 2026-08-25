@@ -12,8 +12,8 @@ import org.springframework.core.io.FileSystemResource
 
 /**
  * Lockstep between the TWO reference configurations and THIS module's [RequestLoggingProperties] - the
- * configuration-identity guarantee of the duplication. The SERVLET twin's
- * `docs/endpoint-logging-reference.yml` is bound against this module's properties class (the
+ * configuration-identity guarantee of the duplication. The repository-shared
+ * `/docs/endpoint-logging-reference.yml` is bound against this module's properties class (the
  * cross-stack proof that the shared namespace is identical, key for key and default for default), and
  * this module's OWN `docs/endpoint-logging-reference.yml` is bound and key-compared as well: it must
  * document the identical keys plus exactly the one reactive-only `variant` key. Each file is loaded
@@ -22,12 +22,12 @@ import org.springframework.core.io.FileSystemResource
  * following - or a documented key that does not exist - fails the build.
  */
 class EndpointLoggingReferenceConfigTest {
-    // The servlet twin's reference reaches this module's test classpath through the declared test
-    // resource in the POM; the module's own reference is read from the module directory (the servlet
-    // twin reads its own file the same way).
-    private val servletReferenceSources =
+    // The shared reference reaches this module's test classpath through the declared test
+    // resource in the POM; the module's own reference is read from the module directory (the
+    // servlet twin reads the shared file the same way).
+    private val sharedReferenceSources =
         YamlPropertySourceLoader()
-            .load("servlet-reference", ClassPathResource("endpoint-logging-reference.yml"))
+            .load("shared-reference", ClassPathResource("endpoint-logging-reference.yml"))
     private val ownReferenceSources =
         YamlPropertySourceLoader()
             .load("own-reference", FileSystemResource("docs/endpoint-logging-reference.yml"))
@@ -48,8 +48,8 @@ class EndpointLoggingReferenceConfigTest {
         // Why it matters: the reference promises "copy it, and nothing changes"; a drifted default would
         //   silently break that promise for everyone who copies the block.
         // Given/When: both reference YAMLs, bound the way Boot binds an application.yml
-        val boundFromServletReference =
-            Binder(ConfigurationPropertySources.from(servletReferenceSources))
+        val boundFromSharedReference =
+            Binder(ConfigurationPropertySources.from(sharedReferenceSources))
                 .bind("endpoint-logging", RequestLoggingProperties::class.java)
                 .get()
         val boundFromOwnReference =
@@ -58,23 +58,23 @@ class EndpointLoggingReferenceConfigTest {
                 .get()
 
         // Then: each is indistinguishable from the untouched defaults
-        assertThat(boundFromServletReference).isEqualTo(RequestLoggingProperties())
+        assertThat(boundFromSharedReference).isEqualTo(RequestLoggingProperties())
         assertThat(boundFromOwnReference).isEqualTo(RequestLoggingProperties())
     }
 
     @Test
-    fun `should document in the own reference exactly the servlet keys plus the variant key`() {
+    fun `should document in the own reference exactly the shared keys plus the variant key`() {
         // What is tested: the parity rule of having TWO reference files - this module's own reference
-        //   must be the servlet twin's namespace plus exactly the one reactive-only key.
-        // Success criteria: key set of the own file == key set of the servlet file + "variant".
+        //   must be the shared namespace plus exactly the one reactive-only key.
+        // Success criteria: key set of the own file == key set of the shared file + "variant".
         // Why it matters: a second reference file is a drift surface; this assertion turns the parity
         //   promise in both file headers into a build-breaking contract.
         // Given/When: the endpoint-logging.* keys of both files
-        val servletKeys = documentedKeys(servletReferenceSources)
+        val sharedKeys = documentedKeys(sharedReferenceSources)
         val ownKeys = documentedKeys(ownReferenceSources)
 
         // Then: identical namespaces apart from the documented reactive-only addition
-        assertThat(ownKeys).isEqualTo(servletKeys + "variant")
+        assertThat(ownKeys).isEqualTo(sharedKeys + "variant")
     }
 
     @Test
@@ -110,8 +110,8 @@ class EndpointLoggingReferenceConfigTest {
 
         // When: the endpoint-logging.* keys are extracted from both loaded references
         // Then: nothing is documented that does not exist, and nothing existing is left undocumented -
-        //   the servlet file omits the reactive-only key by design, the own file carries it
-        assertThat(documentedKeys(servletReferenceSources)).isEqualTo(knownKeys)
+        //   the shared file omits the reactive-only key by design, the own file carries it
+        assertThat(documentedKeys(sharedReferenceSources)).isEqualTo(knownKeys)
         assertThat(documentedKeys(ownReferenceSources)).isEqualTo(knownKeys + "variant")
     }
 }

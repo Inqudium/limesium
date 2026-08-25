@@ -16,7 +16,7 @@
     <dependencies>
         <!-- A library, not an application: only what the auto-configuration and the properties class
              need - no starter, no logging/YAML transitives forced onto the host (architecture review
-             finding 4, 2026-08-22T18-12-19). -->
+             finding 4). -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-autoconfigure</artifactId>

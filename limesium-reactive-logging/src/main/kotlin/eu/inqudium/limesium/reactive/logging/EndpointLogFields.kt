@@ -7,8 +7,8 @@ import kotlin.reflect.KClass
 /**
  * The structured log fields of an INBOUND HTTP exchange: their wire names, and the one rendering each name
  * is allowed to carry. The REACTIVE twin of the enum in limesium-servlet-logging, which OWNS the family:
- * the wire names are a contract with the log index, the mapping is the servlet module's
- * `docs/elk/` component template, and the design rationale (why an enum, the `ELK:` access-pattern
+ * the wire names are a contract with the log index, the mapping is the repository-shared
+ * `/docs/elk/` component template, and the design rationale (why an enum, the `ELK:` access-pattern
  * vocabulary, why headers and bodies are display-only) is documented once on that enum. This module's
  * `EndpointLogFieldTest` reads the template across the reactor and keeps this enum in lockstep with it,
  * build-breaking in both directions - so the per-field `ELK:` lines below are tested, not asserted.

@@ -1,8 +1,9 @@
 # =====================================================================================================
 # endpoint-logging - complete reference configuration
 #
-# Every property of the limesium-servlet-logging module with its DEFAULT value and the reasoning behind
-# it. Copy the block into an application.yml and change only what you need: every value shown here is
+# Every property of the SHARED endpoint-logging namespace (both Limesium modules) with its DEFAULT
+# value and the reasoning behind it. Copy the block into an application.yml and change only what you
+# need: every value shown here is
 # the built-in default, so an entry you leave out (or delete) behaves exactly like an entry you keep.
 # Bound by RequestLoggingProperties; invalid values (blank names, non-positive sizes/durations) fail
 # the context start with a message naming the property.

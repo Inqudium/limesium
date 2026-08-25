@@ -162,8 +162,8 @@ contract files, and the twin's build binds them:
 
 | Contract | Shipped here | Pinned in the twin by |
 |---|---|---|
-| Configuration keys and defaults | [`docs/endpoint-logging-reference.yml`](endpoint-logging-reference.yml) | `EndpointLoggingReferenceConfigTest` (binds this YAML against the twin's properties class) |
-| Field family and index mapping | [`docs/elk/…component-template.json`](elk/README.md) | `EndpointLogFieldTest` (locks the twin's enum against the template) |
+| Configuration keys and defaults | [`/docs/endpoint-logging-reference.yml`](../../docs/endpoint-logging-reference.yml) | `EndpointLoggingReferenceConfigTest` (binds this YAML against the twin's properties class) |
+| Field family and index mapping | [`/docs/elk/…component-template.json`](../../docs/elk/README.md) | `EndpointLogFieldTest` (locks the twin's enum against the template) |
 | Message text and meter names | this module's emitter and metrics | `TwinContractTest` in both modules |
 
 The consequence for a consumer: a dashboard, alert or index mapping written for one stack works
@@ -636,7 +636,7 @@ WARN breadcrumb on a thrown chain and the module's own failure reports.
 ### 3.6 Index mapping (ELK)
 
 The thirteen `endpoint_*` fields have a ready-made Elasticsearch component template in
-[`docs/elk/`](elk/README.md):
+[`/docs/elk/`](../../docs/elk/README.md):
 
 ```bash
 curl -X PUT "$ES/_component_template/limesium-servlet-logging-fields" \
@@ -680,7 +680,7 @@ depends on the host's encoder layout; map them where the encoder configuration l
 ## 4. Configuration
 
 All properties live under `endpoint-logging.*`. The complete, commented reference with every default is
-[`docs/endpoint-logging-reference.yml`](endpoint-logging-reference.yml); `EndpointLoggingReferenceConfigTest`
+[`/docs/endpoint-logging-reference.yml`](../../docs/endpoint-logging-reference.yml); `EndpointLoggingReferenceConfigTest`
 binds it against `RequestLoggingProperties` and fails the build on any drift — every key must exist,
 every value must be the built-in default. The reactive twin binds the same file, so the namespace is
 identical across the stacks (the twin adds one reactive-only key, `variant`, which this module ignores).
@@ -1129,10 +1129,8 @@ limesium-servlet-logging/
 ├── pom.xml                                   library deps only; servlet API provided
 ├── README.md                                 module summary, twin decision
 ├── docs/
-│   ├── GUIDE.md                              this document
 │   ├── activity-diagram.svg                  UML activity diagram of one exchange
-│   ├── endpoint-logging-reference.yml        the complete commented configuration reference (bound by both twins)
-│   └── elk/                                  component template + README for the endpoint_* fields
+│   └── GUIDE.md                              this document
 └── src/
     ├── main/kotlin/eu/inqudium/limesium/servlet/logging/
     │   ├── RequestLoggingAutoConfiguration.kt     filter, registration, listener, defaults
@@ -1157,10 +1155,10 @@ limesium-servlet-logging/
 ### 7.2 Related documents
 
 - [`README.md`](../README.md) — module summary and the twin decision.
-- [`docs/endpoint-logging-reference.yml`](endpoint-logging-reference.yml) — the complete commented
+- [`/docs/endpoint-logging-reference.yml`](../../docs/endpoint-logging-reference.yml) — the complete commented
   configuration reference; every key and default, bound by `EndpointLoggingReferenceConfigTest` here and
   in the twin.
-- [`docs/elk/README.md`](elk/README.md) — the Elasticsearch component template for the `endpoint_*`
+- [`/docs/elk/README.md`](../../docs/elk/README.md) — the Elasticsearch component template for the `endpoint_*`
   fields and the access pattern behind each mapping decision.
 - [`limesium-reactive-logging/docs/GUIDE.md`](../../limesium-reactive-logging/docs/GUIDE.md) — the
   twin's guide; [§6.1](#61-differences-to-the-reactive-twin) lists every deliberate difference.
