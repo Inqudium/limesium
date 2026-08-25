@@ -1,5 +1,5 @@
 blank_issues_enabled: true
 contact_links:
   - name: Security vulnerability
-    url: https://github.com/dirkjink/limesium/security/advisories/new
+    url: https://github.com/Inqudium/limesium/security/advisories/new
     about: Please report security issues privately, not as public issues.

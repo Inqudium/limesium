@@ -22,7 +22,7 @@
         service's own boundary (the "limes"). Two paradigm twins with identical fields and
         configuration: a servlet filter and a WebFlux/coroutines web filter.
     </description>
-    <url>https://github.com/dirkjink/limesium</url>
+    <url>https://github.com/Inqudium/limesium</url>
     <inceptionYear>2026</inceptionYear>
 
     <licenses>
@@ -42,15 +42,15 @@
     </developers>
 
     <scm>
-        <connection>scm:git:https://github.com/dirkjink/limesium.git</connection>
-        <developerConnection>scm:git:git@github.com:dirkjink/limesium.git</developerConnection>
-        <url>https://github.com/dirkjink/limesium</url>
+        <connection>scm:git:https://github.com/Inqudium/limesium.git</connection>
+        <developerConnection>scm:git:git@github.com:Inqudium/limesium.git</developerConnection>
+        <url>https://github.com/Inqudium/limesium</url>
         <tag>HEAD</tag>
     </scm>
 
     <issueManagement>
         <system>GitHub Issues</system>
-        <url>https://github.com/dirkjink/limesium/issues</url>
+        <url>https://github.com/Inqudium/limesium/issues</url>
     </issueManagement>
 
     <modules>

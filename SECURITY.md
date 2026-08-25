@@ -9,7 +9,7 @@ Only the latest released version of Limesium receives security fixes.
 Please **do not** report security vulnerabilities through public GitHub issues.
 
 Instead, report them privately via
-[GitHub Security Advisories](https://github.com/dirkjink/limesium/security/advisories/new)
+[GitHub Security Advisories](https://github.com/Inqudium/limesium/security/advisories/new)
 or by email to **limesium@inqudium.eu**.
 
 Please include:
