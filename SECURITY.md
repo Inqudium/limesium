@@ -42,6 +42,10 @@ Measures already in place, so you know what is expected behaviour:
 - **The code itself is statically analysed.** A CodeQL workflow analyses the
   library sources and the CI workflow definitions on every change and weekly;
   results appear under Security → Code scanning.
+- **The boundary parsers are fuzzed.** The components that handle
+  caller-controlled data (body capture, header masking, the `traceparent`
+  parser) run daily under ClusterFuzzLite/Jazzer with their invariants
+  asserted in the fuzz targets (`.clusterfuzzlite/fuzz/`).
 - **Release assets carry SLSA build provenance.** The Release workflow
   rebuilds the jars and the SBOM from the release tag, uploads them to the
   GitHub release, and attaches Sigstore-signed SLSA provenance
