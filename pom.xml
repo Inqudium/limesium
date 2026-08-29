@@ -76,11 +76,21 @@
         <kotlinx-coroutines.version>1.11.0</kotlinx-coroutines.version>
 
         <!-- Plugin Versions -->
-        <flatten-maven-plugin.version>1.6.0</flatten-maven-plugin.version>
-        <ktlint-maven-plugin.version>3.0.0</ktlint-maven-plugin.version>
+        <flatten-maven-plugin.version>1.8.0</flatten-maven-plugin.version>
+        <ktlint-maven-plugin.version>3.7.1</ktlint-maven-plugin.version>
         <dokka-maven-plugin.version>2.2.0</dokka-maven-plugin.version>
+        <jacoco-maven-plugin.version>0.8.14</jacoco-maven-plugin.version>
+        <cyclonedx-maven-plugin.version>2.9.3</cyclonedx-maven-plugin.version>
         <maven-gpg-plugin.version>3.2.8</maven-gpg-plugin.version>
         <central-publishing-maven-plugin.version>0.11.0</central-publishing-maven-plugin.version>
+
+        <!--
+            Default for the late-bound @{argLine} reference in the Surefire
+            configuration: JaCoCo's prepare-agent goal overwrites this
+            property with its -javaagent argument. The empty default keeps
+            Surefire working when JaCoCo is skipped (-Djacoco.skip=true).
+        -->
+        <argLine></argLine>
     </properties>
 
     <dependencyManagement>
@@ -188,6 +198,40 @@
                     </configuration>
                 </plugin>
 
+                <!--
+                    KDoc API reference, generated on demand with
+                    `mvn -pl <modules> dokka:dokka` (not bound to the default
+                    lifecycle to keep `mvn verify` fast; per module, because the
+                    Dokka Maven plugin has no aggregate mode). The Docs workflow
+                    publishes each module's output under /api/<module>/ on the
+                    documentation site. The module page rendered on the index
+                    (docs/api-module.md) is declared in each module's pom, not
+                    here - the parent has no such file, and its release-profile
+                    javadocJar run must not require one.
+                -->
+                <plugin>
+                    <groupId>org.jetbrains.dokka</groupId>
+                    <artifactId>dokka-maven-plugin</artifactId>
+                    <version>${dokka-maven-plugin.version}</version>
+                    <configuration>
+                        <moduleName>${project.artifactId}</moduleName>
+                        <outputDir>${project.build.directory}/dokka</outputDir>
+                        <!-- Fail on unresolved [Symbol] references (and other
+                             Dokka warnings): KDoc links are only trustworthy
+                             carriers when a red build guards them.
+                             reportUndocumented stays off, so only genuine
+                             reference/markup problems gate. -->
+                        <failOnWarning>true</failOnWarning>
+                        <sourceLinks>
+                            <link>
+                                <path>src/main/kotlin</path>
+                                <url>https://github.com/Inqudium/limesium/tree/main/${project.artifactId}/src/main/kotlin</url>
+                                <lineSuffix>#L</lineSuffix>
+                            </link>
+                        </sourceLinks>
+                    </configuration>
+                </plugin>
+
                 <plugin>
                     <groupId>com.github.gantsign.maven</groupId>
                     <artifactId>ktlint-maven-plugin</artifactId>
@@ -216,10 +260,72 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
+                    <!-- @{argLine} is resolved LATE (after JaCoCo's prepare-agent
+                         set the property), so the coverage agent and the JVM flags
+                         combine instead of the literal argLine overriding the
+                         agent. -->
                     <argLine>
+                        @{argLine}
                         --add-opens java.base/java.lang=ALL-UNNAMED
                         -XX:+EnableDynamicAgentLoading
                     </argLine>
+                </configuration>
+            </plugin>
+
+            <!--
+                Test coverage, always on: the agent attaches via the argLine
+                property (merged with the JVM flags in the Surefire config -
+                see the @{argLine} note there) and each module's report is
+                written at verify to target/site/jacoco/ (HTML + XML + CSV).
+                The Docs workflow publishes the HTML reports and derives the
+                combined coverage badge from the CSVs, so the visible numbers
+                are generated, never hand-maintained. Skip locally with
+                -Djacoco.skip=true.
+            -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco-maven-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!--
+                CycloneDX SBOM of the RESOLVED dependency graph, generated on
+                demand with `mvn cyclonedx:makeAggregateBom` (deliberately not
+                bound to a lifecycle phase, so `mvn verify` stays fast). The CI
+                dependency scan consumes the aggregated target/bom.json.
+
+                Why an SBOM rather than scanning pom.xml directly: most versions
+                here are managed by the Spring Boot BOM and therefore do not
+                appear in pom.xml at all. Only the resolved graph states what
+                actually ships - which is exactly what a vulnerability scan has
+                to look at.
+
+                Test-scoped dependencies are excluded (the plugin's default):
+                they never reach a consumer, and an advisory in a test-only
+                library should not gate the build.
+            -->
+            <plugin>
+                <groupId>org.cyclonedx</groupId>
+                <artifactId>cyclonedx-maven-plugin</artifactId>
+                <version>${cyclonedx-maven-plugin.version}</version>
+                <configuration>
+                    <outputFormat>json</outputFormat>
+                    <schemaVersion>1.6</schemaVersion>
                 </configuration>
             </plugin>
             <plugin>
@@ -252,11 +358,11 @@
                             </execution>
                         </executions>
                     </plugin>
-                    <!-- Kotlin sources: the javadoc jar Central requires is generated by Dokka. -->
+                    <!-- Kotlin sources: the javadoc jar Central requires is generated by Dokka.
+                         Version and shared configuration come from pluginManagement. -->
                     <plugin>
                         <groupId>org.jetbrains.dokka</groupId>
                         <artifactId>dokka-maven-plugin</artifactId>
-                        <version>${dokka-maven-plugin.version}</version>
                         <executions>
                             <execution>
                                 <id>attach-javadoc</id>

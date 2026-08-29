@@ -207,7 +207,13 @@ class RequestLoggingWebFilterMetricsTest {
             assertThat(hostRegistry.find(EndpointLoggingMetrics.RESPONSE_BODY_SIZE_METER).counter()).isNotNull()
             assertThat(hostRegistry.find(EndpointLoggingMetrics.RESPONSE_BODY_SIZE_METER).summary()).isNull()
             // And: the non-conflicting meters still landed in the host registry
-            assertThat(hostRegistry.find(EndpointLoggingMetrics.EVENTS_METER).tag("outcome", "success").counter()?.count()).isEqualTo(1.0)
+            assertThat(
+                hostRegistry
+                    .find(EndpointLoggingMetrics.EVENTS_METER)
+                    .tag("outcome", "success")
+                    .counter()
+                    ?.count(),
+            ).isEqualTo(1.0)
         }
 
         /** A registry whose counters of [meterName] throw on increment; every other meter is healthy. */
@@ -257,8 +263,20 @@ class RequestLoggingWebFilterMetricsTest {
             // Then: logged, nothing escaped, the lost sample counted as wiring
             assertThat(thrown).isNull()
             assertThat(appender.list).singleElement().satisfies({ assertThat(it.formattedMessage).contains("-> 200") })
-            assertThat(registry.get(EndpointLoggingMetrics.FAIL_OPEN_METER).tag("stage", "wiring").counter().count()).isEqualTo(1.0)
-            assertThat(registry.get(EndpointLoggingMetrics.FAIL_OPEN_METER).tag("stage", "emission").counter().count()).isEqualTo(0.0)
+            assertThat(
+                registry
+                    .get(EndpointLoggingMetrics.FAIL_OPEN_METER)
+                    .tag("stage", "wiring")
+                    .counter()
+                    .count(),
+            ).isEqualTo(1.0)
+            assertThat(
+                registry
+                    .get(EndpointLoggingMetrics.FAIL_OPEN_METER)
+                    .tag("stage", "emission")
+                    .counter()
+                    .count(),
+            ).isEqualTo(0.0)
         }
 
         @Test
@@ -286,8 +304,20 @@ class RequestLoggingWebFilterMetricsTest {
 
             // Then: emitted, not counted as lost
             assertThat(appender.list).singleElement().satisfies({ assertThat(it.formattedMessage).contains("-> 200") })
-            assertThat(registry.get(EndpointLoggingMetrics.FAIL_OPEN_METER).tag("stage", "emission").counter().count()).isEqualTo(0.0)
-            assertThat(registry.get(EndpointLoggingMetrics.FAIL_OPEN_METER).tag("stage", "wiring").counter().count()).isEqualTo(1.0)
+            assertThat(
+                registry
+                    .get(EndpointLoggingMetrics.FAIL_OPEN_METER)
+                    .tag("stage", "emission")
+                    .counter()
+                    .count(),
+            ).isEqualTo(0.0)
+            assertThat(
+                registry
+                    .get(EndpointLoggingMetrics.FAIL_OPEN_METER)
+                    .tag("stage", "wiring")
+                    .counter()
+                    .count(),
+            ).isEqualTo(1.0)
         }
 
         @Test
@@ -480,7 +510,9 @@ class RequestLoggingWebFilterMetricsTest {
 
             // When: the commit is attempted and fails in the earlier action
             exchange.response.statusCode = HttpStatus.INTERNAL_SERVER_ERROR
-            val commit = org.assertj.core.api.Assertions.catchThrowable { exchange.response.setComplete().block() }
+            val commit =
+                org.assertj.core.api.Assertions
+                    .catchThrowable { exchange.response.setComplete().block() }
 
             // Then: failed commit, nothing logged, exchange still open
             assertThat(commit).hasMessage("commit action boom")
@@ -504,8 +536,7 @@ class RequestLoggingWebFilterMetricsTest {
             val mock = MockServerWebExchange.from(MockServerHttpRequest.get("/api/things"))
             val rejectingResponse =
                 object : ServerHttpResponseDecorator(mock.response) {
-                    override fun beforeCommit(action: java.util.function.Supplier<out Mono<Void>>): Unit =
-                        throw IllegalStateException("register boom")
+                    override fun beforeCommit(action: java.util.function.Supplier<out Mono<Void>>): Unit = throw IllegalStateException("register boom")
                 }
             val decorated =
                 object : ServerWebExchangeDecorator(mock) {
@@ -690,7 +721,12 @@ class RequestLoggingWebFilterMetricsTest {
             // Why it matters: the reactive counterpart of a parser bailing out early; a tee that drained
             //   the rest to find out would alter the request's backpressure.
             // Given: a chain taking one chunk of two
-            val chain = WebFilterChain { ex -> ex.request.body.take(1).then() }
+            val chain =
+                WebFilterChain { ex ->
+                    ex.request.body
+                        .take(1)
+                        .then()
+                }
 
             // When: the exchange completes
             measuring.filter(postExchange("hel", "lo"), chain).block()

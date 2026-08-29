@@ -419,7 +419,11 @@ class RequestLoggingFilter(
                 correlationId = correlationId,
                 requestHeaders =
                     properties.requestHeaders.select(headerNames) { name ->
-                        request.getHeaders(name)?.toList()?.takeIf { it.isNotEmpty() }?.joinToString(", ")
+                        request
+                            .getHeaders(name)
+                            ?.toList()
+                            ?.takeIf { it.isNotEmpty() }
+                            ?.joinToString(", ")
                     },
                 requestCapture = requestCapture,
                 requestWrapper = requestCapture?.let { CapturingRequestWrapper(request, it) },

@@ -172,7 +172,9 @@ internal class ExchangeLogEmitter(
             // Multi-value resolution, natively from the reactive HttpHeaders.
             val responseHeaders =
                 properties.responseHeaders.select(exchange.response.headers.headerNames()) { name ->
-                    exchange.response.headers[name]?.takeIf { it.isNotEmpty() }?.joinToString(", ")
+                    exchange.response.headers[name]
+                        ?.takeIf { it.isNotEmpty() }
+                        ?.joinToString(", ")
                 }
             // Body fields only when body LOGGING is on - a capture may also exist in count-only mode for
             // the size metrics, and its empty buffer must not surface as a truncated-looking field.

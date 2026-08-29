@@ -157,13 +157,25 @@ internal class ExchangeLogEmitter(
         // wins over a subsequent onError) is a property of the disposition value itself.
         val classification =
             when {
-                exchange.failure != null -> Classification(Level.ERROR, EndpointLoggingMetrics.OUTCOME_FAILURE, exchange.failure)
-                disposition == AsyncDisposition.TIMED_OUT ->
+                exchange.failure != null -> {
+                    Classification(Level.ERROR, EndpointLoggingMetrics.OUTCOME_FAILURE, exchange.failure)
+                }
+
+                disposition == AsyncDisposition.TIMED_OUT -> {
                     Classification(Level.WARN, EndpointLoggingMetrics.OUTCOME_TIMEOUT, exchange.asyncFailure)
-                disposition == AsyncDisposition.ERRORED ->
+                }
+
+                disposition == AsyncDisposition.ERRORED -> {
                     Classification(Level.ERROR, EndpointLoggingMetrics.OUTCOME_FAILURE, exchange.asyncFailure)
-                status >= 500 -> Classification(Level.WARN, EndpointLoggingMetrics.OUTCOME_FAILURE, null)
-                else -> Classification(Level.INFO, EndpointLoggingMetrics.OUTCOME_SUCCESS, null)
+                }
+
+                status >= 500 -> {
+                    Classification(Level.WARN, EndpointLoggingMetrics.OUTCOME_FAILURE, null)
+                }
+
+                else -> {
+                    Classification(Level.INFO, EndpointLoggingMetrics.OUTCOME_SUCCESS, null)
+                }
             }
         val outcome = classification.outcome
         val cause = classification.cause
@@ -190,7 +202,10 @@ internal class ExchangeLogEmitter(
             // truncate repeated headers (Set-Cookie being the classic).
             val responseHeaders =
                 properties.responseHeaders.select(exchange.response.headerNames) { name ->
-                    exchange.response.getHeaders(name)?.takeIf { it.isNotEmpty() }?.joinToString(", ")
+                    exchange.response
+                        .getHeaders(name)
+                        ?.takeIf { it.isNotEmpty() }
+                        ?.joinToString(", ")
                 }
             // Body fields only when body LOGGING is on - a capture may also exist in count-only mode for
             // the size metrics, and its empty buffer must not surface as a truncated-looking field.

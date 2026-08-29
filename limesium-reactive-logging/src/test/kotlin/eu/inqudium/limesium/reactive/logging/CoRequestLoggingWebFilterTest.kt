@@ -171,7 +171,13 @@ class CoRequestLoggingWebFilterTest {
         assertThat(thrown).isNull()
         assertThat(chainRan).isTrue()
         assertThat(appender.list).singleElement().satisfies({ assertThat(keyValues(it)).containsEntry("endpoint_outcome", "success") })
-        assertThat(meterRegistry.get(EndpointLoggingMetrics.FAIL_OPEN_METER).tag("stage", "wiring").counter().count()).isEqualTo(1.0)
+        assertThat(
+            meterRegistry
+                .get(EndpointLoggingMetrics.FAIL_OPEN_METER)
+                .tag("stage", "wiring")
+                .counter()
+                .count(),
+        ).isEqualTo(1.0)
         assertThat(meterRegistry.get(EndpointLoggingMetrics.OPEN_EXCHANGES_METER).gauge().value()).isEqualTo(0.0)
     }
 

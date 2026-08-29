@@ -63,8 +63,7 @@ class RequestLoggingFilterAsyncTest {
     private fun keyValues(event: ILoggingEvent): Map<String, Any?> = event.keyValuePairs?.associate { it.key to it.value } ?: emptyMap()
 
     /** The request destruction the container fires once the async cycle has ended - the emission point. */
-    private fun destroy(request: MockHttpServletRequest) =
-        filter.exchangeCompletionListener().requestDestroyed(ServletRequestEvent(request.servletContext, request))
+    private fun destroy(request: MockHttpServletRequest) = filter.exchangeCompletionListener().requestDestroyed(ServletRequestEvent(request.servletContext, request))
 
     @Nested
     inner class `Lifecycle` {
@@ -362,7 +361,13 @@ class RequestLoggingFilterAsyncTest {
             val event = appender.list.single()
             assertThat(event.level).isEqualTo(Level.ERROR)
             assertThat(event.throwableProxy?.message).isEqualTo("async handler boom")
-            assertThat(meterRegistry.get(EndpointLoggingMetrics.FAIL_OPEN_METER).tag("stage", "wiring").counter().count()).isEqualTo(1.0)
+            assertThat(
+                meterRegistry
+                    .get(EndpointLoggingMetrics.FAIL_OPEN_METER)
+                    .tag("stage", "wiring")
+                    .counter()
+                    .count(),
+            ).isEqualTo(1.0)
         }
 
         @Test

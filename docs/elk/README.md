@@ -17,7 +17,7 @@ curl -X PUT "$ES/_component_template/limesium-servlet-logging-fields" \
      --data-binary @limesium-servlet-logging-fields.component-template.json
 ```
 
-[`EndpointLogFieldTest`](../../limesium-servlet-logging/src/test/kotlin/eu/inqudium/limesium/servlet/logging/EndpointLogFieldTest.kt)
+[`EndpointLogFieldTest`](https://github.com/Inqudium/limesium/blob/main/limesium-servlet-logging/src/test/kotlin/eu/inqudium/limesium/servlet/logging/EndpointLogFieldTest.kt)
 (and its reactive twin) compares this template's field set against `EndpointLogField.entries` at build time and fails in both
 directions — a field added to the enum without a mapping, and a mapping left behind for a removed field.
 
@@ -40,7 +40,7 @@ directions — a field added to the enum without a mapping, and a mapping left b
 | `endpoint_response_body` | `keyword` | **false** | off | display only |
 
 The per-field rationale sits next to each constant as an `ELK:` line in
-[`EndpointLogFields.kt`](../../limesium-servlet-logging/src/main/kotlin/eu/inqudium/limesium/servlet/logging/EndpointLogFields.kt); the two
+[`EndpointLogFields.kt`](https://github.com/Inqudium/limesium/blob/main/limesium-servlet-logging/src/main/kotlin/eu/inqudium/limesium/servlet/logging/EndpointLogFields.kt); the two
 decisions most easily undone by accident — `index: false` on payload fields (sensitivity precedes
 analytics) and `doc_values: false` on the high-cardinality path pair half (repetition factor) — each have their own explicit assertion in the lockstep test.
 
@@ -53,4 +53,4 @@ picks a different encoder layout. Map them where the encoder configuration lives
 
 **Related:** the reference configuration in
 [`../endpoint-logging-reference.yml`](../endpoint-logging-reference.yml) · the module READMEs:
-[servlet](../../limesium-servlet-logging/README.md) · [reactive](../../limesium-reactive-logging/README.md).
+[servlet](https://github.com/Inqudium/limesium/blob/main/limesium-servlet-logging/README.md) · [reactive](https://github.com/Inqudium/limesium/blob/main/limesium-reactive-logging/README.md).

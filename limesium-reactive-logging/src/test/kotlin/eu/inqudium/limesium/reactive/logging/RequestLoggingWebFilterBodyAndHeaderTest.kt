@@ -65,7 +65,11 @@ class RequestLoggingWebFilterBodyAndHeaderTest {
 
     private fun bytes(text: String) = text.toByteArray(StandardCharsets.UTF_8)
 
-    private fun keyValues(): Map<String, Any?> = appender.list.single().keyValuePairs?.associate { it.key to it.value } ?: emptyMap()
+    private fun keyValues(): Map<String, Any?> =
+        appender.list
+            .single()
+            .keyValuePairs
+            ?.associate { it.key to it.value } ?: emptyMap()
 
     @Nested
     inner class `Request body tee` {

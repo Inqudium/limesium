@@ -435,8 +435,7 @@ class RequestLoggingWebFilterTest {
                     SimpleMeterRegistry(),
                 )
 
-            fun exchangeFor(rawTarget: String) =
-                MockServerWebExchange.from(MockServerHttpRequest.method(HttpMethod.GET, URI.create(rawTarget)))
+            fun exchangeFor(rawTarget: String) = MockServerWebExchange.from(MockServerHttpRequest.method(HttpMethod.GET, URI.create(rawTarget)))
 
             // When: the three encoded targets run
             scoped.filter(exchangeFor("/%61pi/things"), okChain()).block()

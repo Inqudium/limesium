@@ -335,7 +335,11 @@ class RequestLoggingMetricsTest {
             handle(request, MockHttpServletResponse(), chain)
 
             // Then: measured, but no body keys on the event
-            val keyValues = appender.list.single().keyValuePairs?.associate { it.key to it.value } ?: emptyMap()
+            val keyValues =
+                appender.list
+                    .single()
+                    .keyValuePairs
+                    ?.associate { it.key to it.value } ?: emptyMap()
             assertThat(keyValues)
                 .doesNotContainKey("endpoint_request_body")
                 .doesNotContainKey("endpoint_response_body")
@@ -357,8 +361,7 @@ class RequestLoggingMetricsTest {
                 .counter()
                 ?.count() ?: 0.0
 
-        private fun postWithBody(body: String = "hello"): MockHttpServletRequest =
-            MockHttpServletRequest("POST", "/api/things").apply { setContent(body.toByteArray(StandardCharsets.UTF_8)) }
+        private fun postWithBody(body: String = "hello"): MockHttpServletRequest = MockHttpServletRequest("POST", "/api/things").apply { setContent(body.toByteArray(StandardCharsets.UTF_8)) }
 
         @Test
         fun `should count a body read to its end as complete under the handler pattern`() {

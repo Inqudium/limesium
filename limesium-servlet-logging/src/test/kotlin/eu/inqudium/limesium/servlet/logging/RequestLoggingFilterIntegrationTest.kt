@@ -122,8 +122,7 @@ class RequestLoggingFilterIntegrationTest {
 
     private fun keyValues(event: ILoggingEvent): Map<String, Any?> = event.keyValuePairs?.associate { it.key to it.value } ?: emptyMap()
 
-    private fun causeMessages(proxy: IThrowableProxy?): List<String> =
-        generateSequence(proxy) { it.cause }.mapNotNull { it.message }.toList()
+    private fun causeMessages(proxy: IThrowableProxy?): List<String> = generateSequence(proxy) { it.cause }.mapNotNull { it.message }.toList()
 
     @Test
     fun `should log one complete event for a real synchronous exchange including template headers and bodies`() {

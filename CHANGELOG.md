@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Documentation site (MkDocs Material) at
+  [inqudium.github.io/limesium](https://inqudium.github.io/limesium/), published
+  by a `Docs` workflow that also generates the test-evidence page, the JaCoCo
+  coverage reports and the coverage badge from the actual test run, plus the
+  Dokka API reference per module.
+- Test coverage (JaCoCo) in every `mvn verify` run; per-module reports under
+  `target/site/jacoco/`.
+- CI dependency vulnerability scan: CycloneDX SBOM of the resolved graph,
+  checked against the OSV database on every push/PR and weekly.
+- CodeQL static analysis (library code and workflow definitions) and OpenSSF
+  Scorecard workflows.
+- Dependabot for Maven, GitHub Actions, and the hash-pinned docs toolchain.
+- Issue forms (YAML) replacing the Markdown issue templates; `.editorconfig`.
+
+### Changed
+
+- CI workflow hardened: actions pinned to commit SHAs, explicit least-privilege
+  token permissions, weekly scheduled run, test summary on every run.
+- `ktlint-maven-plugin` 3.0.0 → 3.7.1 (sources reformatted accordingly) and
+  `flatten-maven-plugin` 1.6.0 → 1.8.0.
+
 ## [1.1.0] - 2026-08-26
 
 ### Changed

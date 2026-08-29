@@ -230,8 +230,8 @@ class RequestLoggingFailOpenCounterTest {
                 request,
                 MockHttpServletResponse(),
                 FilterChain {
-                        _,
-                        res,
+                    _,
+                    res,
                     ->
                     res.outputStream.write("payload".toByteArray())
                 },
@@ -243,7 +243,13 @@ class RequestLoggingFailOpenCounterTest {
             assertThat(event.keyValuePairs?.associate { it.key to it.value }).containsEntry("endpoint_response_body", "payload")
             assertThat(hostRegistry.find(EndpointLoggingMetrics.FAIL_OPEN_METER).gauge()).isNotNull()
             assertThat(hostRegistry.find(EndpointLoggingMetrics.RESPONSE_BODY_SIZE_METER).summary()).isNull()
-            assertThat(hostRegistry.find(EndpointLoggingMetrics.EVENTS_METER).tag("outcome", "success").counter()?.count()).isEqualTo(1.0)
+            assertThat(
+                hostRegistry
+                    .find(EndpointLoggingMetrics.EVENTS_METER)
+                    .tag("outcome", "success")
+                    .counter()
+                    ?.count(),
+            ).isEqualTo(1.0)
         }
 
         /** A registry whose counters of [meterName] throw on increment; every other meter is healthy. */

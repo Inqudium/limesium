@@ -65,7 +65,11 @@ class RequestLoggingFilterTracingIntegrationTest {
 
     private fun get(path: String): HttpResponse<String> =
         http.send(
-            HttpRequest.newBuilder(URI.create("http://localhost:$port$path")).timeout(REQUEST_TIMEOUT).GET().build(),
+            HttpRequest
+                .newBuilder(URI.create("http://localhost:$port$path"))
+                .timeout(REQUEST_TIMEOUT)
+                .GET()
+                .build(),
             HttpResponse.BodyHandlers.ofString(),
         )
 

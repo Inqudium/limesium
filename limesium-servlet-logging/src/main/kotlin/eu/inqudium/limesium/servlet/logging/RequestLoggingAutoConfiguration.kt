@@ -50,8 +50,7 @@ class RequestLoggingAutoConfiguration {
         nanoTime: NanoTimeSource,
         correlationIds: CorrelationIdGenerator,
         meterRegistry: ObjectProvider<MeterRegistry>,
-    ): RequestLoggingFilter =
-        RequestLoggingFilter(properties, nanoTime, correlationIds, meterRegistry.getIfAvailable { SimpleMeterRegistry() })
+    ): RequestLoggingFilter = RequestLoggingFilter(properties, nanoTime, correlationIds, meterRegistry.getIfAvailable { SimpleMeterRegistry() })
 
     /**
      * Runs very early (but not first) in the chain, so the correlation id is in the MDC before other
@@ -79,6 +78,5 @@ class RequestLoggingAutoConfiguration {
      * received. See the emission-point section of [RequestLoggingFilter].
      */
     @Bean
-    fun requestLoggingExchangeCompletionListener(filter: RequestLoggingFilter): ServletListenerRegistrationBean<ServletRequestListener> =
-        ServletListenerRegistrationBean(filter.exchangeCompletionListener())
+    fun requestLoggingExchangeCompletionListener(filter: RequestLoggingFilter): ServletListenerRegistrationBean<ServletRequestListener> = ServletListenerRegistrationBean(filter.exchangeCompletionListener())
 }

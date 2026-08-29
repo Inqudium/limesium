@@ -52,6 +52,5 @@ class CoRequestLoggingAutoConfiguration {
         nanoTime: NanoTimeSource,
         correlationIds: CorrelationIdGenerator,
         meterRegistry: ObjectProvider<MeterRegistry>,
-    ): CoRequestLoggingWebFilter =
-        CoRequestLoggingWebFilter(properties, nanoTime, correlationIds, meterRegistry.getIfAvailable { SimpleMeterRegistry() })
+    ): CoRequestLoggingWebFilter = CoRequestLoggingWebFilter(properties, nanoTime, correlationIds, meterRegistry.getIfAvailable { SimpleMeterRegistry() })
 }

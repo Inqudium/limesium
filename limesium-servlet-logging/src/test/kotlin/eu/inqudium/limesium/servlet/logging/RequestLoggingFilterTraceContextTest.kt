@@ -54,8 +54,7 @@ class RequestLoggingFilterTraceContextTest {
         MDC.clear()
     }
 
-    private fun destroy(request: MockHttpServletRequest) =
-        filter.exchangeCompletionListener().requestDestroyed(ServletRequestEvent(request.servletContext, request))
+    private fun destroy(request: MockHttpServletRequest) = filter.exchangeCompletionListener().requestDestroyed(ServletRequestEvent(request.servletContext, request))
 
     @Test
     fun `should carry the trace context into the event although destruction runs without the bridge MDC`() {

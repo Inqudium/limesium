@@ -129,6 +129,18 @@
                     <skip>true</skip> <!-- Skip repackaging - we're a library, not a standalone app -->
                 </configuration>
             </plugin>
+            <!-- The module page Dokka renders on the API-reference index; version,
+                 sourceLinks and failOnWarning come from the parent's pluginManagement.
+                 No executions: dokka:dokka is invoked on demand by the Docs workflow. -->
+            <plugin>
+                <groupId>org.jetbrains.dokka</groupId>
+                <artifactId>dokka-maven-plugin</artifactId>
+                <configuration>
+                    <includes>
+                        <include>${project.basedir}/docs/api-module.md</include>
+                    </includes>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 </project>

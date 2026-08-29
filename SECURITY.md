@@ -26,3 +26,30 @@ time for a fix to be released before any public disclosure.
 Limesium logs data crossing the HTTP boundary. Reports about **sensitive data
 leaking into log output** (headers, bodies, query strings that should be masked
 or truncated but are not) are explicitly in scope and very welcome.
+
+Measures already in place, so you know what is expected behaviour:
+
+- **Headers are logged by allowlist only.** Nothing is logged unless named in
+  `includes`; values in the `masked` list are reduced to a stable
+  `length:hash` fingerprint instead of the cleartext value.
+- **Bodies are captured passively and bounded.** The tee never buffers,
+  replays, or withholds the exchange; `max-body-bytes` caps what can reach
+  the log.
+- **Dependencies are scanned continuously.** CI builds a CycloneDX SBOM of
+  the resolved graph and fails on any advisory known to OSV — on every change
+  and weekly, so newly published advisories surface without a commit.
+  Dependabot proposes the version bumps.
+- **The code itself is statically analysed.** A CodeQL workflow analyses the
+  library sources and the CI workflow definitions on every change and weekly;
+  results appear under Security → Code scanning.
+- **The repository's supply-chain posture is scored publicly.** The OpenSSF
+  Scorecard badge in the README links to the current per-check breakdown.
+  Read it as a posture indicator, not as a grade: several checks assume a
+  multi-maintainer, pull-request-based project and score low by construction
+  for a single-maintainer one. Where a deduction is a deliberate trade-off,
+  the reason sits next to the decision — see the `repo_token` note in
+  `.github/workflows/scorecard.yml`.
+
+Things outside this library's control, which the consuming application owns:
+what its handlers write into MDC and log messages, its TLS configuration, and
+where its log output is shipped and stored.

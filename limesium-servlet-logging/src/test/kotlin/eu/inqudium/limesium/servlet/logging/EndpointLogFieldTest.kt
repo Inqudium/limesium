@@ -227,7 +227,11 @@ class EndpointLogFieldTest {
                 .log()
 
             // Then: the event survived with only the well-typed field
-            val keyValues = appender.list.single().keyValuePairs.associate { it.key to it.value }
+            val keyValues =
+                appender.list
+                    .single()
+                    .keyValuePairs
+                    .associate { it.key to it.value }
             assertThat(keyValues)
                 .containsEntry("endpoint_outcome", "success")
                 .doesNotContainKey("endpoint_duration_ms")

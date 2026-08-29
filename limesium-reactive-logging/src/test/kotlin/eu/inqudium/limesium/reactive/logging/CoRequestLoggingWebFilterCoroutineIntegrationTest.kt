@@ -111,8 +111,7 @@ class CoRequestLoggingWebFilterCoroutineIntegrationTest {
 
     private fun keyValues(event: ILoggingEvent): Map<String, Any?> = event.keyValuePairs?.associate { it.key to it.value } ?: emptyMap()
 
-    private fun causeMessages(proxy: IThrowableProxy?): List<String> =
-        generateSequence(proxy) { it.cause }.mapNotNull { it.message }.toList()
+    private fun causeMessages(proxy: IThrowableProxy?): List<String> = generateSequence(proxy) { it.cause }.mapNotNull { it.message }.toList()
 
     @Test
     fun `should run the coroutine variant as the single active filter without context-propagation accessors`() {

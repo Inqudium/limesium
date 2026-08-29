@@ -2,9 +2,16 @@
   <img src="docs/logo/limesium-banner.svg" alt="Limesium — one structured endpoint_* line per HTTP exchange" width="640">
 </p>
 
-[![CI](https://github.com/Inqudium/limesium/actions/workflows/ci.yml/badge.svg)](https://github.com/Inqudium/limesium/actions/workflows/ci.yml)
 [![Maven Central](https://img.shields.io/maven-central/v/eu.inqudium/limesium.svg?label=Maven%20Central)](https://central.sonatype.com/namespace/eu.inqudium)
+[![CI](https://github.com/Inqudium/limesium/actions/workflows/ci.yml/badge.svg)](https://github.com/Inqudium/limesium/actions/workflows/ci.yml)
+[![Coverage](https://inqudium.github.io/limesium/coverage/badge.svg)](https://inqudium.github.io/limesium/coverage/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Java](https://img.shields.io/badge/Java-21-orange)](https://openjdk.org/projects/jdk/21/)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.4.10-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org/)
+[![Last commit](https://img.shields.io/github/last-commit/Inqudium/limesium)](https://github.com/Inqudium/limesium/commits/main)
+[![Issues](https://img.shields.io/github/issues/Inqudium/limesium)](https://github.com/Inqudium/limesium/issues)
+[![Docs](https://img.shields.io/badge/docs-inqudium.github.io-8E2C21)](https://inqudium.github.io/limesium/)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Inqudium/limesium/badge)](https://scorecard.dev/viewer/?uri=github.com/Inqudium/limesium)
 
 Limesium logs one structured endpoint_* line per HTTP exchange at the service's own boundary — 
 named after the Roman Limes, the watched frontier where every crossing was recorded. 
@@ -43,6 +50,12 @@ Both are auto-configured Spring Boot libraries — no starter, no forced logging
 the host application brings the runtime (Tomcat resp. Netty) and the Logback binding.
 
 ## Documentation
+
+**Documentation site:** [inqudium.github.io/limesium](https://inqudium.github.io/limesium/) —
+guides, Elasticsearch mapping, generated [test evidence](https://inqudium.github.io/limesium/tests/test-evidence/),
+[coverage reports](https://inqudium.github.io/limesium/coverage/), and the Dokka
+[API](https://inqudium.github.io/limesium/api/limesium-servlet-logging/)
+[references](https://inqudium.github.io/limesium/api/limesium-reactive-logging/).
 
 - [Servlet guide](limesium-servlet-logging/docs/GUIDE.md) — the long-form guide of the
   reference implementation: architecture, integration, configuration, metrics.

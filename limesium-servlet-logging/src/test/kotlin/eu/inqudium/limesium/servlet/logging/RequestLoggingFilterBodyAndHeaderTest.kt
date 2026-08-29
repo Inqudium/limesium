@@ -55,7 +55,11 @@ class RequestLoggingFilterBodyAndHeaderTest {
         appender.stop()
     }
 
-    private fun keyValues(): Map<String, Any?> = appender.list.single().keyValuePairs?.associate { it.key to it.value } ?: emptyMap()
+    private fun keyValues(): Map<String, Any?> =
+        appender.list
+            .single()
+            .keyValuePairs
+            ?.associate { it.key to it.value } ?: emptyMap()
 
     /** Filter pass plus the request destruction the container would fire - the emission point. */
     private fun handle(
@@ -172,8 +176,10 @@ class RequestLoggingFilterBodyAndHeaderTest {
                 )
             streamFirst.inputStream
             streamFirst.inputStream
-            assertThat(org.assertj.core.api.Assertions.catchThrowable { streamFirst.reader })
-                .isInstanceOf(IllegalStateException::class.java)
+            assertThat(
+                org.assertj.core.api.Assertions
+                    .catchThrowable { streamFirst.reader },
+            ).isInstanceOf(IllegalStateException::class.java)
 
             // Given/When/Then: reader first, then stream
             val readerFirst =
@@ -183,8 +189,10 @@ class RequestLoggingFilterBodyAndHeaderTest {
                 )
             readerFirst.reader
             readerFirst.reader
-            assertThat(org.assertj.core.api.Assertions.catchThrowable { readerFirst.inputStream })
-                .isInstanceOf(IllegalStateException::class.java)
+            assertThat(
+                org.assertj.core.api.Assertions
+                    .catchThrowable { readerFirst.inputStream },
+            ).isInstanceOf(IllegalStateException::class.java)
         }
 
         @Test
