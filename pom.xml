@@ -53,6 +53,22 @@
         <url>https://github.com/Inqudium/limesium/issues</url>
     </issueManagement>
 
+    <!--
+        Default deploy target: the GitHub Packages Maven registry, used by
+        the Release workflow's publish job (authenticated with the workflow
+        token via a server entry with id "github"). Maven Central remains
+        the primary release path and is deliberately separate: activate the
+        release profile (-Prelease), which signs and uploads through the
+        Central Portal instead.
+    -->
+    <distributionManagement>
+        <repository>
+            <id>github</id>
+            <name>GitHub Packages</name>
+            <url>https://maven.pkg.github.com/Inqudium/limesium</url>
+        </repository>
+    </distributionManagement>
+
     <modules>
         <module>limesium-servlet-logging</module>
         <module>limesium-reactive-logging</module>
