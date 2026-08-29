@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Harness rule (benchmark-verification prompt, Phase 3): the DEFAULT logging context inside a
+     benchmark JVM is silenced completely, so no benchmark ever measures string formatting and
+     synchronous console appending instead of the code under test. None of the measured units
+     (HeaderLogProperties.select/mask, EndpointLoggingMetrics meter resolution, UUID generation)
+     logs on its hot path, so silencing the shared context does not alter measured behaviour;
+     EndpointLoggingMetrics logs only on registration CONFLICTS, which the benchmarks do not
+     provoke. Verified per run: the raw output files must stay small. -->
+<configuration>
+    <root level="OFF"/>
+</configuration>
