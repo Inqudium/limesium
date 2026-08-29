@@ -2,7 +2,7 @@ name: Release
 
 # Attaches verifiable artifacts to every GitHub release: the module jars
 # and the aggregate CycloneDX SBOM, rebuilt from the release tag, plus
-# SLSA v1.0 build provenance signed via Sigstore. The provenance
+# SLSA build provenance signed via Sigstore. The provenance
 # (*.intoto.jsonl) lets consumers verify that an asset was built by this
 # repository's workflow from this tag (slsa-verifier), and is what the
 # OpenSSF Scorecard Signed-Releases check looks for. Publishing to Maven

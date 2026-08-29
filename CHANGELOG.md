@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Issue forms (YAML) replacing the Markdown issue templates; `.editorconfig`.
 - Release workflow: on a published GitHub release it rebuilds the module jars
   and the aggregate SBOM from the tag, uploads them as release assets, and
-  attaches Sigstore-signed SLSA v1.0 build provenance
+  attaches Sigstore-signed SLSA build provenance
   (slsa-github-generator); a `workflow_dispatch` variant backfills existing
   releases.
 
