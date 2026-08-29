@@ -36,3 +36,8 @@ replay_pid*
 # Kotlin Gradle plugin data, see https://kotlinlang.org/docs/whatsnew20.html#new-directory-for-kotlin-data-in-gradle-projects
 .kotlin/
 /.idea/
+
+# Working corpus of local JAZZER_FUZZ=1 runs (jazzer-junit); regenerated on
+# every fuzzing run - only FINDINGS (seed inputs under src/test/resources)
+# are versioned.
+.cifuzz-corpus/
