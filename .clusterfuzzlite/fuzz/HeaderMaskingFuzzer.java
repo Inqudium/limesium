@@ -52,8 +52,14 @@ public final class HeaderMaskingFuzzer {
             String name = entry.getFirst();
             String value = entry.getSecond();
             String original = lookupIgnoreCase(headers, name);
+            // Locale.ROOT mirrors Kotlin's lowercase(), which the library uses -
+            // the oracle must speak the library's dialect.
             boolean shouldMask =
-                    maskAll || masked.stream().anyMatch(m -> m.toLowerCase().equals(name.toLowerCase()));
+                    maskAll
+                            || masked.stream()
+                                    .anyMatch(m ->
+                                            m.toLowerCase(java.util.Locale.ROOT)
+                                                    .equals(name.toLowerCase(java.util.Locale.ROOT)));
             if (shouldMask) {
                 if (!FINGERPRINT.matcher(value).matches()) {
                     throw new IllegalStateException("masked value is not a fingerprint: " + name + "=" + value);
