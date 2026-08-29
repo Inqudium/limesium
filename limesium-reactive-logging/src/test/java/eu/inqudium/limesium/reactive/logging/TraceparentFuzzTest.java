@@ -1,5 +1,7 @@
+package eu.inqudium.limesium.reactive.logging;
+
 import com.code_intelligence.jazzer.api.FuzzedDataProvider;
-import eu.inqudium.limesium.reactive.logging.Traceparent;
+import com.code_intelligence.jazzer.junit.FuzzTest;
 import java.util.regex.Pattern;
 
 /**
@@ -11,13 +13,17 @@ import java.util.regex.Pattern;
  * of fixed length, neither all zeros); and a structurally valid version-00
  * header built from fuzzed hex is always accepted (positive oracle), so the
  * parser cannot silently start rejecting conformant traffic.
+ *
+ * Runs as a regression test (checked-in inputs plus the empty input) in every
+ * build; the scheduled Fuzz workflow explores for real (JAZZER_FUZZ=1).
  */
-public final class TraceparentFuzzer {
+class TraceparentFuzzTest {
     private static final Pattern TRACE_ID = Pattern.compile("[0-9a-f]{32}");
     private static final Pattern SPAN_ID = Pattern.compile("[0-9a-f]{16}");
     private static final String HEX = "0123456789abcdef";
 
-    public static void fuzzerTestOneInput(FuzzedDataProvider data) {
+    @FuzzTest(maxDuration = "10m")
+    void parserUpholdsItsContract(FuzzedDataProvider data) {
         if (data.consumeBoolean()) {
             // Positive oracle: a conformant version-00 header must parse.
             String traceId = hex(data, 32, true);
@@ -60,6 +66,4 @@ public final class TraceparentFuzzer {
         }
         return sb.toString();
     }
-
-    private TraceparentFuzzer() {}
 }

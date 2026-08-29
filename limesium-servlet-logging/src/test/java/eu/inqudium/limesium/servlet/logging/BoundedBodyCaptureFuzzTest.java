@@ -1,5 +1,7 @@
+package eu.inqudium.limesium.servlet.logging;
+
 import com.code_intelligence.jazzer.api.FuzzedDataProvider;
-import eu.inqudium.limesium.servlet.logging.BoundedBodyCapture;
+import com.code_intelligence.jazzer.junit.FuzzTest;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
@@ -13,13 +15,17 @@ import java.nio.charset.StandardCharsets;
  * is exact; loggedValue() is null exactly for a zero-byte body, never throws
  * for any byte content or charset, and announces truncation whenever more
  * bytes flowed than the capture limit holds.
+ *
+ * Runs as a regression test (checked-in inputs plus the empty input) in every
+ * build; the scheduled Fuzz workflow explores for real (JAZZER_FUZZ=1).
  */
-public final class BoundedBodyCaptureFuzzer {
+class BoundedBodyCaptureFuzzTest {
     private static final Charset[] CHARSETS = {
         StandardCharsets.UTF_8, StandardCharsets.ISO_8859_1, StandardCharsets.UTF_16, StandardCharsets.US_ASCII,
     };
 
-    public static void fuzzerTestOneInput(FuzzedDataProvider data) {
+    @FuzzTest(maxDuration = "10m")
+    void captureUpholdsItsContract(FuzzedDataProvider data) {
         int maxBytes = data.consumeInt(0, 1 << 16);
         BoundedBodyCapture capture = new BoundedBodyCapture(maxBytes);
         long expectedTotal = 0;
@@ -63,6 +69,4 @@ public final class BoundedBodyCaptureFuzzer {
                     "missing truncation note: totalBytes=" + expectedTotal + ", maxBytes=" + maxBytes);
         }
     }
-
-    private BoundedBodyCaptureFuzzer() {}
 }

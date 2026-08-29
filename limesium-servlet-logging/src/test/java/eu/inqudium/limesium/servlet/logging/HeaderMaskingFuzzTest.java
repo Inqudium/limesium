@@ -1,8 +1,11 @@
+package eu.inqudium.limesium.servlet.logging;
+
 import com.code_intelligence.jazzer.api.FuzzedDataProvider;
-import eu.inqudium.limesium.servlet.logging.HeaderLogProperties;
+import com.code_intelligence.jazzer.junit.FuzzTest;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -16,11 +19,15 @@ import java.util.regex.Pattern;
  * configured as masked never appears in the output in plaintext but always as
  * the stable length:hash fingerprint; mask() is deterministic and matches its
  * documented shape.
+ *
+ * Runs as a regression test (checked-in inputs plus the empty input) in every
+ * build; the scheduled Fuzz workflow explores for real (JAZZER_FUZZ=1).
  */
-public final class HeaderMaskingFuzzer {
+class HeaderMaskingFuzzTest {
     private static final Pattern FINGERPRINT = Pattern.compile("\\d+:[0-9a-f]{16}");
 
-    public static void fuzzerTestOneInput(FuzzedDataProvider data) {
+    @FuzzTest(maxDuration = "10m")
+    void selectionAndMaskingUpholdTheirContract(FuzzedDataProvider data) {
         List<String> includes = consumeNames(data);
         List<String> excludes = consumeNames(data);
         List<String> masked = consumeNames(data);
@@ -58,8 +65,7 @@ public final class HeaderMaskingFuzzer {
                     maskAll
                             || masked.stream()
                                     .anyMatch(m ->
-                                            m.toLowerCase(java.util.Locale.ROOT)
-                                                    .equals(name.toLowerCase(java.util.Locale.ROOT)));
+                                            m.toLowerCase(Locale.ROOT).equals(name.toLowerCase(Locale.ROOT)));
             if (shouldMask) {
                 if (!FINGERPRINT.matcher(value).matches()) {
                     throw new IllegalStateException("masked value is not a fingerprint: " + name + "=" + value);
@@ -79,7 +85,8 @@ public final class HeaderMaskingFuzzer {
             throw new IllegalStateException("mask() shape violated: " + fingerprint);
         }
         if (!fingerprint.startsWith(probe.length() + ":")) {
-            throw new IllegalStateException("mask() length prefix wrong: " + fingerprint + " for length " + probe.length());
+            throw new IllegalStateException(
+                    "mask() length prefix wrong: " + fingerprint + " for length " + probe.length());
         }
     }
 
@@ -109,6 +116,4 @@ public final class HeaderMaskingFuzzer {
         }
         return null;
     }
-
-    private HeaderMaskingFuzzer() {}
 }

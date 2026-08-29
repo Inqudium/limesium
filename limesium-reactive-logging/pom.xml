@@ -109,6 +109,14 @@
             <artifactId>spring-boot-micrometer-observation</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- Fuzzing: the @FuzzTest classes under src/test/java (see
+             CONTRIBUTING.md); version managed by the parent. -->
+        <dependency>
+            <groupId>com.code-intelligence</groupId>
+            <artifactId>jazzer-junit</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>

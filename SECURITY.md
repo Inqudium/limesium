@@ -44,8 +44,9 @@ Measures already in place, so you know what is expected behaviour:
   results appear under Security → Code scanning.
 - **The boundary parsers are fuzzed.** The components that handle
   caller-controlled data (body capture, header masking, the `traceparent`
-  parser) run daily under ClusterFuzzLite/Jazzer with their invariants
-  asserted in the fuzz targets (`.clusterfuzzlite/fuzz/`).
+  parser) are Jazzer `@FuzzTest` targets with their invariants asserted in
+  the test body: explored nightly by the Fuzz workflow, and replayed
+  against the checked-in findings in every build.
 - **Release assets carry SLSA build provenance.** The Release workflow
   rebuilds the jars and the SBOM from the release tag, uploads them to the
   GitHub release, and attaches Sigstore-signed SLSA provenance

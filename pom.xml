@@ -90,6 +90,10 @@
 
         <!-- Third Party Dependencies -->
         <kotlinx-coroutines.version>1.11.0</kotlinx-coroutines.version>
+        <!-- Fuzzing (test scope): Jazzer's JUnit 5 integration - @FuzzTest
+             methods run as regression tests in every verify and fuzz for
+             real in the scheduled Fuzz workflow (JAZZER_FUZZ=1). -->
+        <jazzer.version>0.24.0</jazzer.version>
 
         <!-- Plugin Versions -->
         <flatten-maven-plugin.version>1.8.0</flatten-maven-plugin.version>
@@ -127,6 +131,12 @@
                 <version>${kotlinx-coroutines.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.code-intelligence</groupId>
+                <artifactId>jazzer-junit</artifactId>
+                <version>${jazzer.version}</version>
+                <scope>test</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -351,6 +361,29 @@
             <plugin>
                 <groupId>com.github.gantsign.maven</groupId>
                 <artifactId>ktlint-maven-plugin</artifactId>
+            </plugin>
+            <!-- The fuzz tests are JAVA sources (the OpenSSF Scorecard fuzzing
+                 detector recognizes Jazzer only in *.java files), while
+                 testSourceDirectory points at src/test/kotlin - this adds
+                 src/test/java back as a second test-source root. -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <version>3.6.0</version>
+                <executions>
+                    <execution>
+                        <id>add-java-fuzz-test-sources</id>
+                        <phase>generate-test-sources</phase>
+                        <goals>
+                            <goal>add-test-source</goal>
+                        </goals>
+                        <configuration>
+                            <sources>
+                                <source>${project.basedir}/src/test/java</source>
+                            </sources>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

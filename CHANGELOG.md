@@ -31,9 +31,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Packages Maven registry (new `distributionManagement` in `pom.xml`),
   authenticated with the workflow token; Maven Central remains the primary,
   deliberately manual release path.
-- Daily fuzzing via ClusterFuzzLite/Jazzer (`.clusterfuzzlite/`): three
+- Daily fuzzing via Jazzer's JUnit integration (`@FuzzTest` classes under
+  `src/test/java`, nightly `Fuzz` workflow with `JAZZER_FUZZ=1`): three
   targets assert the invariants of the caller-facing parsers - bounded body
-  capture, header masking/fingerprinting, and the W3C `traceparent` parser.
+  capture, header masking/fingerprinting, and the W3C `traceparent` parser -
+  and replay their checked-in findings as regression tests in every build.
 
 ### Changed
 
