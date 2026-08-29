@@ -39,11 +39,29 @@
             <version>${jmh.version}</version>
             <scope>provided</scope>
         </dependency>
-        <!-- The module under test, from the local repository (see the build note above). -->
+        <!-- The modules under test, from the local repository (see the build note above). -->
         <dependency>
             <groupId>eu.inqudium</groupId>
             <artifactId>limesium-reactive-logging</artifactId>
             <version>${limesium.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>eu.inqudium</groupId>
+            <artifactId>limesium-servlet-logging</artifactId>
+            <version>${limesium.version}</version>
+        </dependency>
+        <!-- The servlet module keeps the servlet API provided (the container's, in production);
+             the benchmark JVM has no container, so the API and Spring's mock response come in
+             explicitly for the writer-capture benchmark. -->
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <version>6.1.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-test</artifactId>
+            <version>7.0.9</version>
         </dependency>
         <!-- Logback pinned into the benchmark JVM so the harness rule "root level OFF" (see
              src/main/resources/logback.xml) governs the default logging context instead of
