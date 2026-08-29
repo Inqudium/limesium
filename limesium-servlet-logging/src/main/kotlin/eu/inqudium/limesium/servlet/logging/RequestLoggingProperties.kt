@@ -4,6 +4,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.time.Duration
+import java.util.HexFormat
 
 /**
  * Configuration surface of the endpoint-logging filter, bound from the `endpoint-logging.*` namespace.
@@ -143,6 +144,14 @@ data class HeaderLogProperties(
         require(masked.none { it.isBlank() }) { "masked contains blank entries: $masked" }
     }
 
+    // Derived ONCE from the immutable configuration (after the validation above): rebuilding these
+    // sets on every call was a measured allocation cost on the per-request path (finding on
+    // header selection of an internal performance analysis, confirmed by benchmark).
+    private val excludedLower: Set<String> = excludes.map { it.lowercase() }.toSet()
+    private val maskedLower: Set<String> = masked.map { it.lowercase() }.toSet()
+    private val maskAll: Boolean = WILDCARD in masked
+    private val wildcardInclude: Boolean = WILDCARD in includes
+
     /**
      * The headers this section logs, as `(name, logged value)` pairs: included minus excluded, values
      * masked where configured. [availableNames] is consulted only for the `*` include (deduplicated
@@ -156,16 +165,16 @@ data class HeaderLogProperties(
         if (includes.isEmpty()) {
             return emptyList()
         }
-        val excluded = excludes.map { it.lowercase() }.toSet()
-        val maskedNames = masked.map { it.lowercase() }.toSet()
-        val maskAll = WILDCARD in masked
-        val names = if (WILDCARD in includes) availableNames.distinctBy { it.lowercase() } else includes
-        return names
-            .filter { it.lowercase() !in excluded }
-            .mapNotNull { name -> valueOf(name)?.let { value -> name to value } }
-            .map { (name, value) ->
-                if (maskAll || name.lowercase() in maskedNames) name to mask(value) else name to value
+        val names = if (wildcardInclude) availableNames.distinctBy { it.lowercase() } else includes
+        return names.mapNotNull { name ->
+            val lower = name.lowercase()
+            if (lower in excludedLower) {
+                return@mapNotNull null
             }
+            valueOf(name)?.let { value ->
+                name to if (maskAll || lower in maskedLower) mask(value) else value
+            }
+        }
     }
 
     companion object {
@@ -187,10 +196,13 @@ data class HeaderLogProperties(
          */
         fun mask(value: String): String {
             val digest = MessageDigest.getInstance("SHA-256").digest(value.toByteArray(StandardCharsets.UTF_8))
-            val prefix = digest.take(FINGERPRINT_BYTES).joinToString("") { "%02x".format(it) }
-            return "${value.length}:$prefix"
+            // HexFormat instead of a per-byte "%02x".format: byte-identical output at a fraction
+            // of the allocation (finding on masking of an internal performance analysis,
+            // confirmed by benchmark).
+            return "${value.length}:${HEX.formatHex(digest, 0, FINGERPRINT_BYTES)}"
         }
 
+        private val HEX = HexFormat.of()
         private const val FINGERPRINT_BYTES = 8
     }
 }

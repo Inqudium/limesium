@@ -114,6 +114,13 @@ class RequestLoggingFilter(
      * was already consistent). Path parameters (`;x=1`) are dropped, as in routing.
      */
     override fun shouldNotFilter(request: HttpServletRequest): Boolean {
+        // Nothing configured to match (the shipped default): the filter is active for every
+        // endpoint, so the answer needs no PathContainer - parsing the URI per dispatch bought a
+        // discarded result at ~110 B per path segment (finding 1 of an internal performance
+        // analysis, confirmed by benchmark).
+        if (includePathPatterns.isEmpty() && properties.excludePathPrefixes.isEmpty()) {
+            return false
+        }
         val container = PathContainer.parsePath(request.requestURI)
         if (includePathPatterns.isNotEmpty() && includePathPatterns.none { it.matches(container) }) {
             return true

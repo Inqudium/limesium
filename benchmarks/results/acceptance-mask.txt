@@ -1,0 +1,694 @@
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/home/dirk/IdeaProjects/limesium/benchmarks/target/benchmarks.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# JMH version: 1.37
+# VM version: JDK 26.0.1, Java HotSpot(TM) 64-Bit Server VM, 26.0.1+8-34
+# VM invoker: /usr/lib/jvm/jdk-26.0.1-oracle-x64/bin/java
+# VM options: <none>
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 5 iterations, 1 s each
+# Measurement: 8 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: eu.inqudium.limesium.benchmarks.MaskBenchmark.baseline
+# Parameters: (length = 64)
+
+# Run progress: 0,00% complete, ETA 00:01:57
+# Fork: 1 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/home/dirk/IdeaProjects/limesium/benchmarks/target/benchmarks.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 167,600 ns/op
+# Warmup Iteration   2: 124,542 ns/op
+# Warmup Iteration   3: 118,998 ns/op
+# Warmup Iteration   4: 119,635 ns/op
+# Warmup Iteration   5: 119,408 ns/op
+Iteration   1: 119,451 ns/op
+                 gc.alloc.rate:      4083,704 MB/sec
+                 gc.alloc.rate.norm: 512,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            4,000 ms
+
+Iteration   2: 124,020 ns/op
+                 gc.alloc.rate:      3935,946 MB/sec
+                 gc.alloc.rate.norm: 512,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            4,000 ms
+
+Iteration   3: 122,185 ns/op
+                 gc.alloc.rate:      3994,950 MB/sec
+                 gc.alloc.rate.norm: 512,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            4,000 ms
+
+Iteration   4: 118,594 ns/op
+                 gc.alloc.rate:      4115,643 MB/sec
+                 gc.alloc.rate.norm: 512,001 B/op
+                 gc.count:           5,000 counts
+                 gc.time:            5,000 ms
+
+Iteration   5: 118,545 ns/op
+                 gc.alloc.rate:      4117,186 MB/sec
+                 gc.alloc.rate.norm: 512,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            4,000 ms
+
+Iteration   6: 119,214 ns/op
+                 gc.alloc.rate:      4094,379 MB/sec
+                 gc.alloc.rate.norm: 512,001 B/op
+                 gc.count:           5,000 counts
+                 gc.time:            5,000 ms
+
+Iteration   7: 118,821 ns/op
+                 gc.alloc.rate:      4108,206 MB/sec
+                 gc.alloc.rate.norm: 512,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            4,000 ms
+
+Iteration   8: 119,226 ns/op
+                 gc.alloc.rate:      4093,791 MB/sec
+                 gc.alloc.rate.norm: 512,001 B/op
+                 gc.count:           5,000 counts
+                 gc.time:            5,000 ms
+
+
+# Run progress: 11,11% complete, ETA 00:01:46
+# Fork: 2 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/home/dirk/IdeaProjects/limesium/benchmarks/target/benchmarks.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 162,795 ns/op
+# Warmup Iteration   2: 117,336 ns/op
+# Warmup Iteration   3: 120,226 ns/op
+# Warmup Iteration   4: 118,917 ns/op
+# Warmup Iteration   5: 118,441 ns/op
+Iteration   1: 122,513 ns/op
+                 gc.alloc.rate:      3921,910 MB/sec
+                 gc.alloc.rate.norm: 504,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            4,000 ms
+
+Iteration   2: 118,430 ns/op
+                 gc.alloc.rate:      4057,590 MB/sec
+                 gc.alloc.rate.norm: 504,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            6,000 ms
+
+Iteration   3: 118,475 ns/op
+                 gc.alloc.rate:      4055,830 MB/sec
+                 gc.alloc.rate.norm: 504,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            4,000 ms
+
+Iteration   4: 118,467 ns/op
+                 gc.alloc.rate:      4055,931 MB/sec
+                 gc.alloc.rate.norm: 504,001 B/op
+                 gc.count:           5,000 counts
+                 gc.time:            5,000 ms
+
+Iteration   5: 118,382 ns/op
+                 gc.alloc.rate:      4058,600 MB/sec
+                 gc.alloc.rate.norm: 504,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            5,000 ms
+
+Iteration   6: 117,899 ns/op
+                 gc.alloc.rate:      4075,242 MB/sec
+                 gc.alloc.rate.norm: 504,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            4,000 ms
+
+Iteration   7: 118,533 ns/op
+                 gc.alloc.rate:      4053,711 MB/sec
+                 gc.alloc.rate.norm: 504,001 B/op
+                 gc.count:           5,000 counts
+                 gc.time:            6,000 ms
+
+Iteration   8: 118,329 ns/op
+                 gc.alloc.rate:      4060,254 MB/sec
+                 gc.alloc.rate.norm: 504,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            4,000 ms
+
+
+# Run progress: 22,22% complete, ETA 00:01:32
+# Fork: 3 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/home/dirk/IdeaProjects/limesium/benchmarks/target/benchmarks.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 172,722 ns/op
+# Warmup Iteration   2: 120,685 ns/op
+# Warmup Iteration   3: 119,072 ns/op
+# Warmup Iteration   4: 120,436 ns/op
+# Warmup Iteration   5: 125,477 ns/op
+Iteration   1: 119,043 ns/op
+                 gc.alloc.rate:      3844,096 MB/sec
+                 gc.alloc.rate.norm: 480,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            5,000 ms
+
+Iteration   2: 118,858 ns/op
+                 gc.alloc.rate:      3850,228 MB/sec
+                 gc.alloc.rate.norm: 480,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            5,000 ms
+
+Iteration   3: 118,996 ns/op
+                 gc.alloc.rate:      3845,889 MB/sec
+                 gc.alloc.rate.norm: 480,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            5,000 ms
+
+Iteration   4: 122,103 ns/op
+                 gc.alloc.rate:      3747,869 MB/sec
+                 gc.alloc.rate.norm: 480,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            5,000 ms
+
+Iteration   5: 118,674 ns/op
+                 gc.alloc.rate:      3855,979 MB/sec
+                 gc.alloc.rate.norm: 480,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            5,000 ms
+
+Iteration   6: 119,211 ns/op
+                 gc.alloc.rate:      3838,779 MB/sec
+                 gc.alloc.rate.norm: 480,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            5,000 ms
+
+Iteration   7: 120,030 ns/op
+                 gc.alloc.rate:      3812,906 MB/sec
+                 gc.alloc.rate.norm: 480,001 B/op
+                 gc.count:           5,000 counts
+                 gc.time:            7,000 ms
+
+Iteration   8: 118,897 ns/op
+                 gc.alloc.rate:      3848,564 MB/sec
+                 gc.alloc.rate.norm: 480,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            4,000 ms
+
+
+
+Result "eu.inqudium.limesium.benchmarks.MaskBenchmark.baseline":
+  119,454 ±(99.9%) 1,216 ns/op [Average]
+  (min, avg, max) = (117,899, 119,454, 124,020), stdev = 1,581
+  CI (99.9%): [118,238, 120,670] (assumes normal distribution)
+
+Secondary result "eu.inqudium.limesium.benchmarks.MaskBenchmark.baseline:gc.alloc.rate":
+  3980,299 ±(99.9%) 91,888 MB/sec [Average]
+  (min, avg, max) = (3747,869, 3980,299, 4117,186), stdev = 119,480
+  CI (99.9%): [3888,411, 4072,187] (assumes normal distribution)
+
+Secondary result "eu.inqudium.limesium.benchmarks.MaskBenchmark.baseline:gc.alloc.rate.norm":
+  498,668 ±(99.9%) 10,682 B/op [Average]
+  (min, avg, max) = (480,001, 498,668, 512,001), stdev = 13,890
+  CI (99.9%): [487,985, 509,350] (assumes normal distribution)
+
+Secondary result "eu.inqudium.limesium.benchmarks.MaskBenchmark.baseline:gc.count":
+  102,000 ±(99.9%) 0,001 counts [Sum]
+  (min, avg, max) = (4,000, 4,250, 5,000), stdev = 0,442
+  CI (99.9%): [102,000, 102,000] (assumes normal distribution)
+
+Secondary result "eu.inqudium.limesium.benchmarks.MaskBenchmark.baseline:gc.time":
+  114,000 ±(99.9%) 0,001 ms [Sum]
+  (min, avg, max) = (4,000, 4,750, 7,000), stdev = 0,794
+  CI (99.9%): [114,000, 114,000] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 26.0.1, Java HotSpot(TM) 64-Bit Server VM, 26.0.1+8-34
+# VM invoker: /usr/lib/jvm/jdk-26.0.1-oracle-x64/bin/java
+# VM options: <none>
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 5 iterations, 1 s each
+# Measurement: 8 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: eu.inqudium.limesium.benchmarks.MaskBenchmark.candidateCachedDigest
+# Parameters: (length = 64)
+
+# Run progress: 33,33% complete, ETA 00:01:19
+# Fork: 1 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/home/dirk/IdeaProjects/limesium/benchmarks/target/benchmarks.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 103,490 ns/op
+# Warmup Iteration   2: 106,866 ns/op
+# Warmup Iteration   3: 85,068 ns/op
+# Warmup Iteration   4: 84,654 ns/op
+# Warmup Iteration   5: 85,085 ns/op
+Iteration   1: 85,276 ns/op
+                 gc.alloc.rate:      2504,140 MB/sec
+                 gc.alloc.rate.norm: 224,001 B/op
+                 gc.count:           3,000 counts
+                 gc.time:            4,000 ms
+
+Iteration   2: 84,440 ns/op
+                 gc.alloc.rate:      2529,012 MB/sec
+                 gc.alloc.rate.norm: 224,001 B/op
+                 gc.count:           2,000 counts
+                 gc.time:            2,000 ms
+
+Iteration   3: 84,492 ns/op
+                 gc.alloc.rate:      2527,479 MB/sec
+                 gc.alloc.rate.norm: 224,001 B/op
+                 gc.count:           3,000 counts
+                 gc.time:            4,000 ms
+
+Iteration   4: 85,254 ns/op
+                 gc.alloc.rate:      2504,941 MB/sec
+                 gc.alloc.rate.norm: 224,001 B/op
+                 gc.count:           2,000 counts
+                 gc.time:            2,000 ms
+
+Iteration   5: 84,899 ns/op
+                 gc.alloc.rate:      2515,352 MB/sec
+                 gc.alloc.rate.norm: 224,001 B/op
+                 gc.count:           3,000 counts
+                 gc.time:            3,000 ms
+
+Iteration   6: 84,935 ns/op
+                 gc.alloc.rate:      2514,463 MB/sec
+                 gc.alloc.rate.norm: 224,001 B/op
+                 gc.count:           3,000 counts
+                 gc.time:            3,000 ms
+
+Iteration   7: 85,238 ns/op
+                 gc.alloc.rate:      2505,472 MB/sec
+                 gc.alloc.rate.norm: 224,001 B/op
+                 gc.count:           2,000 counts
+                 gc.time:            2,000 ms
+
+Iteration   8: 85,252 ns/op
+                 gc.alloc.rate:      2504,815 MB/sec
+                 gc.alloc.rate.norm: 224,001 B/op
+                 gc.count:           3,000 counts
+                 gc.time:            3,000 ms
+
+
+# Run progress: 44,44% complete, ETA 00:01:06
+# Fork: 2 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/home/dirk/IdeaProjects/limesium/benchmarks/target/benchmarks.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 97,002 ns/op
+# Warmup Iteration   2: 86,223 ns/op
+# Warmup Iteration   3: 86,734 ns/op
+# Warmup Iteration   4: 86,486 ns/op
+# Warmup Iteration   5: 86,143 ns/op
+Iteration   1: 86,873 ns/op
+                 gc.alloc.rate:      2457,633 MB/sec
+                 gc.alloc.rate.norm: 224,001 B/op
+                 gc.count:           8,000 counts
+                 gc.time:            7,000 ms
+
+Iteration   2: 86,596 ns/op
+                 gc.alloc.rate:      2464,787 MB/sec
+                 gc.alloc.rate.norm: 224,001 B/op
+                 gc.count:           7,000 counts
+                 gc.time:            5,000 ms
+
+Iteration   3: 86,369 ns/op
+                 gc.alloc.rate:      2472,482 MB/sec
+                 gc.alloc.rate.norm: 224,001 B/op
+                 gc.count:           8,000 counts
+                 gc.time:            6,000 ms
+
+Iteration   4: 85,585 ns/op
+                 gc.alloc.rate:      2495,096 MB/sec
+                 gc.alloc.rate.norm: 224,001 B/op
+                 gc.count:           8,000 counts
+                 gc.time:            8,000 ms
+
+Iteration   5: 86,323 ns/op
+                 gc.alloc.rate:      2473,796 MB/sec
+                 gc.alloc.rate.norm: 224,001 B/op
+                 gc.count:           8,000 counts
+                 gc.time:            8,000 ms
+
+Iteration   6: 86,806 ns/op
+                 gc.alloc.rate:      2460,518 MB/sec
+                 gc.alloc.rate.norm: 224,001 B/op
+                 gc.count:           7,000 counts
+                 gc.time:            7,000 ms
+
+Iteration   7: 86,909 ns/op
+                 gc.alloc.rate:      2457,627 MB/sec
+                 gc.alloc.rate.norm: 224,001 B/op
+                 gc.count:           8,000 counts
+                 gc.time:            8,000 ms
+
+Iteration   8: 86,631 ns/op
+                 gc.alloc.rate:      2462,974 MB/sec
+                 gc.alloc.rate.norm: 224,001 B/op
+                 gc.count:           8,000 counts
+                 gc.time:            6,000 ms
+
+
+# Run progress: 55,56% complete, ETA 00:00:52
+# Fork: 3 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/home/dirk/IdeaProjects/limesium/benchmarks/target/benchmarks.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 101,794 ns/op
+# Warmup Iteration   2: 100,604 ns/op
+# Warmup Iteration   3: 85,316 ns/op
+# Warmup Iteration   4: 84,211 ns/op
+# Warmup Iteration   5: 84,068 ns/op
+Iteration   1: 84,117 ns/op
+                 gc.alloc.rate:      2538,474 MB/sec
+                 gc.alloc.rate.norm: 224,001 B/op
+                 gc.count:           3,000 counts
+                 gc.time:            4,000 ms
+
+Iteration   2: 83,728 ns/op
+                 gc.alloc.rate:      2550,510 MB/sec
+                 gc.alloc.rate.norm: 224,001 B/op
+                 gc.count:           2,000 counts
+                 gc.time:            2,000 ms
+
+Iteration   3: 83,836 ns/op
+                 gc.alloc.rate:      2547,191 MB/sec
+                 gc.alloc.rate.norm: 224,001 B/op
+                 gc.count:           3,000 counts
+                 gc.time:            5,000 ms
+
+Iteration   4: 84,903 ns/op
+                 gc.alloc.rate:      2515,378 MB/sec
+                 gc.alloc.rate.norm: 224,001 B/op
+                 gc.count:           3,000 counts
+                 gc.time:            3,000 ms
+
+Iteration   5: 83,634 ns/op
+                 gc.alloc.rate:      2553,557 MB/sec
+                 gc.alloc.rate.norm: 224,001 B/op
+                 gc.count:           2,000 counts
+                 gc.time:            2,000 ms
+
+Iteration   6: 84,329 ns/op
+                 gc.alloc.rate:      2532,458 MB/sec
+                 gc.alloc.rate.norm: 224,001 B/op
+                 gc.count:           3,000 counts
+                 gc.time:            4,000 ms
+
+Iteration   7: 84,284 ns/op
+                 gc.alloc.rate:      2533,963 MB/sec
+                 gc.alloc.rate.norm: 224,001 B/op
+                 gc.count:           3,000 counts
+                 gc.time:            3,000 ms
+
+Iteration   8: 83,663 ns/op
+                 gc.alloc.rate:      2552,565 MB/sec
+                 gc.alloc.rate.norm: 224,001 B/op
+                 gc.count:           2,000 counts
+                 gc.time:            3,000 ms
+
+
+
+Result "eu.inqudium.limesium.benchmarks.MaskBenchmark.candidateCachedDigest":
+  85,182 ±(99.9%) 0,849 ns/op [Average]
+  (min, avg, max) = (83,634, 85,182, 86,909), stdev = 1,104
+  CI (99.9%): [84,333, 86,031] (assumes normal distribution)
+
+Secondary result "eu.inqudium.limesium.benchmarks.MaskBenchmark.candidateCachedDigest:gc.alloc.rate":
+  2507,278 ±(99.9%) 25,063 MB/sec [Average]
+  (min, avg, max) = (2457,627, 2507,278, 2553,557), stdev = 32,589
+  CI (99.9%): [2482,216, 2532,341] (assumes normal distribution)
+
+Secondary result "eu.inqudium.limesium.benchmarks.MaskBenchmark.candidateCachedDigest:gc.alloc.rate.norm":
+  224,001 ±(99.9%) 0,001 B/op [Average]
+  (min, avg, max) = (224,001, 224,001, 224,001), stdev = 0,001
+  CI (99.9%): [224,001, 224,001] (assumes normal distribution)
+
+Secondary result "eu.inqudium.limesium.benchmarks.MaskBenchmark.candidateCachedDigest:gc.count":
+  104,000 ±(99.9%) 0,001 counts [Sum]
+  (min, avg, max) = (2,000, 4,333, 8,000), stdev = 2,514
+  CI (99.9%): [104,000, 104,000] (assumes normal distribution)
+
+Secondary result "eu.inqudium.limesium.benchmarks.MaskBenchmark.candidateCachedDigest:gc.time":
+  104,000 ±(99.9%) 0,001 ms [Sum]
+  (min, avg, max) = (2,000, 4,333, 8,000), stdev = 2,078
+  CI (99.9%): [104,000, 104,000] (assumes normal distribution)
+
+
+# JMH version: 1.37
+# VM version: JDK 26.0.1, Java HotSpot(TM) 64-Bit Server VM, 26.0.1+8-34
+# VM invoker: /usr/lib/jvm/jdk-26.0.1-oracle-x64/bin/java
+# VM options: <none>
+# Blackhole mode: compiler (auto-detected, use -Djmh.blackhole.autoDetect=false to disable)
+# Warmup: 5 iterations, 1 s each
+# Measurement: 8 iterations, 1 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: eu.inqudium.limesium.benchmarks.MaskBenchmark.candidateHexFormat
+# Parameters: (length = 64)
+
+# Run progress: 66,67% complete, ETA 00:00:39
+# Fork: 1 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/home/dirk/IdeaProjects/limesium/benchmarks/target/benchmarks.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 162,247 ns/op
+# Warmup Iteration   2: 122,606 ns/op
+# Warmup Iteration   3: 119,018 ns/op
+# Warmup Iteration   4: 119,160 ns/op
+# Warmup Iteration   5: 118,479 ns/op
+Iteration   1: 118,563 ns/op
+                 gc.alloc.rate:      3859,540 MB/sec
+                 gc.alloc.rate.norm: 480,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            5,000 ms
+
+Iteration   2: 118,311 ns/op
+                 gc.alloc.rate:      3868,027 MB/sec
+                 gc.alloc.rate.norm: 480,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            5,000 ms
+
+Iteration   3: 118,897 ns/op
+                 gc.alloc.rate:      3848,910 MB/sec
+                 gc.alloc.rate.norm: 480,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            5,000 ms
+
+Iteration   4: 118,177 ns/op
+                 gc.alloc.rate:      3872,161 MB/sec
+                 gc.alloc.rate.norm: 480,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            4,000 ms
+
+Iteration   5: 118,685 ns/op
+                 gc.alloc.rate:      3855,484 MB/sec
+                 gc.alloc.rate.norm: 480,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            4,000 ms
+
+Iteration   6: 118,264 ns/op
+                 gc.alloc.rate:      3869,325 MB/sec
+                 gc.alloc.rate.norm: 480,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            5,000 ms
+
+Iteration   7: 118,437 ns/op
+                 gc.alloc.rate:      3863,727 MB/sec
+                 gc.alloc.rate.norm: 480,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            4,000 ms
+
+Iteration   8: 118,459 ns/op
+                 gc.alloc.rate:      3862,835 MB/sec
+                 gc.alloc.rate.norm: 480,001 B/op
+                 gc.count:           5,000 counts
+                 gc.time:            6,000 ms
+
+
+# Run progress: 77,78% complete, ETA 00:00:26
+# Fork: 2 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/home/dirk/IdeaProjects/limesium/benchmarks/target/benchmarks.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 167,284 ns/op
+# Warmup Iteration   2: 118,154 ns/op
+# Warmup Iteration   3: 121,374 ns/op
+# Warmup Iteration   4: 127,002 ns/op
+# Warmup Iteration   5: 121,168 ns/op
+Iteration   1: 118,552 ns/op
+                 gc.alloc.rate:      3859,991 MB/sec
+                 gc.alloc.rate.norm: 480,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            5,000 ms
+
+Iteration   2: 117,589 ns/op
+                 gc.alloc.rate:      3891,465 MB/sec
+                 gc.alloc.rate.norm: 480,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            4,000 ms
+
+Iteration   3: 118,433 ns/op
+                 gc.alloc.rate:      3863,801 MB/sec
+                 gc.alloc.rate.norm: 480,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            5,000 ms
+
+Iteration   4: 117,708 ns/op
+                 gc.alloc.rate:      3887,760 MB/sec
+                 gc.alloc.rate.norm: 480,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            5,000 ms
+
+Iteration   5: 120,155 ns/op
+                 gc.alloc.rate:      3808,116 MB/sec
+                 gc.alloc.rate.norm: 480,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            4,000 ms
+
+Iteration   6: 117,884 ns/op
+                 gc.alloc.rate:      3881,708 MB/sec
+                 gc.alloc.rate.norm: 480,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            4,000 ms
+
+Iteration   7: 118,146 ns/op
+                 gc.alloc.rate:      3873,571 MB/sec
+                 gc.alloc.rate.norm: 480,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            6,000 ms
+
+Iteration   8: 124,547 ns/op
+                 gc.alloc.rate:      3673,801 MB/sec
+                 gc.alloc.rate.norm: 480,001 B/op
+                 gc.count:           5,000 counts
+                 gc.time:            7,000 ms
+
+
+# Run progress: 88,89% complete, ETA 00:00:13
+# Fork: 3 of 3
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by org.openjdk.jmh.util.Utils (file:/home/dirk/IdeaProjects/limesium/benchmarks/target/benchmarks.jar)
+WARNING: Please consider reporting this to the maintainers of class org.openjdk.jmh.util.Utils
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+# Warmup Iteration   1: 167,409 ns/op
+# Warmup Iteration   2: 118,090 ns/op
+# Warmup Iteration   3: 121,522 ns/op
+# Warmup Iteration   4: 118,180 ns/op
+# Warmup Iteration   5: 118,251 ns/op
+Iteration   1: 119,161 ns/op
+                 gc.alloc.rate:      3840,350 MB/sec
+                 gc.alloc.rate.norm: 480,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            4,000 ms
+
+Iteration   2: 117,833 ns/op
+                 gc.alloc.rate:      3883,819 MB/sec
+                 gc.alloc.rate.norm: 480,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            6,000 ms
+
+Iteration   3: 118,565 ns/op
+                 gc.alloc.rate:      3859,347 MB/sec
+                 gc.alloc.rate.norm: 480,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            5,000 ms
+
+Iteration   4: 118,184 ns/op
+                 gc.alloc.rate:      3871,896 MB/sec
+                 gc.alloc.rate.norm: 480,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            6,000 ms
+
+Iteration   5: 118,751 ns/op
+                 gc.alloc.rate:      3853,319 MB/sec
+                 gc.alloc.rate.norm: 480,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            6,000 ms
+
+Iteration   6: 118,045 ns/op
+                 gc.alloc.rate:      3876,160 MB/sec
+                 gc.alloc.rate.norm: 480,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            5,000 ms
+
+Iteration   7: 117,880 ns/op
+                 gc.alloc.rate:      3881,896 MB/sec
+                 gc.alloc.rate.norm: 480,001 B/op
+                 gc.count:           4,000 counts
+                 gc.time:            4,000 ms
+
+Iteration   8: 119,000 ns/op
+                 gc.alloc.rate:      3845,187 MB/sec
+                 gc.alloc.rate.norm: 480,001 B/op
+                 gc.count:           5,000 counts
+                 gc.time:            6,000 ms
+
+
+
+Result "eu.inqudium.limesium.benchmarks.MaskBenchmark.candidateHexFormat":
+  118,676 ±(99.9%) 1,049 ns/op [Average]
+  (min, avg, max) = (117,589, 118,676, 124,547), stdev = 1,364
+  CI (99.9%): [117,627, 119,725] (assumes normal distribution)
+
+Secondary result "eu.inqudium.limesium.benchmarks.MaskBenchmark.candidateHexFormat:gc.alloc.rate":
+  3856,341 ±(99.9%) 32,878 MB/sec [Average]
+  (min, avg, max) = (3673,801, 3856,341, 3891,465), stdev = 42,751
+  CI (99.9%): [3823,463, 3889,220] (assumes normal distribution)
+
+Secondary result "eu.inqudium.limesium.benchmarks.MaskBenchmark.candidateHexFormat:gc.alloc.rate.norm":
+  480,001 ±(99.9%) 0,001 B/op [Average]
+  (min, avg, max) = (480,001, 480,001, 480,001), stdev = 0,001
+  CI (99.9%): [480,001, 480,001] (assumes normal distribution)
+
+Secondary result "eu.inqudium.limesium.benchmarks.MaskBenchmark.candidateHexFormat:gc.count":
+  99,000 ±(99.9%) 0,001 counts [Sum]
+  (min, avg, max) = (4,000, 4,125, 5,000), stdev = 0,338
+  CI (99.9%): [99,000, 99,000] (assumes normal distribution)
+
+Secondary result "eu.inqudium.limesium.benchmarks.MaskBenchmark.candidateHexFormat:gc.time":
+  120,000 ±(99.9%) 0,001 ms [Sum]
+  (min, avg, max) = (4,000, 5,000, 7,000), stdev = 0,885
+  CI (99.9%): [120,000, 120,000] (assumes normal distribution)
+
+
+# Run complete. Total time: 00:01:59
+
+REMEMBER: The numbers below are just data. To gain reusable insights, you need to follow up on
+why the numbers are the way they are. Use profilers (see -prof, -lprof), design factorial
+experiments, perform baseline and negative tests that provide experimental control, make sure
+the benchmarking environment is safe on JVM/OS/HW level, ask for reviews from the domain experts.
+Do not assume the numbers tell you what you want them to tell.
+
+NOTE: Current JVM experimentally supports Compiler Blackholes, and they are in use. Please exercise
+extra caution when trusting the results, look into the generated code to check the benchmark still
+works, and factor in a small probability of new VM bugs. Additionally, while comparisons between
+different JVMs are already problematic, the performance difference caused by different Blackhole
+modes can be very significant. Please make sure you use the consistent Blackhole mode for comparisons.
+
+Benchmark                                               (length)  Mode  Cnt     Score    Error   Units
+MaskBenchmark.baseline                                        64  avgt   24   119,454 ±  1,216   ns/op
+MaskBenchmark.baseline:gc.alloc.rate                          64  avgt   24  3980,299 ± 91,888  MB/sec
+MaskBenchmark.baseline:gc.alloc.rate.norm                     64  avgt   24   498,668 ± 10,682    B/op
+MaskBenchmark.baseline:gc.count                               64  avgt   24   102,000           counts
+MaskBenchmark.baseline:gc.time                                64  avgt   24   114,000               ms
+MaskBenchmark.candidateCachedDigest                           64  avgt   24    85,182 ±  0,849   ns/op
+MaskBenchmark.candidateCachedDigest:gc.alloc.rate             64  avgt   24  2507,278 ± 25,063  MB/sec
+MaskBenchmark.candidateCachedDigest:gc.alloc.rate.norm        64  avgt   24   224,001 ±  0,001    B/op
+MaskBenchmark.candidateCachedDigest:gc.count                  64  avgt   24   104,000           counts
+MaskBenchmark.candidateCachedDigest:gc.time                   64  avgt   24   104,000               ms
+MaskBenchmark.candidateHexFormat                              64  avgt   24   118,676 ±  1,049   ns/op
+MaskBenchmark.candidateHexFormat:gc.alloc.rate                64  avgt   24  3856,341 ± 32,878  MB/sec
+MaskBenchmark.candidateHexFormat:gc.alloc.rate.norm           64  avgt   24   480,001 ±  0,001    B/op
+MaskBenchmark.candidateHexFormat:gc.count                     64  avgt   24    99,000           counts
+MaskBenchmark.candidateHexFormat:gc.time                      64  avgt   24   120,000               ms
