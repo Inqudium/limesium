@@ -1183,8 +1183,24 @@ limesium-reactive-logging/
     │   (Traceparent, Mdc, NanoTimeSource, CorrelationIdGenerator and reportQuietly live in
     │    ../limesium-common - inlined into this jar, §6.9)
     ├── main/resources/META-INF/spring/…AutoConfiguration.imports
-    └── test/kotlin/eu/inqudium/limesium/reactive/logging/  unit, integration (real Netty), lockstep tests
+    └── test/kotlin/eu/inqudium/limesium/reactive/logging/  see the suite overview below
 ```
+
+Test-suite overview (the generated [test-evidence page](https://inqudium.github.io/limesium/tests/test-evidence/)
+lists every test with its rationale):
+
+| Suite | Scope |
+|---|---|
+| Unit suites (`RequestLoggingWebFilterTest`, `CoRequestLoggingWebFilterTest`, `…BodyAndHeaderTest`, `…MetricsTest`, `BoundedBodyCaptureTest`, `MdcContextPropagationTest`, `RequestLoggingAutoConfigurationTest`, …) | mock-exchange driven, deterministic; both filter variants against the shared lifecycle |
+| `RequestLoggingWebFilterIntegrationTest` | end-to-end on real embedded **Netty** with the auto-selected (coroutine) variant: DataBuffer tee on pooled buffers, real WebFlux dispatch, commit-deferred error emission |
+| `RequestLoggingWebFilterReactorIntegrationTest` | the **Reactor variant** on real Netty (coroutine auto-configuration excluded) — the majority consumer configuration without the optional coroutine libraries |
+| `CoRequestLoggingWebFilterCoroutineIntegrationTest` | the **coroutine variant**'s `MDCContext` handler-MDC parity across real dispatcher hops |
+| `RequestLoggingWebFilterTracingIntegrationTest` | ADR-0002 trace contract beside a real Brave bridge on Netty: header-parse join, identity decision, the documented no-`traceparent` boundary, the commit-deferred error path |
+| Lockstep/contract tests (`TwinContractTest`, `EndpointLogFieldTest`, `EndpointLoggingReferenceConfigTest`, `HandlerMappingAttributeTest`, `HeaderLogPropertiesTest`) | pin the twin/wire/config contracts against the servlet twin and the shared reference YAML |
+
+Fuzzing of the shared `Traceparent` parser lives in limesium-common; this module's engine matrix is a
+single one (Netty) - WebFlux has no per-container WAR story, unlike the servlet twin's
+Tomcat/Jetty/Undertow suites.
 
 ### 7.2 Related documents
 
