@@ -62,7 +62,7 @@ import java.util.concurrent.Callable
  * context holds no per-test state beyond the appender, which is fresh per test.
  */
 @SpringBootTest(
-    classes = [RequestLoggingFilterIntegrationTest.ItApp::class],
+    classes = [RequestLoggingFilterTomcatIntegrationTest.ItApp::class],
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = [
         "endpoint-logging.logger-name=http-exchange-integration-test",
@@ -80,7 +80,7 @@ import java.util.concurrent.Callable
             "org.springframework.boot.jetty.autoconfigure.servlet.JettyServletWebServerAutoConfiguration",
     ],
 )
-class RequestLoggingFilterIntegrationTest {
+class RequestLoggingFilterTomcatIntegrationTest {
     @LocalServerPort
     private var port: Int = 0
 

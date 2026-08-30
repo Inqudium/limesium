@@ -29,7 +29,7 @@ import java.time.Duration
  * in its context so its exact-message assertions stay trace-free.
  */
 @SpringBootTest(
-    classes = [RequestLoggingFilterIntegrationTest.ItApp::class],
+    classes = [RequestLoggingFilterTomcatIntegrationTest.ItApp::class],
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = [
         "endpoint-logging.logger-name=http-exchange-tracing-integration-test",
@@ -39,7 +39,7 @@ import java.time.Duration
         "spring.autoconfigure.exclude=org.springframework.boot.jetty.autoconfigure.servlet.JettyServletWebServerAutoConfiguration",
     ],
 )
-class RequestLoggingFilterTracingIntegrationTest {
+class RequestLoggingFilterTomcatTracingIntegrationTest {
     @LocalServerPort
     private var port: Int = 0
 

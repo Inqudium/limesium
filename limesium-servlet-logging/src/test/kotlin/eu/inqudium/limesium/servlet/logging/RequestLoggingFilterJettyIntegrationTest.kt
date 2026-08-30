@@ -26,8 +26,8 @@ import java.time.Duration
  * what the body tees can and cannot see is spec-derived convention - buffer discard on `sendError`,
  * error rendering through the ORIGINAL response in the ERROR dispatch, zero-argument `startAsync()`
  * initializing its context with the original request/response, `requestDestroyed` as the emission
- * point. [RequestLoggingFilterIntegrationTest] pins all of it against embedded Tomcat; this class runs
- * the SAME application (the shared [RequestLoggingFilterIntegrationTest.ItApp]) on embedded JETTY, so a
+ * point. [RequestLoggingFilterTomcatIntegrationTest] pins all of it against embedded Tomcat; this class runs
+ * the SAME application (the shared [RequestLoggingFilterTomcatIntegrationTest.ItApp]) on embedded JETTY, so a
  * container that interprets those spec corners differently breaks the build instead of silently logging
  * bodies the client never received (blind spot named by the repo-wide code analysis of 2026-08-30:
  * "behavior under real production containers other than embedded Tomcat").
@@ -37,7 +37,7 @@ import java.time.Duration
  * in the Tomcat twin: pinned time/id beans, event-driven [AwaitingAppender], no sleeps.
  */
 @SpringBootTest(
-    classes = [RequestLoggingFilterIntegrationTest.ItApp::class, RequestLoggingFilterJettyIntegrationTest.JettyFactory::class],
+    classes = [RequestLoggingFilterTomcatIntegrationTest.ItApp::class, RequestLoggingFilterJettyIntegrationTest.JettyFactory::class],
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = [
         "endpoint-logging.logger-name=http-exchange-jetty-integration-test",

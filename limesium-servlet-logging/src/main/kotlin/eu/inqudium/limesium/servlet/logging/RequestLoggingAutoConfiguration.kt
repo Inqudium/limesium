@@ -66,7 +66,7 @@ class RequestLoggingAutoConfiguration {
      * this one and the tracing bridge's `traceId`/`spanId` are in the MDC when the filter captures them
      * at entry (see [TraceMdcKeys]). Moving this order before `+ 1` would not fail; it would silently
      * strip the trace join from every exchange event. Ordering and scope-around-the-chain are convention,
-     * not contract - `RequestLoggingFilterTracingIntegrationTest` pins them against a real bridge (and
+     * not contract - `RequestLoggingFilterTomcatTracingIntegrationTest` pins them against a real bridge (and
      * records where the constant comes from), so a Boot upgrade that changes either breaks the build.
      */
     @Bean
