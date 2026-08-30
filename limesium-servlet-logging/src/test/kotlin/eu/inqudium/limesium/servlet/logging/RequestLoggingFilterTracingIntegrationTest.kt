@@ -34,6 +34,9 @@ import java.time.Duration
     properties = [
         "endpoint-logging.logger-name=http-exchange-tracing-integration-test",
         "management.tracing.sampling.probability=1.0",
+        // Jetty sits on the classpath for the Jetty capture-boundary test and would win the server
+        // slot; this context pins Tomcat by excluding the Jetty auto-configuration.
+        "spring.autoconfigure.exclude=org.springframework.boot.jetty.autoconfigure.servlet.JettyServletWebServerAutoConfiguration",
     ],
 )
 class RequestLoggingFilterTracingIntegrationTest {

@@ -75,9 +75,13 @@ import org.springframework.web.util.pattern.PathPatternParser
  * after completion. Emitting earlier, in the filter's `finally`, reported the PRE-error-dispatch status: a
  * crashed exchange logged `-> 200` although the client received the 500 the container rendered afterwards.
  * Consequence: [EndpointLogField.DURATION_MS] measures until processing truly ended - request occupancy,
- * not bare chain time. The async lifecycle only MARKS the exchange (see [AsyncOutcomeMarker]); the
- * container orders destruction after async completion, and the exactly-once guard in the emitter
- * backstops container quirks.
+ * not bare chain time. The async lifecycle normally only MARKS the exchange (see [AsyncOutcomeMarker]).
+ * Containers differ in WHEN destruction fires: Tomcat once, after async completion; Jetty at the end of
+ * every DISPATCH. A destruction observed while async is still running is therefore skipped (flagged on
+ * the exchange), the destruction after the final dispatch completes as usual, and an async cycle that
+ * ends WITHOUT a further dispatch (raw `complete()`) is completed by the marker's onComplete backstop -
+ * all behind one exactly-once guard ([Exchange.completed]); see the completion listener and
+ * [AsyncOutcomeMarker] for the choreography (pinned by the Jetty capture-boundary integration test).
  *
  * When the chain throws, a short WARN breadcrumb is additionally logged in the `finally` on the module's
  * OWN logger, so the failure is visible the moment it happens although the full ERROR event follows only
@@ -227,7 +231,8 @@ class RequestLoggingFilter(
                 // API offers no portable "was async ever started" signal; accepted and documented.
                 if (request.isAsyncStarted) {
                     exchange.asyncStarted = true
-                    request.asyncContext.addListener(AsyncOutcomeMarker(exchange))
+                    request.asyncContext.addListener(AsyncOutcomeMarker(exchange, ::completeExchange))
+                    exchange.asyncMarkerArmed = true
                 }
                 // Immediate breadcrumb at the failure site: the full ERROR event follows only at request
                 // destruction, after the container's error dispatch (which is what makes its status
@@ -486,12 +491,47 @@ class RequestLoggingFilter(
      */
     fun exchangeCompletionListener(): ServletRequestListener = ExchangeCompletionListener()
 
+    /**
+     * The exactly-once end of an exchange - gauge close plus emission - guarded by
+     * [Exchange.completed]: the destruction listener and the [AsyncOutcomeMarker.onComplete] backstop
+     * can both arrive here (see [Exchange.destroyedDuringAsync]); whichever wins the CAS completes,
+     * the other is a no-op.
+     */
+    private fun completeExchange(exchange: Exchange) {
+        if (!exchange.completed.compareAndSet(false, true)) {
+            return
+        }
+        metrics.exchangeCompleted()
+        emitter.logExchange(exchange)
+    }
+
     private inner class ExchangeCompletionListener : ServletRequestListener {
         override fun requestDestroyed(event: ServletRequestEvent) {
-            val exchange = event.servletRequest.getAttribute(EXCHANGE_ATTRIBUTE) as? Exchange ?: return
-            event.servletRequest.removeAttribute(EXCHANGE_ATTRIBUTE)
-            metrics.exchangeCompleted()
-            emitter.logExchange(exchange)
+            val request = event.servletRequest
+            val exchange = request.getAttribute(EXCHANGE_ATTRIBUTE) as? Exchange ?: return
+            // A destruction WHILE async processing is still running is not the end of the exchange:
+            // Tomcat fires requestDestroyed once, after async completion, but Jetty fires it at the end
+            // of EVERY dispatch - including the initial one that merely STARTED async. Emitting there
+            // logged the pre-completion status (200 for an exchange whose client later received a 500)
+            // and removed the attribute the async-dispatch pass depends on (found by the Jetty
+            // capture-boundary integration test, 2026-08-30). "Still running" is judged from MODULE
+            // state - marker armed, no onComplete observed - never from request.isAsyncStarted():
+            // Tomcat's facade throws on that query inside requestDestroyed after an errored cycle.
+            // Skipping leaves exchange, attribute and gauge untouched; the spec guarantees onComplete
+            // at the end of every cycle, so either a later destruction completes (dispatch-based
+            // endings, after onComplete flipped the flag) or the marker's onComplete backstop does
+            // (a raw complete() with no further dispatch). The RE-CHECK after setting the flag closes
+            // the race with a concurrently completing cycle: whoever loses the Exchange.completed CAS
+            // is a no-op either way. An exchange whose marker could NOT be armed (fail-open) never
+            // defers - completing with possibly pre-completion state beats losing the event.
+            if (exchange.asyncStarted && exchange.asyncMarkerArmed && !exchange.asyncCompleted) {
+                exchange.destroyedDuringAsync = true
+                if (!exchange.asyncCompleted) {
+                    return
+                }
+            }
+            request.removeAttribute(EXCHANGE_ATTRIBUTE)
+            completeExchange(exchange)
         }
 
         override fun requestInitialized(event: ServletRequestEvent) = Unit

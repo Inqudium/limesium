@@ -104,7 +104,7 @@ class RequestLoggingFilterAsyncTest {
             // Then: STILL no line - the async listener marks, it does not emit
             assertThat(appender.list).isEmpty()
 
-            // When: the container destroys the request after the async cycle
+            // When: the container destroys the request after the async cycle has ENDED
             destroy(request)
 
             // Then: exactly one line, marked async, with the final status and the full duration
@@ -118,6 +118,67 @@ class RequestLoggingFilterAsyncTest {
             // The destruction callback carries no MDC of its own; the emission restores the exchange's MDC,
             // so the encoder still sees the correlation id as an MDC field.
             assertThat(event.mdcPropertyMap).containsEntry(MdcKeys.REQUEST_ID, "generated-42")
+        }
+
+        @Test
+        fun `should skip a destruction fired while async is still running and complete at the final one`() {
+            // What is tested: the per-dispatch destruction model (Jetty fires requestDestroyed at the
+            //   end of EVERY dispatch) - a destruction observed before the cycle's onComplete must not
+            //   emit and must not consume the exchange; after onComplete the completion happens exactly
+            //   once, whichever callback gets there first.
+            // Success criteria: nothing is logged at the early destruction; exactly one line after the
+            //   final one, with the final status.
+            // Why it matters: on Jetty the early destruction used to emit a pre-completion 200 for
+            //   exchanges whose client later received a 500, and to strip the exchange the
+            //   async-dispatch pass depends on (Jetty capture-boundary integration test, 2026-08-30).
+            // Given: an exchange in async mode
+            val request = asyncRequest()
+            val response = MockHttpServletResponse()
+            filter.doFilterInternal(request, response, FilterChain { req, _ -> req.startAsync() })
+
+            // When: the container destroys the initial dispatch WHILE async is still running
+            destroy(request)
+
+            // Then: nothing is emitted - the exchange survives the early destruction
+            assertThat(appender.list).isEmpty()
+
+            // When: the cycle ends (onComplete arms the completion); later destructions follow
+            response.status = 502
+            (request.asyncContext as MockAsyncContext).listeners.single().onComplete(AsyncEvent(request.asyncContext as MockAsyncContext))
+            destroy(request)
+
+            // Then: exactly one line with the final status - and no duplicate from the extra destruction
+            destroy(request)
+            val event = appender.list.single()
+            assertThat(keyValues(event)).containsEntry("endpoint_response_status_code", 502)
+        }
+
+        @Test
+        fun `should complete via the onComplete backstop when no destruction follows a raw completion`() {
+            // What is tested: the onComplete backstop - a raw async cycle ends via complete() WITHOUT a
+            //   further dispatch, so a per-dispatch container never fires another destruction; the
+            //   marker completes the exchange exactly when the skipped-destruction flag is armed.
+            // Success criteria: the early destruction emits nothing; the container's onComplete then
+            //   yields exactly one line - and a late duplicate destruction stays a no-op.
+            // Why it matters: without the backstop, raw-async exchanges on Jetty lost their event
+            //   entirely (and leaked the open-exchanges gauge) after the early-destruction skip.
+            // Given: an exchange in async mode whose initial dispatch was destroyed mid-cycle
+            val request = asyncRequest()
+            val response = MockHttpServletResponse()
+            filter.doFilterInternal(request, response, FilterChain { req, _ -> req.startAsync() })
+            val asyncContext = request.asyncContext as MockAsyncContext
+            destroy(request)
+            assertThat(appender.list).isEmpty()
+
+            // When: the cycle completes without any further dispatch
+            response.status = 204
+            asyncContext.listeners.single().onComplete(AsyncEvent(asyncContext))
+
+            // Then: the backstop emitted exactly one line with the final status; a stray late
+            //   destruction changes nothing
+            destroy(request)
+            val event = appender.list.single()
+            assertThat(keyValues(event)).containsEntry("endpoint_response_status_code", 204)
         }
 
         @Test
@@ -161,6 +222,7 @@ class RequestLoggingFilterAsyncTest {
 
             // When: the container fires onTimeout without a throwable and then destroys the request
             asyncContext.listeners.single().onTimeout(AsyncEvent(asyncContext))
+            asyncContext.listeners.single().onComplete(AsyncEvent(asyncContext))
             destroy(request)
 
             // Then: the single line is WARN with outcome timeout and no cause
@@ -187,6 +249,7 @@ class RequestLoggingFilterAsyncTest {
 
             // When: the container fires onTimeout WITH a throwable and then destroys the request
             asyncContext.listeners.single().onTimeout(AsyncEvent(asyncContext, IllegalStateException("timeout cause")))
+            asyncContext.listeners.single().onComplete(AsyncEvent(asyncContext))
             destroy(request)
 
             // Then: still WARN/timeout, with the throwable attached as cause
@@ -212,6 +275,7 @@ class RequestLoggingFilterAsyncTest {
 
             // When: the container fires onError WITHOUT a throwable and then destroys the request
             asyncContext.listeners.single().onError(AsyncEvent(asyncContext))
+            asyncContext.listeners.single().onComplete(AsyncEvent(asyncContext))
             destroy(request)
 
             // Then: ERROR/failure, no invented cause
@@ -232,6 +296,7 @@ class RequestLoggingFilterAsyncTest {
             // When: the async phase fails and the container then destroys the request
             val failure = IllegalStateException("async boom")
             asyncContext.listeners.single().onError(AsyncEvent(asyncContext, failure))
+            asyncContext.listeners.single().onComplete(AsyncEvent(asyncContext))
             destroy(request)
 
             // Then: the single line is ERROR with outcome failure and carries the async failure as cause
@@ -297,6 +362,7 @@ class RequestLoggingFilterAsyncTest {
                     )
                 }
             response.status = 500
+            (request.asyncContext as MockAsyncContext).listeners.single().onComplete(AsyncEvent(request.asyncContext as MockAsyncContext))
             destroy(request)
 
             // Then
@@ -355,6 +421,7 @@ class RequestLoggingFilterAsyncTest {
                     loggerContext.turboFilterList.remove(bomb)
                 }
             response.status = 500
+            (request.asyncContext as MockAsyncContext).listeners.single().onComplete(AsyncEvent(request.asyncContext as MockAsyncContext))
             destroy(request)
 
             // Then: the application exception reached the container; the failure is on the event

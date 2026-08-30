@@ -68,6 +68,14 @@
             <artifactId>spring-boot-starter-web</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- Second real container for the Jetty capture-boundary integration test: with Tomcat also on
+             the classpath, Boot still auto-configures Tomcat everywhere; the Jetty test opts in via an
+             explicit JettyServletWebServerFactory bean. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jetty</artifactId>
+            <scope>test</scope>
+        </dependency>
         <!-- Real Micrometer Tracing (Brave bridge) for the tracing integration test: pins the whole
              convention chain the trace capture rests on - observation filter order, scope-around-chain,
              MDC correlation - so a Boot upgrade that changes any of it breaks the build instead of
