@@ -135,7 +135,7 @@ class ExchangeLogEmitterTest {
             //   property of the value and must hold regardless of evaluation order.
             // Given: onTimeout, then onError
             val ex = exchange(200)
-            val marker = AsyncOutcomeMarker(ex)
+            val marker = AsyncOutcomeMarker(ex) {}
             marker.onTimeout(AsyncEvent(asyncContext()))
             marker.onError(AsyncEvent(asyncContext(), IllegalStateException("abort after timeout")))
 
@@ -168,7 +168,7 @@ class ExchangeLogEmitterTest {
             val exchanges = List(500) { exchange(200) }
             try {
                 exchanges.forEach { ex ->
-                    val marker = AsyncOutcomeMarker(ex)
+                    val marker = AsyncOutcomeMarker(ex) {}
                     val start = CountDownLatch(1)
                     // When: both callbacks are released simultaneously
                     val timeout =
@@ -201,7 +201,7 @@ class ExchangeLogEmitterTest {
             //   throwable; the disposition, not the throwable, carries the outcome.
             // Given: onError with no throwable
             val ex = exchange(200)
-            AsyncOutcomeMarker(ex).onError(AsyncEvent(asyncContext()))
+            AsyncOutcomeMarker(ex) {}.onError(AsyncEvent(asyncContext()))
 
             // When
             emitter.logExchange(ex)

@@ -393,7 +393,9 @@ class RequestLoggingFailOpenCounterTest {
             val lyingRequest = MockHttpServletRequest("GET", "/api/things")
             lyingRequest.setAsyncStarted(true)
 
-            // When: the exchange runs to destruction
+            // When: the exchange runs to destruction (the marker registration fails in the finally,
+            //   so the destruction completes immediately instead of deferring to an onComplete that
+            //   can never come)
             handle(lyingRequest, MockHttpServletResponse())
 
             // Then: wiring counted once, and the event was still emitted at destruction

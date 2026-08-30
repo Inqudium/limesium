@@ -340,8 +340,14 @@ classified by its status — parity with the sync path.
 
 **Worker MDC (`EndpointMdcCallableInterceptor`).** See [§2.7](#27-mdc-coverage).
 
-The emission itself is unchanged: the container orders destruction after async completion, and the
-emitter reads `asyncStarted` (→ `endpoint_async: true`) and the disposition
+The emission still happens at request destruction, but containers differ in WHEN that fires: Tomcat
+once, after async completion; Jetty at the end of **every dispatch**, including the initial one that
+merely started async. A destruction observed before the cycle's `onComplete` is therefore skipped
+(judged from module state — Tomcat's request facade throws when its async state is queried inside
+`requestDestroyed` after an errored cycle), the destruction after the completed cycle emits, and a raw
+`complete()` without a further dispatch is completed by the async listener's `onComplete` backstop —
+all behind one exactly-once guard. The Jetty integration test pins this choreography per container.
+The emitter reads `asyncStarted` (→ `endpoint_async: true`) and the disposition
 ([§5.3](#53-levels-and-outcomes)).
 
 ### 2.6 The body tee
@@ -1171,7 +1177,7 @@ limesium-servlet-logging/
     │                                              CorrelationIdGenerator and reportQuietly live in
     │                                              ../limesium-common (inlined into this jar, §6.12)
     ├── main/resources/META-INF/spring/…AutoConfiguration.imports
-    └── test/kotlin/eu/inqudium/limesium/servlet/logging/   unit, async, tracing (real Brave bridge), integration (real Tomcat), lockstep tests
+    └── test/kotlin/eu/inqudium/limesium/servlet/logging/   unit, async, tracing (real Brave bridge), integration (real Tomcat AND real Jetty - the capture boundaries are pinned per container), lockstep tests
 ```
 
 ### 7.2 Related documents

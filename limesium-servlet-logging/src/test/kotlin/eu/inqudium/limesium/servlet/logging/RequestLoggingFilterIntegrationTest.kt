@@ -72,8 +72,12 @@ import java.util.concurrent.Callable
         "endpoint-logging.response-headers.includes=Content-Type",
         "endpoint-logging.exclude-path-prefixes=/it/excluded",
         // The tracing jars sit on the test classpath for the tracing integration test; THIS context
-        // excludes the bridge explicitly, so the exact-message assertions here stay trace-free.
-        "spring.autoconfigure.exclude=org.springframework.boot.micrometer.tracing.brave.autoconfigure.BraveAutoConfiguration",
+        // excludes the bridge explicitly, so the exact-message assertions here stay trace-free. Jetty
+        // sits on the classpath for the Jetty capture-boundary test and its auto-configuration would
+        // WIN the server slot (Boot 4 orders the per-server auto-configurations alphabetically), so
+        // this context pins Tomcat by excluding it.
+        "spring.autoconfigure.exclude=org.springframework.boot.micrometer.tracing.brave.autoconfigure.BraveAutoConfiguration," +
+            "org.springframework.boot.jetty.autoconfigure.servlet.JettyServletWebServerAutoConfiguration",
     ],
 )
 class RequestLoggingFilterIntegrationTest {
