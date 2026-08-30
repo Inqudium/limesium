@@ -41,7 +41,11 @@ internal class ExchangeLogEmitter(
     /**
      * The optional arrival line ([RequestLoggingProperties.logRequestStart]): what is known BEFORE the
      * chain - method, path, query, selected request headers - at INFO on the exchange logger, under the
-     * exchange's MDC (the filter's chain scope is open when this runs). Deliberately WITHOUT
+     * exchange's MDC with the traceparent-derived trace overlay: the scope OWNS the trace keys here
+     * exactly as at emission, so the arrival line carries the same `traceId`/`parentSpanId` pair as the
+     * completion event and an ambient bridge `spanId` on the container thread cannot ride along - twin
+     * parity with the reactive arrival line (finding 4 of the repo-wide code analysis of 2026-08-30;
+     * before ADR-0002 the chain scope's bridge-captured keys happened to coincide). Deliberately WITHOUT
      * `endpoint_outcome`, status or duration: those exist only at completion, and their absence is what
      * keeps outcome-keyed dashboards blind to this extra line.
      */
@@ -53,16 +57,25 @@ internal class ExchangeLogEmitter(
             if (!exchangeLog.isInfoEnabled) {
                 return
             }
-            exchangeLog
-                .atInfo()
-                .setMessage(
-                    "Endpoint http exchange started ${exchange.method} ${exchange.path} " +
-                        "[${MdcKeys.REQUEST_ID}=${exchange.requestId}]",
-                ).addKeyValue(EndpointLogField.REQUEST_METHOD, exchange.method)
-                .addKeyValue(EndpointLogField.URL_PATH, exchange.path)
-                .addKeyValueIfPresent(EndpointLogField.URL_QUERY, exchange.query)
-                .addKeyValueIfPresent(EndpointLogField.REQUEST_HEADERS, renderHeaders(exchange.requestHeaders))
-                .log()
+            MdcScope(
+                exchange.requestId,
+                exchange.method,
+                exchange.path,
+                exchange.traceId,
+                exchange.parentSpanId,
+                ownsTraceKeys = true,
+            ).use {
+                exchangeLog
+                    .atInfo()
+                    .setMessage(
+                        "Endpoint http exchange started ${exchange.method} ${exchange.path} " +
+                            "[${MdcKeys.REQUEST_ID}=${exchange.requestId}]",
+                    ).addKeyValue(EndpointLogField.REQUEST_METHOD, exchange.method)
+                    .addKeyValue(EndpointLogField.URL_PATH, exchange.path)
+                    .addKeyValueIfPresent(EndpointLogField.URL_QUERY, exchange.query)
+                    .addKeyValueIfPresent(EndpointLogField.REQUEST_HEADERS, renderHeaders(exchange.requestHeaders))
+                    .log()
+            }
         } catch (e: InterruptedException) {
             // Restore what the JVM cleared when it threw, so the interrupt still reaches its addressee.
             Thread.currentThread().interrupt()

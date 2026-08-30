@@ -433,7 +433,8 @@ Time and randomness are injected, not ambient:
   single production read of `System.nanoTime()` is `NanoTimeSource.SYSTEM`. Log timestamps come from
   the logging backend, keeping the two time domains separate.
 - `CorrelationIdGenerator` — the id for traceless requests without a correlation header;
-  `CorrelationIdGenerator.RANDOM_UUID` by default. Never consulted for a traced exchange (ADR-0002:
+  `CorrelationIdGenerator.DEFAULT` (a counting generator: random per-instance base-36 prefix plus
+  counter, 21 characters) by default. Never consulted for a traced exchange (ADR-0002:
   the `traceparent` trace id is the request id).
 
 Both are `fun interface`s, both are `@ConditionalOnMissingBean` beans, and both are what the module's
@@ -815,10 +816,12 @@ endpoint-logging:
 
 `include-path-patterns` uses Spring's `PathPattern` syntax (`/api/**`, `/api/{*rest}`,
 `/files/{id}.pdf`); `exclude-path-prefixes` is a prefix match. Both see the request target the way the
-WebFlux router does — the raw `RequestPath`, whose segments **decode for matching** and drop path
-parameters — so `/%61pi/things` is included by `/api/**`, `/api%2Fthings` is not (the router sees one
-segment and would not serve it), and `/%61ctuator/health` is excluded by `/actuator/health`. The logged
-`endpoint_url_path` stays raw.
+WebFlux router does — the **path within the application** (a configured base path is stripped first,
+exactly as in the handler mapping), whose segments **decode for matching** and drop path parameters —
+so `/api/**` matches `/app/api/things` under base path `/app`, `/%61pi/things` is included by
+`/api/**`, `/api%2Fthings` is not (the router sees one segment and would not serve it), and
+`/%61ctuator/health` is excluded by `/actuator/health`. The logged `endpoint_url_path` stays raw and
+keeps the base path.
 
 ### 4.5 Logger levels
 

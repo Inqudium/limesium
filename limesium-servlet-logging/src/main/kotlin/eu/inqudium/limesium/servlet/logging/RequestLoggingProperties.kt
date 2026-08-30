@@ -46,15 +46,16 @@ data class RequestLoggingProperties(
      * URL patterns (Spring `PathPattern` syntax, e.g. `/api/{*path}`; a trailing double-asterisk wildcard
      * is supported as well) that determine for which endpoints the filter is active AT ALL. Empty (the default) means every endpoint. A request is
      * logged when it matches ANY include pattern and NO exclude prefix - an exclude always wins,
-     * mirroring the header sections' rule. Invalid patterns fail the context start (parsed once at
+     * mirroring the header sections' rule. Patterns match the path WITHIN the application (a
+     * configured context/base path is stripped first, as in Spring's own handler mapping). Invalid patterns fail the context start (parsed once at
      * filter construction).
      */
     val includePathPatterns: List<String> = emptyList(),
     /**
      * Request-URI prefixes that are not logged at all (the filter does not even run for them). Typical
-     * value: `/actuator/health`. Prefix match against the DECODED request path (percent-encoding
-     * resolved, path parameters dropped - the representation the router matches), subtracted from the
-     * include set.
+     * value: `/actuator/health`. Prefix match against the DECODED path within the application
+     * (percent-encoding resolved, path parameters dropped, context/base path stripped - the
+     * representation the router matches), subtracted from the include set.
      */
     val excludePathPrefixes: List<String> = emptyList(),
     /**

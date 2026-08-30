@@ -39,7 +39,8 @@ endpoint-logging:
   # Header the correlation id is read from on TRACELESS exchanges only (ADR-0002): a request with a
   # conformant W3C traceparent takes its request id from the traceparent's trace id, ignores this
   # header, and gets NO echo - the wire stays untouched. On a traceless exchange, absent or blank
-  # means a new id is generated (UUID by default - override the CorrelationIdGenerator bean to change
+  # means a new id is generated (by default a 21-character counting id: random per-instance base-36
+  # prefix plus counter, ADR-0004 - override the CorrelationIdGenerator bean to change
   # the format), and the id is echoed back to the client on the response under this same header name -
   # set ONCE at filter entry, before the chain runs; the filter does not re-assert it, so downstream
   # code that sets this header itself decides what the client finally sees, while the event and the
@@ -61,8 +62,9 @@ endpoint-logging:
 
   # URL patterns (Spring PathPattern syntax) that determine for which endpoints the filter is active
   # AT ALL. Empty (the default) means every endpoint; a request is logged when it matches ANY include
-  # pattern and NO exclude prefix - an exclude always wins. Matched against the raw request path the
-  # WebFlux router matches, segments decoded for matching. Invalid patterns fail the context start.
+  # pattern and NO exclude prefix - an exclude always wins. Matched against the path WITHIN the
+  # application (a configured base path is stripped first, as in the WebFlux handler mapping),
+  # segments decoded for matching. Invalid patterns fail the context start.
   include-path-patterns: []
   #  - /api/**
 

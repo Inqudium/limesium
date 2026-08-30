@@ -224,6 +224,42 @@ class RequestLoggingFilterTraceContextTest {
     }
 
     @Test
+    fun `should decorate the arrival line with the parsed trace pair and suppress a bridge spanId`() {
+        // What is tested: arrival-line twin parity (finding 4 of the repo-wide code analysis of
+        //   2026-08-30) - the optional start line carries the SAME traceparent-derived
+        //   traceId/parentSpanId as the completion event, and an ambient bridge spanId on the
+        //   container thread does not ride along.
+        // Success criteria: with log-request-start on, a traced request and a bridge-style spanId in
+        //   the ambient MDC, the arrival event's MDC carries the parsed pair, no spanId - and the
+        //   ambient value is back after the filter pass.
+        // Why it matters: before this fix the arrival line logged whatever trace keys the bridge had
+        //   put into the MDC (local spanId included), diverging from the reactive twin's arrival line
+        //   and from the module's own completion-event contract.
+        // Given: an arrival-logging filter, a traced request, and a bridge-style ambient spanId
+        val arrivalFilter =
+            RequestLoggingFilter(
+                properties.copy(logRequestStart = true),
+                NanoTimeSource { ticker.get() },
+                CorrelationIdGenerator { "generated-42" },
+                SimpleMeterRegistry(),
+            )
+        MDC.put("spanId", "bridge-span")
+        val request = tracedRequest()
+
+        // When: the filter pass runs (the arrival line is emitted before the chain)
+        arrivalFilter.doFilterInternal(request, MockHttpServletResponse(), FilterChain { _, _ -> })
+
+        // Then: the arrival event carries the parsed pair and no bridge spanId; the ambient value survives
+        val arrival = appender.list.first()
+        assertThat(arrival.formattedMessage).startsWith("Endpoint http exchange started")
+        assertThat(arrival.mdcPropertyMap)
+            .containsEntry("traceId", TRACE_ID)
+            .containsEntry("parentSpanId", PARENT_SPAN_ID)
+            .doesNotContainKey("spanId")
+        assertThat(MDC.get("spanId")).isEqualTo("bridge-span")
+    }
+
+    @Test
     fun `should emit without trace decoration when no traceparent is present`() {
         // Given: no traceparent header
         val request = MockHttpServletRequest("GET", "/api/things")

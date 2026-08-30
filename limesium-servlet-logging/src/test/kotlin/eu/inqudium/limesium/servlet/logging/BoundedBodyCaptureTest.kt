@@ -1,5 +1,6 @@
 package eu.inqudium.limesium.servlet.logging
 
+import eu.inqudium.limesium.common.BodyReadState
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test

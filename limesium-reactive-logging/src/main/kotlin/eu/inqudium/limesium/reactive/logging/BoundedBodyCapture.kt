@@ -1,10 +1,9 @@
 package eu.inqudium.limesium.reactive.logging
 
+import eu.inqudium.limesium.common.BodyReadState
+import eu.inqudium.limesium.common.decodeTruncated
 import java.io.ByteArrayOutputStream
-import java.nio.ByteBuffer
-import java.nio.CharBuffer
 import java.nio.charset.Charset
-import java.nio.charset.CodingErrorAction
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -159,43 +158,4 @@ internal class BoundedBodyCapture(
                 buffer.toString(charset)
             }
         }
-}
-
-/**
- * How far the application consumed a body, as observed by the tee. [UNREAD]: the body was never
- * subscribed to - the bytes, if the client sent any, never reached the application. [PARTIAL]: a
- * subscription exists but no completion signal was observed - a cancelled subscription (`take`, a
- * client disconnect, an error mid-stream) or one still in flight at emission. [COMPLETE]: the body
- * publisher completed. The values are the `state` tag of the `endpoint.request.body.read` counter and
- * therefore a twin contract.
- */
-enum class BodyReadState(
-    val tagValue: String,
-) {
-    UNREAD("unread"),
-    PARTIAL("partial"),
-    COMPLETE("complete"),
-}
-
-/**
- * Decodes a byte-bounded PREFIX of a text: the capture limit bounds bytes, not characters, so the cut can
- * fall inside a multi-byte sequence; decoded as a whole, that incomplete tail would render as a
- * replacement character and corrupt the logged prefix (finding 8 of an internal code analysis).
- * Decoding with `endOfInput = false` leaves an incomplete trailing sequence undecoded (underflow) instead
- * of reporting it as malformed; malformed bytes INSIDE the prefix are still replaced, as `String(bytes,
- * charset)` would. Shared by both endpoint-logging twins.
- */
-internal fun decodeTruncated(
-    bytes: ByteArray,
-    charset: Charset,
-): String {
-    val decoder =
-        charset
-            .newDecoder()
-            .onMalformedInput(CodingErrorAction.REPLACE)
-            .onUnmappableCharacter(CodingErrorAction.REPLACE)
-    val chars = CharBuffer.allocate((bytes.size * decoder.maxCharsPerByte()).toInt() + 1)
-    decoder.decode(ByteBuffer.wrap(bytes), chars, false)
-    chars.flip()
-    return chars.toString()
 }

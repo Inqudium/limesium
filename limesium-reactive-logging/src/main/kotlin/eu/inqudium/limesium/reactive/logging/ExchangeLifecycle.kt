@@ -50,10 +50,12 @@ internal class ExchangeLifecycle(
      * endpoint) and NO exclude prefix - an exclude always wins; identical semantics with the servlet
      * twin's shouldNotFilter.
      *
-     * [path] is the request's RAW [org.springframework.http.server.RequestPath] - the container WebFlux
-     * routes on, whose segments decode for matching - so the include patterns see exactly what the
-     * router sees; the exclude prefixes are compared against the decoded path rebuilt from those
-     * segments (path parameters dropped, as in routing). Matching the already-decoded `uri.path`
+     * [path] is the raw path WITHIN the application (`RequestPath.pathWithinApplication()` - the
+     * variants strip a configured WebFlux base path first, mirroring the servlet twin's context-path
+     * handling; finding 3 of the repo-wide code analysis of 2026-08-30), whose segments decode for
+     * matching - so the include patterns see exactly what the router's handler mapping sees; the
+     * exclude prefixes are compared against the decoded path rebuilt from those segments (path
+     * parameters dropped, as in routing). Matching the already-decoded `uri.path`
      * re-parsed into a container decoded twice and accepted `/api%2Fthings` for the `/api/` double-star pattern where the
      * router does not (twin parity with finding 1 of the servlet module's
      * an internal security audit).

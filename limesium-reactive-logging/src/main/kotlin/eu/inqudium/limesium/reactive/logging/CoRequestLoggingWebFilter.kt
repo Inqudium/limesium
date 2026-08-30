@@ -67,7 +67,7 @@ class CoRequestLoggingWebFilter(
         exchange: ServerWebExchange,
         chain: CoWebFilterChain,
     ) {
-        if (lifecycle.shouldNotFilter(exchange.request.path)) {
+        if (lifecycle.shouldNotFilter(exchange.request.path.pathWithinApplication())) {
             return chain.filter(exchange)
         }
         val wiring = lifecycle.wireOrNull(exchange) ?: return chain.filter(exchange)
