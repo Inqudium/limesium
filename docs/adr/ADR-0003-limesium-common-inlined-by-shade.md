@@ -77,3 +77,15 @@ plugin; `limesium-common` itself is never published.**
   in its new module without a workflow change; the coverage, SBOM and
   test-evidence tooling glob `*/target/...` and pick the module up
   automatically.
+
+## Amendment (2026-08-30)
+
+Finding 6 of `docs/assessment/CODE_ANALYSIS-2026-08-30T21-52-43.md`
+identified byte-identical residue the extraction had missed:
+`decodeTruncated` and the `BodyReadState` enum, identical in both
+twins' `BoundedBodyCapture.kt`, now live in `limesium-common`
+(`BodyCapture.kt`) - the captures themselves stay deliberately
+duplicated as decided above. The TEST helper `MdcAdapterSwap.kt`
+remains duplicated on purpose: test classes are not shared across
+modules (no test-jar dependency), and a copy of sixteen lines is
+cheaper than publishing one; the copies carry a comment saying so.

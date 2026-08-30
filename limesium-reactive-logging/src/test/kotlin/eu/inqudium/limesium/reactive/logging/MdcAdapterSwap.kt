@@ -3,6 +3,9 @@ package eu.inqudium.limesium.reactive.logging
 import org.slf4j.MDC
 import org.slf4j.spi.MDCAdapter
 
+// Deliberately DUPLICATED test helper (ADR-0003 amendment): test classes are not shared across
+// modules (no test-jar dependency), so each module that swaps the MDC adapter carries its own copy.
+
 /**
  * Installs [adapter] as the JVM-global SLF4J MDC adapter for fault injection. SLF4J exposes no public
  * setter, so the package-private `MDC.setMDCAdapter` is invoked reflectively; callers restore the
