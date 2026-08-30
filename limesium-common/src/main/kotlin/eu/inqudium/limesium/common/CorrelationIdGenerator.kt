@@ -14,7 +14,11 @@ fun interface CorrelationIdGenerator {
     fun nextCorrelationId(): String
 
     companion object {
-        /** The production default: a random type-4 UUID per request. */
+        /**
+         * The production default: a [CountingCorrelationIdGenerator] - a random per-JVM base-36
+         * prefix plus a monotonically increasing counter, 21 lowercase alphanumeric characters
+         * (NOT a UUID; see that class's documentation for the rationale and the format contract).
+         */
         val DEFAULT: CorrelationIdGenerator = CountingCorrelationIdGenerator()
     }
 }
@@ -23,7 +27,8 @@ fun interface CorrelationIdGenerator {
  * Default [CorrelationIdGenerator]: a random per-instance prefix followed by a monotonically
  * increasing counter, both rendered in base 36 and both of fixed width.
  *
- * <h2>Why not a random UUID per request</h2>
+ * ## Why not a random UUID per request
+ *
  * `UUID.randomUUID().toString()` draws 16 bytes from a process-wide, statically shared
  * [SecureRandom] on every call. On a reactive stack that is the wrong shape twice over: the
  * reseeding path of the native provider reads from a system entropy source behind a monitor,
@@ -34,7 +39,8 @@ fun interface CorrelationIdGenerator {
  * The latency difference is unlikely to be visible in a request-logging pipeline; the structural
  * argument — no shared lock, no I/O in the hot path — is what motivates this implementation.
  *
- * <h2>Uniqueness model</h2>
+ * ## Uniqueness model
+ *
  * Within one instance, uniqueness is guaranteed rather than probable: the counter never repeats.
  * Across instances it is probabilistic, and a prefix collision is worse than a UUID collision:
  * two colliding instances do not produce one duplicate id, they produce two near-identical id
@@ -45,7 +51,8 @@ fun interface CorrelationIdGenerator {
  * A colliding prefix is not silently unrecoverable: log entries carry the pod name as platform
  * metadata, so the two sequences remain separable by adding an instance filter.
  *
- * <h2>Ordering</h2>
+ * ## Ordering
+ *
  * Base 36 uses `[0-9a-z]`, whose ASCII code points are ordered consistently with their digit
  * values, so for equal-length strings lexicographic order equals numeric order. Combined with
  * the fixed widths below, ids from one instance therefore sort in the order the counter handed
