@@ -231,7 +231,7 @@ registers:
 | Bean | Condition | Purpose |
 |---|---|---|
 | `NanoTimeSource` | `@ConditionalOnMissingBean` | `NanoTimeSource.SYSTEM` |
-| `CorrelationIdGenerator` | `@ConditionalOnMissingBean` | `CorrelationIdGenerator.RANDOM_UUID` |
+| `CorrelationIdGenerator` | `@ConditionalOnMissingBean` | `CorrelationIdGenerator.DEFAULT` (counting generator: random per-instance base-36 prefix + counter, 21 chars) |
 | `RequestLoggingFilter` | `@ConditionalOnMissingBean` | the filter, built from the bound properties and the host's `MeterRegistry` (`ObjectProvider`; private `SimpleMeterRegistry` without one) |
 | `FilterRegistrationBean<RequestLoggingFilter>` | always | order `Ordered.HIGHEST_PRECEDENCE + 10`; referencing the filter bean keeps Boot from also auto-registering the bare `Filter` |
 | `ServletListenerRegistrationBean<ServletRequestListener>` | always | `filter.exchangeCompletionListener()` — the emission point |

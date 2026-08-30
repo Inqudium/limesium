@@ -433,7 +433,8 @@ Time and randomness are injected, not ambient:
   single production read of `System.nanoTime()` is `NanoTimeSource.SYSTEM`. Log timestamps come from
   the logging backend, keeping the two time domains separate.
 - `CorrelationIdGenerator` — the id for traceless requests without a correlation header;
-  `CorrelationIdGenerator.RANDOM_UUID` by default. Never consulted for a traced exchange (ADR-0002:
+  `CorrelationIdGenerator.DEFAULT` (a counting generator: random per-instance base-36 prefix plus
+  counter, 21 characters) by default. Never consulted for a traced exchange (ADR-0002:
   the `traceparent` trace id is the request id).
 
 Both are `fun interface`s, both are `@ConditionalOnMissingBean` beans, and both are what the module's

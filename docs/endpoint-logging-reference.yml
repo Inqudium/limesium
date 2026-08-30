@@ -23,7 +23,8 @@ endpoint-logging:
   # Header the correlation id is read from on TRACELESS exchanges only (ADR-0002): a request with a
   # conformant W3C traceparent takes its request id from the traceparent's trace id, ignores this
   # header, and gets NO echo - the wire stays untouched. On a traceless exchange, absent or blank
-  # means a new id is generated (UUID by default - override the CorrelationIdGenerator bean to change
+  # means a new id is generated (by default a 21-character counting id: random per-instance base-36
+  # prefix plus counter, ADR-0004 - override the CorrelationIdGenerator bean to change
   # the format), and the id is echoed back to the client on the response under this same header name -
   # set ONCE at filter entry, before the chain runs; the filter does not re-assert it, so downstream
   # code that sets this header itself or calls HttpServletResponse.reset() decides what the client
