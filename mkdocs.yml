@@ -30,6 +30,10 @@ theme:
     - content.code.copy
     - content.action.edit
 
+# Internal analysis reports - not site pages (tabellarium template pattern).
+exclude_docs: |
+  assessment/
+
 nav:
   - Home: index.md
   # The long-form guides live next to their module sources (outside this
