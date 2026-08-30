@@ -113,6 +113,14 @@
             Surefire working when JaCoCo is skipped (-Djacoco.skip=true).
         -->
         <argLine></argLine>
+
+        <!--
+            Extra test-JVM flags, empty by default: the jdk-24-plus profile
+            below fills them so a modern local JDK does not spam Unsafe/
+            native-access warnings, while the CI JDK (21) would reject the
+            flags and therefore never sees them.
+        -->
+        <surefire.jvmCompatArgs></surefire.jvmCompatArgs>
     </properties>
 
     <dependencyManagement>
@@ -296,12 +304,36 @@
                             </goals>
                         </execution>
                     </executions>
-                    <configuration>
-                        <sourceRoots>
-                            <sourceRoot>${project.basedir}/src/main/kotlin</sourceRoot>
-                            <sourceRoot>${project.basedir}/src/test/kotlin</sourceRoot>
-                        </sourceRoots>
-                    </configuration>
+                    <!-- No sourceRoots configuration: the parameter is read-only in this
+                         plugin version (it warned and was ignored); the defaults already
+                         cover the compile and test source roots. -->
+                </plugin>
+
+                <!-- The fuzz tests are JAVA sources (the OpenSSF Scorecard fuzzing
+                     detector recognizes Jazzer only in *.java files), while
+                     testSourceDirectory points at src/test/kotlin - this adds
+                     src/test/java back as a second test-source root. Managed
+                     here, DECLARED only by the modules that have such sources
+                     (limesium-common, limesium-servlet-logging) - on the others
+                     it would only warn about a missing source root. -->
+                <plugin>
+                    <groupId>org.codehaus.mojo</groupId>
+                    <artifactId>build-helper-maven-plugin</artifactId>
+                    <version>3.6.1</version>
+                    <executions>
+                        <execution>
+                            <id>add-java-fuzz-test-sources</id>
+                            <phase>generate-test-sources</phase>
+                            <goals>
+                                <goal>add-test-source</goal>
+                            </goals>
+                            <configuration>
+                                <sources>
+                                    <source>${project.basedir}/src/test/java</source>
+                                </sources>
+                            </configuration>
+                        </execution>
+                    </executions>
                 </plugin>
 
                 <!--
@@ -354,6 +386,9 @@
                                         <artifact>eu.inqudium:limesium-common</artifact>
                                         <excludes>
                                             <exclude>META-INF/maven/**</exclude>
+                                            <!-- The twin's own manifest wins; without the
+                                                 exclusion shade warns about the overlap. -->
+                                            <exclude>META-INF/MANIFEST.MF</exclude>
                                         </excludes>
                                     </filter>
                                 </filters>
@@ -372,11 +407,13 @@
                     <!-- @{argLine} is resolved LATE (after JaCoCo's prepare-agent
                          set the property), so the coverage agent and the JVM flags
                          combine instead of the literal argLine overriding the
-                         agent. -->
+                         agent. The compat property is filled by the jdk-24-plus
+                         profile and stays empty on the CI JDK (21). -->
                     <argLine>
                         @{argLine}
                         --add-opens java.base/java.lang=ALL-UNNAMED
                         -XX:+EnableDynamicAgentLoading
+                        ${surefire.jvmCompatArgs}
                     </argLine>
                 </configuration>
             </plugin>
@@ -445,33 +482,27 @@
                 <groupId>com.github.gantsign.maven</groupId>
                 <artifactId>ktlint-maven-plugin</artifactId>
             </plugin>
-            <!-- The fuzz tests are JAVA sources (the OpenSSF Scorecard fuzzing
-                 detector recognizes Jazzer only in *.java files), while
-                 testSourceDirectory points at src/test/kotlin - this adds
-                 src/test/java back as a second test-source root. -->
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>build-helper-maven-plugin</artifactId>
-                <version>3.6.1</version>
-                <executions>
-                    <execution>
-                        <id>add-java-fuzz-test-sources</id>
-                        <phase>generate-test-sources</phase>
-                        <goals>
-                            <goal>add-test-source</goal>
-                        </goals>
-                        <configuration>
-                            <sources>
-                                <source>${project.basedir}/src/test/java</source>
-                            </sources>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
         </plugins>
     </build>
 
     <profiles>
+        <!--
+            JDK 24+ prints warnings when Jazzer's native agent and Netty touch
+            sun.misc.Unsafe / restricted native methods from the test JVM, and
+            the appended JaCoCo agent additionally triggers the CDS sharing
+            warning. These flags acknowledge the accesses; they do not exist on
+            JDK 21, hence the activation guard (CI stays flag-free).
+        -->
+        <profile>
+            <id>jdk-24-plus-test-jvm</id>
+            <activation>
+                <jdk>[24,)</jdk>
+            </activation>
+            <properties>
+                <surefire.jvmCompatArgs>--sun-misc-unsafe-memory-access=allow --enable-native-access=ALL-UNNAMED -Xshare:off</surefire.jvmCompatArgs>
+            </properties>
+        </profile>
+
         <!-- Everything Maven Central requires beyond the normal build: source and javadoc jars,
              GPG signatures, and the upload to the Central Portal. Activate with -Prelease. -->
         <profile>
