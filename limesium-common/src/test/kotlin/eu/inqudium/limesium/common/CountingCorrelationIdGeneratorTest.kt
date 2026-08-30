@@ -1,0 +1,306 @@
+package eu.inqudium.limesium.common
+
+import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.DisplayName
+import org.junit.jupiter.api.Nested
+import org.junit.jupiter.api.Test
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+
+class CountingCorrelationIdGeneratorTest {
+    @Nested
+    @DisplayName("Id format")
+    inner class IdFormat {
+        @Test
+        fun `should render an id of exactly twenty-one lowercase alphanumeric characters`() {
+            // Given
+            val generator = CountingCorrelationIdGenerator(prefixSeed = 1L)
+
+            // When
+            val id = generator.nextCorrelationId()
+
+            // Then
+            assertThat(id).hasSize(21)
+            assertThat(id).matches("[0-9a-z]{21}")
+        }
+
+        @Test
+        fun `should pad a small seed to the full prefix width`() {
+            // Given
+            val generator = CountingCorrelationIdGenerator(prefixSeed = 1L)
+
+            // When
+            val id = generator.nextCorrelationId()
+
+            // Then
+            assertThat(id).startsWith("0000000000001")
+        }
+
+        @Test
+        fun `should render seed 35 as the last single-digit value of base 36`() {
+            // Given: 35 is the largest value that still occupies a single base-36 digit,
+            // so this pins the digit alphabet at its upper end.
+            val generator = CountingCorrelationIdGenerator(prefixSeed = 35L)
+
+            // When
+            val id = generator.nextCorrelationId()
+
+            // Then
+            assertThat(id).startsWith("000000000000z")
+        }
+
+        @Test
+        fun `should render seed 36 as a carry into the second digit`() {
+            // Given
+            val generator = CountingCorrelationIdGenerator(prefixSeed = 36L)
+
+            // When
+            val id = generator.nextCorrelationId()
+
+            // Then
+            assertThat(id).startsWith("0000000000010")
+        }
+
+        /**
+         * 1. What is tested: that a negative seed is reinterpreted as an unsigned value rather
+         *    than rendered with a minus sign.
+         * 2. Success criterion: the prefix still occupies exactly 13 characters drawn from the
+         *    base-36 alphabet and carries no sign character. The exact rendering is not asserted,
+         *    because re-deriving it in the test would only duplicate the production code.
+         * 3. Why it matters: half of all values a random source produces are negative. Using
+         *    `toString` instead of `toUnsignedString` would put a `-` into every second id,
+         *    silently changing both the id length and the character set that downstream
+         *    consumers see.
+         */
+        @Test
+        fun `should render a negative seed as an unsigned value without a sign character`() {
+            // Given
+            val generator = CountingCorrelationIdGenerator(prefixSeed = -1L)
+
+            // When
+            val id = generator.nextCorrelationId()
+
+            // Then
+            assertThat(id).hasSize(21)
+            assertThat(id).doesNotContain("-")
+            assertThat(id.take(13)).matches("[0-9a-z]{13}")
+        }
+
+        @Test
+        fun `should produce a well-formed id when constructed without an explicit seed`() {
+            // Given: the production path, which draws its seed from SecureRandom.
+            val generator = CountingCorrelationIdGenerator()
+
+            // When
+            val id = generator.nextCorrelationId()
+
+            // Then
+            assertThat(id).matches("[0-9a-z]{21}")
+        }
+    }
+
+    @Nested
+    @DisplayName("Counter behaviour")
+    inner class CounterBehaviour {
+        @Test
+        fun `should start the counter at zero`() {
+            // Given
+            val generator = CountingCorrelationIdGenerator(prefixSeed = 0L)
+
+            // When
+            val id = generator.nextCorrelationId()
+
+            // Then
+            assertThat(id).isEqualTo("0000000000000" + "00000000")
+        }
+
+        @Test
+        fun `should increment the counter by one on every call`() {
+            // Given
+            val generator = CountingCorrelationIdGenerator(prefixSeed = 0L)
+
+            // When
+            val ids = (1..3).map { generator.nextCorrelationId() }
+
+            // Then
+            assertThat(ids).containsExactly(
+                "000000000000000000000",
+                "000000000000000000001",
+                "000000000000000000002",
+            )
+        }
+
+        /**
+         * 1. What is tested: that the counter keeps its fixed width across a base-36 carry.
+         * 2. Success criterion: call 36 renders as `...0000000z` and call 37 as `...00000010` —
+         *    both eight characters wide.
+         * 3. Why it matters: this is the exact point where a missing `padStart` would first
+         *    show up. Up to value 35 the counter happens to be one character wide either way,
+         *    so a test that only checks the first few ids would pass against a broken
+         *    implementation.
+         */
+        @Test
+        fun `should keep the counter width constant across a base-36 carry`() {
+            // Given
+            val generator = CountingCorrelationIdGenerator(prefixSeed = 0L)
+
+            // When
+            val ids = (1..37).map { generator.nextCorrelationId() }
+
+            // Then
+            assertThat(ids[35]).endsWith("0000000z")
+            assertThat(ids[36]).endsWith("00000010")
+            assertThat(ids).allSatisfy { assertThat(it).hasSize(21) }
+        }
+
+        @Test
+        fun `should keep the counter width constant across a second base-36 carry`() {
+            // Given: 1296 is 36^2, the next carry after the one covered above.
+            val generator = CountingCorrelationIdGenerator(prefixSeed = 0L)
+            repeat(1295) { generator.nextCorrelationId() }
+
+            // When
+            val atMaxTwoDigits = generator.nextCorrelationId()
+            val afterCarry = generator.nextCorrelationId()
+
+            // Then
+            assertThat(atMaxTwoDigits).endsWith("000000zz")
+            assertThat(afterCarry).endsWith("00000100")
+        }
+
+        @Test
+        fun `should produce a reproducible sequence for a given seed`() {
+            // Given: the seed is the injection point that makes the generator testable
+            // without any mocking library.
+            val first = CountingCorrelationIdGenerator(prefixSeed = 4711L)
+            val second = CountingCorrelationIdGenerator(prefixSeed = 4711L)
+
+            // When
+            val fromFirst = (1..5).map { first.nextCorrelationId() }
+            val fromSecond = (1..5).map { second.nextCorrelationId() }
+
+            // Then
+            assertThat(fromFirst).isEqualTo(fromSecond)
+        }
+
+        @Test
+        fun `should use different prefixes for different seeds`() {
+            // Given
+            val first = CountingCorrelationIdGenerator(prefixSeed = 1L)
+            val second = CountingCorrelationIdGenerator(prefixSeed = 2L)
+
+            // When
+            val fromFirst = first.nextCorrelationId()
+            val fromSecond = second.nextCorrelationId()
+
+            // Then
+            assertThat(fromFirst.take(13)).isNotEqualTo(fromSecond.take(13))
+        }
+    }
+
+    @Nested
+    @DisplayName("Lexicographic ordering")
+    inner class LexicographicOrdering {
+        /**
+         * 1. What is tested: that ids handed out by one instance sort lexicographically in the
+         *    order they were allocated.
+         * 2. Success criterion: sorting the generated sequence leaves it unchanged. The range
+         *    deliberately spans the carry at 36, which is where a width regression would break
+         *    the ordering first.
+         * 3. Why it matters: this property is what makes the id usable as a tiebreaker when
+         *    log entries share a timestamp. It is not enforced by any type — it rests entirely
+         *    on the fixed field widths, and a change to those constants would drop it silently.
+         */
+        @Test
+        fun `should hand out ids that sort in allocation order`() {
+            // Given
+            val generator = CountingCorrelationIdGenerator(prefixSeed = 123456789L)
+
+            // When
+            val ids = (1..200).map { generator.nextCorrelationId() }
+
+            // Then
+            assertThat(ids).isSorted
+        }
+
+        @Test
+        fun `should hand out ids that sort in allocation order across a carry`() {
+            // Given
+            val generator = CountingCorrelationIdGenerator(prefixSeed = 0L)
+            repeat(1290) { generator.nextCorrelationId() }
+
+            // When
+            val ids = (1..12).map { generator.nextCorrelationId() }
+
+            // Then
+            assertThat(ids).isSorted
+        }
+    }
+
+    @Nested
+    @DisplayName("Thread safety")
+    inner class ThreadSafety {
+        /**
+         * 1. What is tested: that concurrent calls never hand out the same id twice.
+         * 2. Success criterion: the number of distinct ids equals the number of calls. Since
+         *    uniqueness within an instance is a guarantee rather than a probability, any
+         *    duplicate is a hard failure, not a flake.
+         * 3. Why it matters: the counter is the one piece of mutable shared state in the class.
+         *    Replacing the AtomicLong with a plain Long — or, more plausibly, with a
+         *    ThreadLocal in an attempt to avoid contention — would produce duplicates here.
+         */
+        @Test
+        fun `should hand out distinct ids under concurrent access`() {
+            // Given
+            val threads = 16
+            val idsPerThread = 2_000
+            val generator = CountingCorrelationIdGenerator(prefixSeed = 0L)
+            val ids = ConcurrentHashMap.newKeySet<String>()
+            val startSignal = CountDownLatch(1)
+            val done = CountDownLatch(threads)
+            val pool = Executors.newFixedThreadPool(threads)
+
+            // When
+            repeat(threads) {
+                pool.submit {
+                    startSignal.await()
+                    repeat(idsPerThread) { ids.add(generator.nextCorrelationId()) }
+                    done.countDown()
+                }
+            }
+            startSignal.countDown()
+            val finished = done.await(30, TimeUnit.SECONDS)
+            pool.shutdownNow()
+
+            // Then
+            assertThat(finished).isTrue()
+            assertThat(ids).hasSize(threads * idsPerThread)
+        }
+
+        @Test
+        fun `should keep the id format intact under concurrent access`() {
+            // Given
+            val threads = 8
+            val generator = CountingCorrelationIdGenerator(prefixSeed = 0L)
+            val ids = ConcurrentHashMap.newKeySet<String>()
+            val done = CountDownLatch(threads)
+            val pool = Executors.newFixedThreadPool(threads)
+
+            // When
+            repeat(threads) {
+                pool.submit {
+                    repeat(500) { ids.add(generator.nextCorrelationId()) }
+                    done.countDown()
+                }
+            }
+            val finished = done.await(30, TimeUnit.SECONDS)
+            pool.shutdownNow()
+
+            // Then
+            assertThat(finished).isTrue()
+            assertThat(ids).allSatisfy { assertThat(it).matches("[0-9a-z]{21}") }
+        }
+    }
+}

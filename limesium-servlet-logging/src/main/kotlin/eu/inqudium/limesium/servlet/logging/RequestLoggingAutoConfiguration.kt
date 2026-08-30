@@ -36,7 +36,7 @@ class RequestLoggingAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    fun requestLoggingCorrelationIdGenerator(): CorrelationIdGenerator = CorrelationIdGenerator.RANDOM_UUID
+    fun requestLoggingCorrelationIdGenerator(): CorrelationIdGenerator = CorrelationIdGenerator.DEFAULT
 
     /**
      * The filter as its own bean, so a host can replace it while keeping the registration wiring below.

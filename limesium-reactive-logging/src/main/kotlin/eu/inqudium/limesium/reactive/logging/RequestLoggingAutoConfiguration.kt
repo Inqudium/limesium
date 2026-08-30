@@ -39,7 +39,7 @@ class RequestLoggingAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    fun requestLoggingCorrelationIdGenerator(): CorrelationIdGenerator = CorrelationIdGenerator.RANDOM_UUID
+    fun requestLoggingCorrelationIdGenerator(): CorrelationIdGenerator = CorrelationIdGenerator.DEFAULT
 
     /**
      * The Reactor variant, registered only when NO [EndpointLoggingFilter] exists yet: the coroutine

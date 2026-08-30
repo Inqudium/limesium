@@ -138,5 +138,5 @@ private class PinnedTimeSourceHostConfig {
 @Configuration(proxyBeanMethods = false)
 private class OwnFilterHostConfig {
     @Bean
-    fun hostRequestLoggingFilter(properties: RequestLoggingProperties): RequestLoggingFilter = RequestLoggingFilter(properties, NanoTimeSource.SYSTEM, CorrelationIdGenerator.RANDOM_UUID, SimpleMeterRegistry())
+    fun hostRequestLoggingFilter(properties: RequestLoggingProperties): RequestLoggingFilter = RequestLoggingFilter(properties, NanoTimeSource.SYSTEM, CorrelationIdGenerator.DEFAULT, SimpleMeterRegistry())
 }
