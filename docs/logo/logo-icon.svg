@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Limesium element tile">
+  <style>
+    :root { --ink:#26221c; --line:#b5372a; }
+    @media (prefers-color-scheme: dark) { :root { --ink:#e6e1d6; --line:#c94b38; } }
+    text { font-family: Georgia, 'Iowan Old Style', 'Times New Roman', serif; fill: var(--ink); }
+  </style>
+  <!-- element tile -->
+  <rect x="10" y="10" width="108" height="108" rx="10" fill="none" stroke="var(--ink)" stroke-width="6"/>
+  <!-- "atomic number": one line per exchange -->
+  <text x="26" y="38" font-size="16" font-weight="600">1</text>
+  <!-- element symbol -->
+  <text x="64" y="78" font-size="48" font-weight="700" text-anchor="middle">Lm</text>
+  <!-- the limes crossing the tile boundary, full bleed -->
+  <rect x="0" y="90" width="128" height="5" fill="var(--line)"/>
+  <!-- element name -->
+  <text x="66" y="110" font-size="9.5" letter-spacing="2.5" text-anchor="middle">LIMESIUM</text>
+</svg>

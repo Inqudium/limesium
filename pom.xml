@@ -255,6 +255,29 @@
                                 <lineSuffix>#L</lineSuffix>
                             </link>
                         </sourceLinks>
+                        <!--
+                            DO NOT DELETE, even though the IDE flags this
+                            element as illegal: pluginsConfiguration is not a
+                            declared Mojo parameter — the Dokka Maven plugin
+                            reads it out-of-band from the raw configuration
+                            XML (verified against dokka-maven-plugin 2.2.0;
+                            the custom logo demonstrably lands in the output).
+
+                            logo-icon.svg is the magic asset name: it replaces
+                            Dokka's default header logo AND the favicon (the
+                            generated pages link images/logo-icon.svg as icon).
+                            The file is a copy of docs/logo/limesium-icon.svg.
+                            The ../ hop reaches the repo root from the module
+                            directory; Dokka only runs on the two child
+                            modules (-pl), never on this aggregator.
+                        -->
+                        <pluginsConfiguration>
+                            <org.jetbrains.dokka.base.DokkaBase>
+                                <customAssets>
+                                    <asset>${project.basedir}/../docs/logo/logo-icon.svg</asset>
+                                </customAssets>
+                            </org.jetbrains.dokka.base.DokkaBase>
+                        </pluginsConfiguration>
                     </configuration>
                 </plugin>
 
