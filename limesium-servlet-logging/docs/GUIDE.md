@@ -1076,6 +1076,11 @@ would otherwise answer `false` after the real writer failed. Residual: a chunk t
 `IOException` for (client disconnect mid-write) is still counted as flowed — `PrintWriter` suppresses the
 failure before any tee can see it.
 
+<!-- Explicit anchor: GitHub slugifies this heading with a double
+     hyphen (the `+` is dropped), MkDocs with a single one; the anchor
+     keeps the GitHub-style TOC links working on the docs site too. -->
+<a id="69-the--10-order-is-load-bearing"></a>
+
 ### 6.9 The `+ 10` order is load-bearing
 
 Boot registers `ServerHttpObservationFilter` at `Ordered.HIGHEST_PRECEDENCE + 1`, and the chain runs in

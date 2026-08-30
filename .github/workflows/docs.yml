@@ -62,6 +62,12 @@ jobs:
       - name: Generate the test-evidence page
         run: python3 .github/scripts/generate-test-catalog.py
 
+      # Copies the module guides (which live next to their module
+      # sources) into the docs_dir with rewritten links, so the site
+      # renders them instead of linking to GitHub.
+      - name: Generate the guide pages
+        run: python3 .github/scripts/generate-guide-pages.py
+
       - name: Build site
         run: mkdocs build --strict
 
