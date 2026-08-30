@@ -55,13 +55,12 @@ import reactor.core.publisher.SignalType
  * `stage=emission`) - see [ExchangeLifecycle]; emission failures are confined in the emitter. Requests
  * are never affected.
  *
- * ## Manual wiring: ONE filter instance per `MeterRegistry`
+ * ## Manual wiring: filters on one `MeterRegistry` share one metrics owner
  *
- * The module's meters are identified by name: a second filter constructed against the same registry
- * shares the counters (increments merge), but its open-exchange GAUGE registration is silently ignored -
- * that filter's live exchanges never move `endpoint.logging.exchanges.open`. The auto-configuration
- * wires exactly one filter per context and is unaffected; hosts constructing additional filters must
- * give each its own registry.
+ * The module's meters are identified by name, so all filters constructed against the same registry
+ * share a single internal metrics owner: the counters and the `endpoint.logging.exchanges.open` gauge
+ * report totals ACROSS those filters, not per filter. The auto-configuration wires exactly one filter
+ * per context, where the distinction never shows.
  */
 class RequestLoggingWebFilter(
     properties: RequestLoggingProperties,

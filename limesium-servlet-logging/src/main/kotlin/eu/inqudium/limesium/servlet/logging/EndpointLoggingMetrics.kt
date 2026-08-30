@@ -9,6 +9,8 @@ import io.micrometer.core.instrument.Meter
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.slf4j.LoggerFactory
+import java.lang.ref.WeakReference
+import java.util.WeakHashMap
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 
@@ -20,11 +22,12 @@ import java.util.concurrent.atomic.AtomicLong
  * All fixed-tag meters are PRE-registered at construction: a `rate()` alert must see the zero before the
  * first occurrence, not a meter that springs into existence at the very moment it should already fire.
  *
- * ONE INSTANCE PER REGISTRY: Micrometer deduplicates meters by id, so a second instance of this class
- * against the same registry shares the counters (harmless - increments merge) but NOT the gauge: the
- * second gauge registration is silently ignored and that instance's open-exchange movements become
- * invisible. The auto-configuration creates exactly one filter and therefore one instance; hosts wiring
- * additional filters against one registry inherit this limitation knowingly.
+ * ONE INSTANCE PER REGISTRY, enforced by [forRegistry]: Micrometer deduplicates meters by id, so a
+ * second instance of this class against the same registry would share the counters (harmless -
+ * increments merge) but NOT the gauge: the second gauge registration is silently ignored and that
+ * instance's open-exchange movements become invisible. Every filter therefore obtains its metrics
+ * through [forRegistry], and filters on one registry share one owner - the gauge then reports the
+ * total open exchanges across them.
  *
  * FAIL-OPEN REGISTRATION: Micrometer rejects a registration whose id already exists with a different
  * meter type (a host or another library owning an `endpoint.*` name). Unguarded, that throw at
@@ -34,7 +37,7 @@ import java.util.concurrent.atomic.AtomicLong
  * working and the affected meter is simply not exported (twin parity with the reactive module's
  * finding 2 of an internal code analysis).
  */
-internal class EndpointLoggingMetrics(
+internal class EndpointLoggingMetrics private constructor(
     private val meterRegistry: MeterRegistry,
 ) {
     private val fallbackRegistry = SimpleMeterRegistry()
@@ -232,6 +235,27 @@ internal class EndpointLoggingMetrics(
 
     companion object {
         private val internalLog = LoggerFactory.getLogger(EndpointLoggingMetrics::class.java)
+
+        // Both sides weak: the KEY must not pin a host registry that outlives its context, and the
+        // VALUE is exactly what every filter already holds strongly - the owner lives as long as a
+        // filter using it does. Residual (accepted): when every filter of a still-live registry has
+        // been collected and a NEW one is wired against it afterwards, the fresh owner meets its own
+        // pre-registered meter ids again and the ignored-gauge case resurfaces - a churn pattern
+        // neither the auto-configuration nor per-test registries produce.
+        private val perRegistry = WeakHashMap<MeterRegistry, WeakReference<EndpointLoggingMetrics>>()
+
+        /**
+         * The metrics owner for [registry] - created on first use, SHARED by every later caller with
+         * the same registry. Sharing is what keeps the open-exchanges gauge truthful when several
+         * filters run against one registry: a duplicate owner's gauge registration would be silently
+         * ignored (see the class documentation), a shared owner makes the gauge the total across its
+         * filters while the counters merge as before.
+         */
+        fun forRegistry(registry: MeterRegistry): EndpointLoggingMetrics =
+            synchronized(perRegistry) {
+                perRegistry[registry]?.get()
+                    ?: EndpointLoggingMetrics(registry).also { perRegistry[registry] = WeakReference(it) }
+            }
 
         /**
          * Meter counting logging failures the fail-open path swallowed, tagged `stage=emission` (the
