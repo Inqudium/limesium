@@ -313,5 +313,5 @@ private class HostConfig {
     fun hostWebFilter(
         properties: RequestLoggingProperties,
         registry: MeterRegistry,
-    ): RequestLoggingWebFilter = RequestLoggingWebFilter(properties, NanoTimeSource.SYSTEM, CorrelationIdGenerator.RANDOM_UUID, registry)
+    ): RequestLoggingWebFilter = RequestLoggingWebFilter(properties, NanoTimeSource.SYSTEM, CorrelationIdGenerator.DEFAULT, registry)
 }

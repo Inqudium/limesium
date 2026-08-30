@@ -218,7 +218,7 @@ Fifteen Kotlin files in one package, `eu.inqudium.limesium.servlet.logging`, in 
 | `CapturingRequestWrapper` / `CapturingResponseWrapper` | The servlet stream/reader and stream/writer tees. |
 | `BoundedBodyCapture` | The bounded capture target; count-only mode with limit `0`; the request-side read state (`BodyReadState`); single-writer/late-reader visibility via a volatile total. |
 | `MdcScope` | Puts identity (and, for the emission, trace keys) into the MDC and restores the previous values on close. |
-| `NanoTimeSource` / `CorrelationIdGenerator` | Injectable time and id; `SYSTEM` and `RANDOM_UUID` are the production defaults. |
+| `NanoTimeSource` / `CorrelationIdGenerator` | Injectable time and id; `SYSTEM` and `DEFAULT` are the production defaults. |
 | `reportQuietly` | Guards the diagnostics channel (counter + internal log) of every catch block. |
 
 ### 2.2 Auto-configuration and registration
@@ -434,7 +434,7 @@ Time and randomness are injected, not ambient:
 - `NanoTimeSource` — monotonic nanoseconds for `endpoint_duration_ms` and the slow threshold; the single
   production read of `System.nanoTime()` is `NanoTimeSource.SYSTEM`. Log timestamps come from the
   logging backend, keeping the two time domains separate.
-- `CorrelationIdGenerator` — the id for traceless requests without a correlation header; `RANDOM_UUID`
+- `CorrelationIdGenerator` — the id for traceless requests without a correlation header; `DEFAULT`
   by default. Never consulted for a traced exchange (ADR-0002: the `traceparent` trace id is the
   request id).
 

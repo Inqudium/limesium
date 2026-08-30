@@ -217,7 +217,7 @@ layers:
 | `MdcScope` | Puts identity and trace keys into the MDC for the duration of one emission and restores the previous values. |
 | `EndpointMdcContextPropagation` | `ThreadLocalAccessor`s bridging the Reactor context keys into the MDC; idempotent registration; startup warning. |
 | `Traceparent` | Strict W3C `traceparent` parsing to `(traceId, parentSpanId)`. |
-| `NanoTimeSource` / `CorrelationIdGenerator` | Injectable time and id; `SYSTEM` and `RANDOM_UUID` are the production defaults. |
+| `NanoTimeSource` / `CorrelationIdGenerator` | Injectable time and id; `SYSTEM` and `DEFAULT` are the production defaults. |
 | `reportQuietly` | Guards the diagnostics channel (counter + internal log) of every catch block. |
 
 ### 2.2 Auto-configuration and variant selection
