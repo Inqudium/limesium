@@ -32,7 +32,7 @@ import java.time.Duration
 
 /**
  * The trace contract against a REAL Micrometer Tracing bridge (Brave) and a real Netty server - the
- * reactive counterpart of the servlet twin's `RequestLoggingFilterTracingIntegrationTest`, for a
+ * reactive counterpart of the servlet twin's `RequestLoggingFilterTomcatTracingIntegrationTest`, for a
  * DIFFERENT design: this module never reads the bridge's MDC (the event-loop thread carries none at
  * filter time); it parses the caller's W3C `traceparent` header. What that design promises, and what
  * only a real bridge can prove, is pinned here:

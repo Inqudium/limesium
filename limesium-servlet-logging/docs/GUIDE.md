@@ -1009,7 +1009,7 @@ a trace the bridge mints locally is deliberately not joined; such an exchange ca
 request id instead.
 
 The ids ride the MDC only, never the key-values,
-so the log-to-trace join uses Boot's standard `traceId` key. `RequestLoggingFilterTracingIntegrationTest`
+so the log-to-trace join uses Boot's standard `traceId` key. `RequestLoggingFilterTomcatTracingIntegrationTest`
 pins the parsed context and the identity decision against a real Brave bridge running beside it.
 
 ---
@@ -1111,7 +1111,7 @@ ascending order — so that filter wraps this one. Since ADR-0002 the trace cont
 that ordering (it is parsed from the `traceparent` header, not captured from the bridge's MDC), but the
 order stays at `+ 10` deliberately: the exchange runs inside the server span's observation, the chain
 MDC scope opens before Security and the application filters, and the traceless echo lands before any
-later filter can commit the response. `RequestLoggingFilterTracingIntegrationTest` pins the parsed
+later filter can commit the response. `RequestLoggingFilterTomcatTracingIntegrationTest` pins the parsed
 context against a real bridge - its MDC writes and its own server span must never leak into the event.
 
 ### 6.10 One metrics instance per registry
