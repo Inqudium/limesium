@@ -36,7 +36,7 @@ internal class EndpointMdcCallableInterceptor(
         task: Callable<T>,
     ) {
         try {
-            scope.set(MdcScope(exchange.correlationId, exchange.method, exchange.path))
+            scope.set(MdcScope(exchange.requestId, exchange.method, exchange.path))
         } catch (e: Exception) {
             scope.remove()
             reportQuietly {

@@ -94,7 +94,7 @@ class RequestLoggingWebFilter(
             // namespace identical across the twins.
             .contextWrite { ctx ->
                 ctx
-                    .put(MdcKeys.REQUEST_ID, ex.correlationId)
+                    .put(MdcKeys.REQUEST_ID, ex.requestId)
                     .put(MdcKeys.REQUEST_METHOD, ex.method)
                     .put(MdcKeys.ROUTE, ex.path)
             }

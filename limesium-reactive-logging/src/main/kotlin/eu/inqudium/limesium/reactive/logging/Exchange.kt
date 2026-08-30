@@ -15,7 +15,11 @@ internal class Exchange(
     val method: String,
     val path: String,
     val query: String?,
-    val correlationId: String,
+    /**
+     * The exchange identity (`endpoint_request_id`, ADR-0002): the `traceparent` trace id when the
+     * request carried a conformant one, otherwise the accepted or generated correlation id.
+     */
+    val requestId: String,
     val requestHeaders: List<Pair<String, String>>,
     val requestCapture: BoundedBodyCapture?,
     val responseCapture: BoundedBodyCapture?,

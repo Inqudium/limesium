@@ -109,17 +109,19 @@ internal class EndpointLoggingMetrics(
             }
         }
 
-    // Watches the correlation contract with the upstream: a rising `generated` share means callers (the
-    // gateway, a sidecar) stopped propagating the correlation header - a regression neither logs nor
-    // other metrics surface reliably.
-    private val correlationSourceCounters =
-        listOf(CORRELATION_SOURCE_HEADER, CORRELATION_SOURCE_GENERATED).associateWith { source ->
+    // Watches the identity contract with the upstream: a rising `generated` share means callers (the
+    // gateway, a sidecar) stopped propagating traceparent or the correlation header - a regression
+    // neither logs nor other metrics surface reliably.
+    private val requestIdSourceCounters =
+        listOf(REQUEST_ID_SOURCE_TRACE, REQUEST_ID_SOURCE_HEADER, REQUEST_ID_SOURCE_GENERATED).associateWith { source ->
             registerOrFallback(CORRELATION_METER) { registry ->
                 Counter
                     .builder(CORRELATION_METER)
                     .tag("source", source)
-                    .description("Origin of the exchange's correlation id: adopted from the request header, or generated")
-                    .register(registry)
+                    .description(
+                        "Origin of the exchange's request id: the traceparent trace id, " +
+                            "the correlation header, or generated (ADR-0002)",
+                    ).register(registry)
             }
         }
 
@@ -144,12 +146,14 @@ internal class EndpointLoggingMetrics(
         openExchanges.decrementAndGet()
     }
 
-    /** Guarded like [eventEmitted]: a throwing host counter must not degrade the exchange to an unlogged pass-through. */
-    fun correlationId(fromHeader: Boolean) =
+    /**
+     * Counts the request-id origin; [source] must be one of the [REQUEST_ID_SOURCE_TRACE] family.
+     * Guarded like [eventEmitted]: a throwing host counter must not degrade the exchange to an unlogged
+     * pass-through.
+     */
+    fun requestId(source: String) =
         updateQuietly(CORRELATION_METER) {
-            correlationSourceCounters
-                .getValue(if (fromHeader) CORRELATION_SOURCE_HEADER else CORRELATION_SOURCE_GENERATED)
-                .increment()
+            requestIdSourceCounters.getValue(source).increment()
         }
 
     /**
@@ -273,8 +277,9 @@ internal class EndpointLoggingMetrics(
         const val OPEN_EXCHANGES_METER = "endpoint.logging.exchanges.open"
 
         /**
-         * Counter of correlation-id origins, tagged `source=header|generated`. A rising `generated` share
-         * means the upstream stopped propagating the correlation header.
+         * Counter of request-id origins, tagged `source=trace|header|generated` (ADR-0002). A rising
+         * `generated` share means the upstream stopped propagating `traceparent` or the correlation
+         * header. The meter name predates ADR-0002 and stays stable for existing dashboards.
          */
         const val CORRELATION_METER = "endpoint.logging.correlation.id"
 
@@ -286,7 +291,10 @@ internal class EndpointLoggingMetrics(
         private const val STAGE_EMISSION = "emission"
         private const val STAGE_ARRIVAL = "arrival"
         private const val STAGE_WIRING = "wiring"
-        private const val CORRELATION_SOURCE_HEADER = "header"
-        private const val CORRELATION_SOURCE_GENERATED = "generated"
+
+        /** The closed request-id source vocabulary of [CORRELATION_METER] - shared with the filter. */
+        const val REQUEST_ID_SOURCE_TRACE = "trace"
+        const val REQUEST_ID_SOURCE_HEADER = "header"
+        const val REQUEST_ID_SOURCE_GENERATED = "generated"
     }
 }

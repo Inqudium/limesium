@@ -57,7 +57,8 @@ class TwinContractTest {
         assertThat(MdcKeys.REQUEST_METHOD).isEqualTo("endpoint_method")
         assertThat(MdcKeys.ROUTE).isEqualTo("endpoint_route")
         assertThat(TraceMdcKeys.TRACE_ID).isEqualTo("traceId")
-        assertThat(TraceMdcKeys.SPAN_ID).isEqualTo("spanId")
+        assertThat(TraceMdcKeys.PARENT_SPAN_ID).isEqualTo("parentSpanId")
+        assertThat(TraceMdcKeys.BRIDGE_SPAN_ID).isEqualTo("spanId")
     }
 
     @Test

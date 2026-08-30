@@ -36,7 +36,7 @@ internal object TraceMdcKeys {
  * emit the exchange's identity and trace ids.
  */
 internal class MdcScope(
-    correlationId: String,
+    requestId: String,
     method: String,
     path: String,
     traceId: String? = null,
@@ -44,7 +44,7 @@ internal class MdcScope(
 ) : AutoCloseable {
     private val applied: Map<String, String> =
         buildMap {
-            put(MdcKeys.REQUEST_ID, correlationId)
+            put(MdcKeys.REQUEST_ID, requestId)
             put(MdcKeys.REQUEST_METHOD, method)
             put(MdcKeys.ROUTE, path)
             traceId?.let { put(TraceMdcKeys.TRACE_ID, it) }

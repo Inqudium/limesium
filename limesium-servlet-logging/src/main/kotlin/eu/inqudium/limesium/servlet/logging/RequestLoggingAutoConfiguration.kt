@@ -53,7 +53,7 @@ class RequestLoggingAutoConfiguration {
     ): RequestLoggingFilter = RequestLoggingFilter(properties, nanoTime, correlationIds, meterRegistry.getIfAvailable { SimpleMeterRegistry() })
 
     /**
-     * Runs very early (but not first) in the chain, so the correlation id is in the MDC before other
+     * Runs very early (but not first) in the chain, so the request id is in the MDC before other
      * filters log; the offset leaves room for infrastructure that must precede logging (metrics,
      * request-context setup). Referencing the filter bean here keeps Boot from ALSO auto-registering the
      * bare `Filter` bean - a registration bean claims its filter.

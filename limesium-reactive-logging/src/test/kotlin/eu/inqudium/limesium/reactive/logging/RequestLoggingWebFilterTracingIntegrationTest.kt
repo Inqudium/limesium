@@ -45,6 +45,9 @@ import java.time.Duration
  * - **The boundary is explicit.** Without a caller `traceparent` the bridge still traces the exchange,
  *   but the module logs no trace context at all - the documented limitation (finding 4 of
  *   an internal security audit), pinned so that a change of that decision is conscious.
+ * - **The identity follows the trace (ADR-0002).** A traced exchange's `endpoint_request_id` IS the
+ *   caller's trace id and gets NO `X-Correlation-Id` echo; a traceless exchange keeps the correlation
+ *   contract - generated id, echoed.
  *
  * Runs the REACTOR variant (demanded explicitly - the coroutine libraries sit on this classpath), with
  * sampling pinned to 1.0. The other integration tests of this module are unaffected by the bridge on the
@@ -127,6 +130,10 @@ class RequestLoggingWebFilterTracingIntegrationTest {
             .containsEntry("parentSpanId", CALLER_PARENT_ID)
         assertThat(event.mdcPropertyMap["spanId"]).isNotEqualTo(CALLER_PARENT_ID)
         assertThat(event.formattedMessage).contains(" traceId=$bridgeTraceId parentSpanId=$CALLER_PARENT_ID")
+
+        // And: the trace id doubles as the request id and the wire stays untouched (ADR-0002)
+        assertThat(event.mdcPropertyMap[MdcKeys.REQUEST_ID]).isEqualTo(CALLER_TRACE_ID)
+        assertThat(response.headers().firstValue("X-Correlation-Id")).isEmpty()
     }
 
     @Test
@@ -150,6 +157,10 @@ class RequestLoggingWebFilterTracingIntegrationTest {
             .doesNotContainKey("traceId")
             .doesNotContainKey("parentSpanId")
         assertThat(event.formattedMessage).doesNotContain("traceId=")
+
+        // And: the traceless exchange keeps the correlation contract - generated id, echoed (ADR-0002)
+        assertThat(event.mdcPropertyMap[MdcKeys.REQUEST_ID]).isEqualTo("tr-generated")
+        assertThat(response.headers().firstValue("X-Correlation-Id")).hasValue("tr-generated")
     }
 
     @Test

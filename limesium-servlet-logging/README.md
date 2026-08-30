@@ -7,7 +7,9 @@ Design in brief:
 
 - One final `RequestLoggingFilter`; sync and async share a single, exactly-once emission path.
 - Injectable `NanoTimeSource` — deterministic tests, no sleeps.
-- Injectable `CorrelationIdGenerator`, header adoption + response echo.
+- Identity per ADR-0002: a conformant `traceparent`'s trace id **is** the request id (no echo, the
+  wire stays untouched); only traceless exchanges adopt/echo `X-Correlation-Id` via the injectable
+  `CorrelationIdGenerator`.
 - Passive bounded **tee** (`BoundedBodyCapture`) — nothing buffered, replayed, or withheld;
   async-safe by construction.
 - SLF4J fluent API with `addKeyValue` — structured encoders pick the fields up directly.
@@ -41,7 +43,7 @@ Endpoint http exchange GET /api/things -> 200 [endpoint_request_id=0f7c...]
 
 plus the structured `endpoint_*` key-values: the wire names are a contract with
 the log index, each field owns its JSON shape (`EndpointLogFields.kt`), a badly typed value drops that
-field with a warning but never the event, and the correlation id rides the MDC (plus the message suffix
+field with a warning but never the event, and the request id rides the MDC (plus the message suffix
 for plain-text appenders) rather than a key-value. The index-side mapping ships as a component template
 in [`/docs/elk/`](../docs/elk/README.md), kept in lockstep with the enum by `EndpointLogFieldTest`.
 
@@ -70,7 +72,7 @@ must exist, every value must be the built-in default.
 |---|---|---|
 | `enabled` | `true` | `false` removes the filter (auto-configuration backs off entirely) |
 | `logger-name` | `http-exchange` | Logger of the exchange lines (dedicated name, so routing/levels can target exactly these lines) |
-| `correlation-id-header` | `X-Correlation-Id` | Header the id is read from and echoed to |
+| `correlation-id-header` | `X-Correlation-Id` | Header the id is read from and echoed to on traceless exchanges (ADR-0002) |
 | `include-query-string` | `true` | Append the query string to the logged path |
 | `log-request-start` | `false` | Additionally log an arrival line before the chain runs — it carries no outcome/status/duration, so outcome-keyed dashboards still count one line per exchange |
 | `include-path-patterns` | *(empty)* | URL patterns (Spring `PathPattern`, e.g. `/api/**`) the filter is active for at all; empty = every endpoint. A request is logged when it matches any include and no exclude — the exclude wins |
@@ -98,11 +100,13 @@ When the chain throws, a short WARN breadcrumb is additionally logged immediatel
 logger, not the exchange logger — its one-event-per-exchange contract holds), so the failure is visible
 the moment it happens while the full ERROR event follows at request destruction.
 
-**Trace integration:** when a Micrometer tracing bridge is present, the bridge's `traceId`/`spanId` MDC
-entries are captured at filter entry and restored around the emission — the destruction callback's thread
-has lost them — so the exchange event stays joinable with its trace: as MDC fields for structured
-encoders, and inline in the message (`… [endpoint_request_id=… traceId=… spanId=…]`) for plain-text
-appenders. Without a bridge, nothing is captured and nothing is decorated.
+**Trace integration:** the incoming W3C `traceparent` header is parsed at filter entry (strict W3C
+validation, lockstep with the reactive twin) and restored around the emission — the destruction
+callback's thread carries no per-request state — so the exchange event stays joinable with its trace:
+as MDC fields for structured encoders (`traceId`, and the caller's span as `parentSpanId`, never as
+the local `spanId`), and inline in the message (`… [endpoint_request_id=… traceId=… parentSpanId=…]`)
+for plain-text appenders. Without a conformant header, nothing is decorated and the request id is the
+accepted or generated correlation id (ADR-0002).
 
 ## Metrics
 
@@ -117,7 +121,7 @@ deliberately left to Boot's own `http.server.requests` and to the structured log
 | `endpoint.request.body.size` / `endpoint.response.body.size` | distribution summary (bytes) | `uri` (handler pattern, `UNKNOWN` without one) | Bytes that **actually flowed**, opt-in via `measure-request-body-size` / `measure-response-body-size` and independent of body logging and log level. Exact beyond `max-body-bytes` (the tee counts past the capture cap); zero-byte bodies record no sample. |
 | `endpoint.request.body.read` | counter | `uri` (handler pattern), `state` = `unread` \| `partial` \| `complete` | How far the application **consumed** the request body, opt-in via `measure-request-body-size`. The tee mirrors consumption, not transmission, so neither the logged body nor the size sample can tell a body the client sent but the application ignored from one that was never sent — this counter can. `partial` = consumption started but the end of the stream was never observed (an early-exiting parser, an exception mid-read). |
 | `endpoint.logging.exchanges.open` | gauge | — | Exchanges between filter entry and request destruction. Hovers near the active-request count in health; a **monotonically growing baseline** means `requestDestroyed` is not firing and events are lost silently — the one failure mode neither the fail-open counter (nothing throws) nor the events counter (no baseline) can see. |
-| `endpoint.logging.correlation.id` | counter | `source` = `header` \| `generated` | Origin of each exchange's correlation id. A rising `generated` share means the upstream (gateway, sidecar) stopped propagating the correlation header. |
+| `endpoint.logging.correlation.id` | counter | `source` = `trace` \| `header` \| `generated` | Origin of each exchange's request id (ADR-0002). A rising `generated` share means the upstream (gateway, sidecar) stopped propagating traceparent or the correlation header. |
 
 ## The reactive twin — deliberate duplication, no shared base module
 

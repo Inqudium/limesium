@@ -18,7 +18,11 @@ internal class Exchange(
     val method: String,
     val path: String,
     val query: String?,
-    val correlationId: String,
+    /**
+     * The exchange identity (`endpoint_request_id`, ADR-0002): the `traceparent` trace id when the
+     * request carried a conformant one, otherwise the accepted or generated correlation id.
+     */
+    val requestId: String,
     val requestHeaders: List<Pair<String, String>>,
     val requestCapture: BoundedBodyCapture?,
     val requestWrapper: CapturingRequestWrapper?,
@@ -27,12 +31,12 @@ internal class Exchange(
     val response: HttpServletResponse,
     val startNanos: Long,
     /**
-     * Trace/span id of the exchange's server span, captured from the tracing bridge's MDC at filter
-     * entry (see [TraceMdcKeys]); null without a bridge. Carried here because the emission runs on a
-     * destruction callback whose thread no longer has the bridge's MDC.
+     * Trace context parsed from the incoming W3C `traceparent` header: the trace id is the server span's
+     * trace id; the parent-id is the CALLER's span (see [TraceMdcKeys]). Null without the header.
+     * Carried here because the emission runs on a destruction callback thread of its own.
      */
     val traceId: String? = null,
-    val spanId: String? = null,
+    val parentSpanId: String? = null,
 ) {
     /** The exactly-once guard of the emission; whoever wins the CAS emits. */
     val logged = AtomicBoolean(false)

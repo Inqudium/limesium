@@ -113,10 +113,10 @@ class CoRequestLoggingWebFilter(
                 reportQuietly {
                     lifecycle.metrics.wiringFailure()
                     internalLog.warn(
-                        "Ambient MDC could not be read for {} {} (correlationId={}) - the handler runs without endpoint MDC: {}",
+                        "Ambient MDC could not be read for {} {} (requestId={}) - the handler runs without endpoint MDC: {}",
                         ex.method,
                         ex.path,
-                        ex.correlationId,
+                        ex.requestId,
                         e.toString(),
                     )
                 }
@@ -125,7 +125,7 @@ class CoRequestLoggingWebFilter(
         return MDCContext(
             ambient +
                 mapOf(
-                    MdcKeys.REQUEST_ID to ex.correlationId,
+                    MdcKeys.REQUEST_ID to ex.requestId,
                     MdcKeys.REQUEST_METHOD to ex.method,
                     MdcKeys.ROUTE to ex.path,
                 ),

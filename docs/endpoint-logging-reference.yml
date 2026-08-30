@@ -20,13 +20,15 @@ endpoint-logging:
   # failures, timeouts and slow requests, ERROR only thrown chains (see `logging.level` below).
   logger-name: http-exchange
 
-  # Header the correlation id is read from; absent or blank means a new id is generated (UUID by
-  # default - override the CorrelationIdGenerator bean to change the format). The id is echoed back
-  # to the client on the response under this same header name - set ONCE at filter entry, before the
-  # chain runs; the filter does not re-assert it, so downstream code that sets this header itself or
-  # calls HttpServletResponse.reset() decides what the client finally sees, while the event and the
-  # MDC keep the id resolved at entry. It rides the MDC as `endpoint_request_id` while the request is
-  # handled.
+  # Header the correlation id is read from on TRACELESS exchanges only (ADR-0002): a request with a
+  # conformant W3C traceparent takes its request id from the traceparent's trace id, ignores this
+  # header, and gets NO echo - the wire stays untouched. On a traceless exchange, absent or blank
+  # means a new id is generated (UUID by default - override the CorrelationIdGenerator bean to change
+  # the format), and the id is echoed back to the client on the response under this same header name -
+  # set ONCE at filter entry, before the chain runs; the filter does not re-assert it, so downstream
+  # code that sets this header itself or calls HttpServletResponse.reset() decides what the client
+  # finally sees, while the event and the MDC keep the id resolved at entry. Whichever identity wins
+  # rides the MDC as `endpoint_request_id` while the request is handled.
   correlation-id-header: X-Correlation-Id
 
   # Whether the query string is logged (as its own field `endpoint_url_query`, never as part of the

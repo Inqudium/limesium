@@ -197,7 +197,7 @@ internal class ExchangeLifecycle(
                         exchange.path,
                         it.toString(),
                         MdcKeys.REQUEST_ID,
-                        exchange.correlationId,
+                        exchange.requestId,
                     )
                 }
                 if (!webExchange.response.isCommitted) {
@@ -234,10 +234,10 @@ internal class ExchangeLifecycle(
             reportQuietly {
                 metrics.wiringFailure()
                 internalLog.warn(
-                    "Request logging failed for {} {} (correlationId={}): {}",
+                    "Request logging failed for {} {} (requestId={}): {}",
                     exchange.method,
                     exchange.path,
-                    exchange.correlationId,
+                    exchange.requestId,
                     e.toString(),
                     e,
                 )
@@ -259,15 +259,33 @@ internal class ExchangeLifecycle(
 
     private fun wireExchange(webExchange: ServerWebExchange): Wiring {
         val request = webExchange.request
+        // The exchange identity, resolved per ADR-0002: a conformant traceparent's trace id IS the
+        // request id (the caller's X-Correlation-Id is ignored on such exchanges - the distributed
+        // identity outranks the private one); only a traceless exchange accepts the correlation header
+        // or generates a fresh id, and only a traceless exchange gets the echo - a traced exchange
+        // passes through observationally untouched.
+        val trace = Traceparent.parse(request.headers.getFirst(Traceparent.HEADER))
         val headerCorrelationId =
-            request.headers
-                .getFirst(properties.correlationIdHeader)
-                ?.takeUnless { it.isBlank() }
-        val correlationId = headerCorrelationId ?: correlationIds.nextCorrelationId()
+            if (trace == null) {
+                request.headers
+                    .getFirst(properties.correlationIdHeader)
+                    ?.takeUnless { it.isBlank() }
+            } else {
+                null
+            }
+        val requestId = trace?.first ?: headerCorrelationId ?: correlationIds.nextCorrelationId()
         // Guarded inside the metrics: a throwing host counter must not turn the request into an
         // unlogged pass-through (finding 3 of an internal code analysis).
-        metrics.correlationId(fromHeader = headerCorrelationId != null)
-        webExchange.response.headers.set(properties.correlationIdHeader, correlationId)
+        metrics.requestId(
+            when {
+                trace != null -> EndpointLoggingMetrics.REQUEST_ID_SOURCE_TRACE
+                headerCorrelationId != null -> EndpointLoggingMetrics.REQUEST_ID_SOURCE_HEADER
+                else -> EndpointLoggingMetrics.REQUEST_ID_SOURCE_GENERATED
+            },
+        )
+        if (trace == null) {
+            webExchange.response.headers.set(properties.correlationIdHeader, requestId)
+        }
 
         // A capture exists when the body is logged OR measured; measure-only runs the capture in
         // count-only mode (limit 0: nothing buffered, every byte counted).
@@ -293,7 +311,6 @@ internal class ExchangeLifecycle(
                 builder.build()
             }
 
-        val trace = Traceparent.parse(request.headers.getFirst(Traceparent.HEADER))
         // RAW (still percent-encoded) path and query, as the client sent them - twin parity with the
         // servlet module's requestURI/queryString, and the log-injection guard: java.net.URI's decoded
         // getPath()/getQuery() turn `%0A`/`%0D` into real line breaks that would forge lines in every
@@ -306,7 +323,7 @@ internal class ExchangeLifecycle(
                 method = request.method.name(),
                 path = request.uri.rawPath,
                 query = if (properties.includeQueryString) request.uri.rawQuery else null,
-                correlationId = correlationId,
+                requestId = requestId,
                 // Multi-value resolution, natively from the reactive HttpHeaders.
                 requestHeaders =
                     properties.requestHeaders.select(request.headers.headerNames()) { name ->

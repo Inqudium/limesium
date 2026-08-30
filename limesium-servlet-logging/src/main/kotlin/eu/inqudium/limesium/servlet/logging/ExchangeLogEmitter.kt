@@ -52,7 +52,7 @@ internal class ExchangeLogEmitter(
                 .atInfo()
                 .setMessage(
                     "Endpoint http exchange started ${exchange.method} ${exchange.path} " +
-                        "[${MdcKeys.REQUEST_ID}=${exchange.correlationId}]",
+                        "[${MdcKeys.REQUEST_ID}=${exchange.requestId}]",
                 ).addKeyValue(EndpointLogField.REQUEST_METHOD, exchange.method)
                 .addKeyValue(EndpointLogField.URL_PATH, exchange.path)
                 .addKeyValueIfPresent(EndpointLogField.URL_QUERY, exchange.query)
@@ -85,8 +85,8 @@ internal class ExchangeLogEmitter(
      * captures are FINAL and race-free. The [Exchange.logged] guard backstops to exactly-once.
      *
      * The emission runs under the exchange's MDC (the destruction callback carries none of its own), so
-     * the encoder emits the correlation id as an MDC field rather than as a structured key-value; the
-     * message repeats method/path/status and the correlation id inline, so a plain-text appender that
+     * the encoder emits the request id as an MDC field rather than as a structured key-value; the
+     * message repeats method/path/status and the request id inline, so a plain-text appender that
      * drops key-values and MDC still shows the gist of the exchange.
      */
     fun logExchange(exchange: Exchange) {
@@ -183,17 +183,18 @@ internal class ExchangeLogEmitter(
         if (!exchangeLog.isEnabledForLevel(level)) {
             return
         }
-        // The emission scope overlays the trace context captured at filter entry, so the encoder emits
-        // the SAME traceId/spanId the exchange ran under - the destruction thread has lost them. The ids
-        // ride the MDC only, not the key-values; the message suffix below is the
-        // one extra, for plain-text appenders that drop the MDC. The scope OWNS both trace keys: an id
-        // that was not captured is removed for the emission, so a stale id on the pooled destruction
-        // thread cannot join the event to a foreign trace (finding 5 of an internal code analysis).
+        // The emission scope overlays the trace context parsed from the exchange's traceparent header
+        // (ADR-0002), so the encoder emits the SAME traceId/parentSpanId the exchange arrived with. The
+        // ids ride the MDC only, not the key-values; the message suffix below is the
+        // one extra, for plain-text appenders that drop the MDC. The scope OWNS the trace keys
+        // (a bridge's spanId included): an id that was not parsed is removed for the emission, so a
+        // stale id on the pooled destruction thread cannot join the event to a foreign trace
+        // (finding 5 of an internal code analysis).
         val mdcScope =
-            MdcScope(exchange.correlationId, exchange.method, exchange.path, exchange.traceId, exchange.spanId, ownsTraceKeys = true)
+            MdcScope(exchange.requestId, exchange.method, exchange.path, exchange.traceId, exchange.parentSpanId, ownsTraceKeys = true)
         val traceSuffix =
-            if (exchange.traceId != null || exchange.spanId != null) {
-                " ${TraceMdcKeys.TRACE_ID}=${exchange.traceId ?: "-"} ${TraceMdcKeys.SPAN_ID}=${exchange.spanId ?: "-"}"
+            if (exchange.traceId != null || exchange.parentSpanId != null) {
+                " ${TraceMdcKeys.TRACE_ID}=${exchange.traceId ?: "-"} ${TraceMdcKeys.PARENT_SPAN_ID}=${exchange.parentSpanId ?: "-"}"
             } else {
                 ""
             }
@@ -229,7 +230,7 @@ internal class ExchangeLogEmitter(
                 .atLevel(level)
                 .setMessage(
                     "Endpoint http exchange ${exchange.method} ${exchange.path} -> $status " +
-                        "[${MdcKeys.REQUEST_ID}=${exchange.correlationId}$traceSuffix]",
+                        "[${MdcKeys.REQUEST_ID}=${exchange.requestId}$traceSuffix]",
                 ).addKeyValue(EndpointLogField.OUTCOME, outcome)
                 .addKeyValue(EndpointLogField.DURATION_MS, durationMs)
                 .addKeyValue(EndpointLogField.REQUEST_METHOD, exchange.method)
