@@ -47,6 +47,12 @@ header, the trace id doubles as the request id, and the
    it can quote). When a `traceparent` header is present, the module
    writes no `X-Correlation-Id` response header: the exchange passes
    through observationally untouched.
+5. **The MDC always carries a request id.** In every case - trace-derived
+   or generated - the winning id is set as the `endpoint_request_id`
+   MDC value (`MdcKeys.REQUEST_ID`) in both twins, exactly where each
+   twin maintains its MDC scope today. Neutrality is a wire property;
+   inside the process the identity is unconditional, so application log
+   lines and the exchange line always join on it.
 
 ## Consequences
 
