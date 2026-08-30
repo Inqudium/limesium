@@ -9,6 +9,11 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 class CountingCorrelationIdGeneratorTest {
+    private companion object {
+        /** 36^8 - the number of counter values the production counter width can render. */
+        private const val COUNTER_CAPACITY = 2_821_109_907_456L
+    }
+
     @Nested
     inner class `Id format` {
         @Test
@@ -159,6 +164,31 @@ class CountingCorrelationIdGeneratorTest {
             // Then
             assertThat(atMaxTwoDigits).endsWith("000000zz")
             assertThat(afterCarry).endsWith("00000100")
+        }
+
+        @Test
+        fun `should keep the fixed width up to the last counter value the width can hold`() {
+            // What is tested: the 21-character contract at its real boundary - the last value the
+            //   counter width can render - reached through the internal counterStart seam instead of
+            //   2.8e12 warm-up calls.
+            // Success criteria: the id at counter 36^8 - 1 still has exactly 21 characters and ends in
+            //   eight `z`; the very next id grows to 22 characters, pinning the documented, deliberately
+            //   unguarded overflow behavior (padStart silently stops applying).
+            // Why it matters: beyond the width both load-bearing format properties - the fixed split
+            //   point and the lexicographic ordering - break without any signal. This test is the
+            //   executable guard the production KDoc points to: narrowing a width constant fails here
+            //   instead of in production.
+            // Given: a counter one step before the width boundary
+            val generator = CountingCorrelationIdGenerator(prefixSeed = 0L, counterStart = COUNTER_CAPACITY - 1)
+
+            // When
+            val lastInWidth = generator.nextCorrelationId()
+            val firstBeyond = generator.nextCorrelationId()
+
+            // Then: the last in-width id honors the contract; the next one is the documented breakage
+            assertThat(lastInWidth).hasSize(21)
+            assertThat(lastInWidth).endsWith("zzzzzzzz")
+            assertThat(firstBeyond).hasSize(22)
         }
 
         @Test

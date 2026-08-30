@@ -22,7 +22,8 @@ import org.springframework.web.server.CoWebFilter
  * Registers the COROUTINE variant ([CoRequestLoggingWebFilter]) when the coroutine libraries are present
  * - `kotlinx-coroutines-reactor` (for [CoWebFilter]) and `kotlinx-coroutines-slf4j` (for [MDCContext]),
  * both optional dependencies of this module; their presence is the whole opt-in, so the
- * `endpoint-logging.*` namespace stays identical across all variants and twins.
+ * `endpoint-logging.*` namespace stays identical across the variants - and, apart from the
+ * reactive-only `variant` key, across the twins.
  *
  * Ordered BEFORE [RequestLoggingAutoConfiguration]: whichever variant registers first claims the
  * [EndpointLoggingFilter] slot, and the other backs off via `@ConditionalOnMissingBean` - exactly one
@@ -43,8 +44,12 @@ import org.springframework.web.server.CoWebFilter
 class CoRequestLoggingAutoConfiguration {
     /** Matches unless `endpoint-logging.variant=reactor` is configured - the explicit opt-out of this variant. */
     class NotForcedToReactor : NoneNestedConditions(ConfigurationCondition.ConfigurationPhase.PARSE_CONFIGURATION) {
+        /**
+         * The nested POSITIVE condition [NotForcedToReactor] inverts - framework plumbing, not API;
+         * Spring reads member conditions from class metadata, so `private` suffices.
+         */
         @ConditionalOnProperty(prefix = "endpoint-logging", name = ["variant"], havingValue = "reactor")
-        class ForcedToReactor
+        private class ForcedToReactor
     }
 
     @Bean

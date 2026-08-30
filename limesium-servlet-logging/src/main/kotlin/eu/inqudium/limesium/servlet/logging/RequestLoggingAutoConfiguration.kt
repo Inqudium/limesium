@@ -2,7 +2,6 @@ package eu.inqudium.limesium.servlet.logging
 
 import eu.inqudium.limesium.common.CorrelationIdGenerator
 import eu.inqudium.limesium.common.NanoTimeSource
-import eu.inqudium.limesium.common.TraceMdcKeys
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import jakarta.servlet.ServletRequestListener
@@ -61,13 +60,10 @@ class RequestLoggingAutoConfiguration {
      * request-context setup). Referencing the filter bean here keeps Boot from ALSO auto-registering the
      * bare `Filter` bean - a registration bean claims its filter.
      *
-     * The `+ 10` is LOAD-BEARING for the trace capture: Boot registers the `ServerHttpObservationFilter`
-     * at `Ordered.HIGHEST_PRECEDENCE + 1`, and the chain runs in ASCENDING order, so that filter wraps
-     * this one and the tracing bridge's `traceId`/`spanId` are in the MDC when the filter captures them
-     * at entry (see [TraceMdcKeys]). Moving this order before `+ 1` would not fail; it would silently
-     * strip the trace join from every exchange event. Ordering and scope-around-the-chain are convention,
-     * not contract - `RequestLoggingFilterTomcatTracingIntegrationTest` pins them against a real bridge (and
-     * records where the constant comes from), so a Boot upgrade that changes either breaks the build.
+     * Trace identity does NOT depend on this order: the filter parses the incoming `traceparent` header
+     * itself (ADR-0002; the retired bridge-MDC capture is what once made the offset load-bearing).
+     * `RequestLoggingFilterTomcatTracingIntegrationTest` pins that contract beside a live bridge, so a
+     * Boot upgrade that lets the bridge displace the parsed context breaks the build.
      */
     @Bean
     fun requestLoggingFilterRegistration(filter: RequestLoggingFilter): FilterRegistrationBean<RequestLoggingFilter> =
@@ -77,8 +73,8 @@ class RequestLoggingAutoConfiguration {
 
     /**
      * The emission point: the filter's completion listener, fired by the container at request destruction
-     * - after the error dispatch and after async completion - so the logged status is the one the client
-     * received. See the emission-point section of [RequestLoggingFilter].
+     * - after the error dispatch and after async completion - so the logged status is the response's
+     * FINAL one, not a pre-rendering value. See the emission-point section of [RequestLoggingFilter].
      */
     @Bean
     fun requestLoggingExchangeCompletionListener(filter: RequestLoggingFilter): ServletListenerRegistrationBean<ServletRequestListener> = ServletListenerRegistrationBean(filter.exchangeCompletionListener())

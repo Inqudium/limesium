@@ -16,7 +16,8 @@ import reactor.core.publisher.SignalType
 /**
  * The WebFlux twin of `limesium-servlet-logging`'s `RequestLoggingFilter`: ONE structured `endpoint_*`
  * line per HTTP exchange, identical message and field format, identical `endpoint-logging.*`
- * configuration. This is the REFERENCE variant (Reactor signals); [CoRequestLoggingWebFilter] is the
+ * configuration apart from the reactive-only `variant` key (see [RequestLoggingProperties]). This is
+ * the REFERENCE variant (Reactor signals); [CoRequestLoggingWebFilter] is the
  * coroutine-idiomatic variant sharing the identical [ExchangeLifecycle]. Stack-inherent differences to
  * the servlet twin, all deliberate:
  *
@@ -53,6 +54,14 @@ import reactor.core.publisher.SignalType
  * (`stage=wiring`); the terminal and commit callbacks confine their own failures (`stage=wiring` /
  * `stage=emission`) - see [ExchangeLifecycle]; emission failures are confined in the emitter. Requests
  * are never affected.
+ *
+ * ## Manual wiring: ONE filter instance per `MeterRegistry`
+ *
+ * The module's meters are identified by name: a second filter constructed against the same registry
+ * shares the counters (increments merge), but its open-exchange GAUGE registration is silently ignored -
+ * that filter's live exchanges never move `endpoint.logging.exchanges.open`. The auto-configuration
+ * wires exactly one filter per context and is unaffected; hosts constructing additional filters must
+ * give each its own registry.
  */
 class RequestLoggingWebFilter(
     properties: RequestLoggingProperties,

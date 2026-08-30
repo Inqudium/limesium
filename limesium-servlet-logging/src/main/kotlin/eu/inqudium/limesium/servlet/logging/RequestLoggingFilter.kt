@@ -73,7 +73,8 @@ import org.springframework.web.util.pattern.PathPatternParser
  * [exchangeCompletionListener], registered by the auto-configuration) - the moment the request finally
  * goes out of scope: after the service, after the container's ERROR dispatch, and for an async exchange
  * after completion. Emitting earlier, in the filter's `finally`, reported the PRE-error-dispatch status: a
- * crashed exchange logged `-> 200` although the client received the 500 the container rendered afterwards.
+ * crashed exchange logged `-> 200` although the container afterwards rendered the 500 that became the
+ * response's final status.
  * Consequence: [EndpointLogField.DURATION_MS] measures until processing truly ended - request occupancy,
  * not bare chain time. The async lifecycle normally only MARKS the exchange (see [AsyncOutcomeMarker]).
  * Containers differ in WHEN destruction fires: Tomcat once, after async completion; Jetty at the end of
@@ -96,6 +97,14 @@ import org.springframework.web.util.pattern.PathPatternParser
  * exchange (identity resolution against a host-provided bean, header enumeration, capture
  * construction) degrades this filter to a plain pass-through - counted as `stage=wiring` on the fail-open
  * meter - and the request proceeds unlogged but undisturbed.
+ *
+ * ## Manual wiring: ONE filter instance per `MeterRegistry`
+ *
+ * The module's meters are identified by name: a second filter constructed against the same registry
+ * shares the counters (increments merge), but its open-exchange GAUGE registration is silently ignored -
+ * that filter's live exchanges never move `endpoint.logging.exchanges.open`. The auto-configuration
+ * wires exactly one filter per context and is unaffected; hosts constructing additional filters must
+ * give each its own registry.
  */
 class RequestLoggingFilter(
     private val properties: RequestLoggingProperties,
@@ -163,7 +172,8 @@ class RequestLoggingFilter(
         }
         // The WIRING is fail-open too, not only the emission: identity resolution and the time source
         // are host-provided beans, and header enumeration touches container edges - an exception in any of
-        // them must degrade this filter to a plain pass-through, never fail the request (review        // finding 1: the documented fail-open contract used to start only at the chain call below).
+        // them must degrade this filter to a plain pass-through, never fail the request (the documented
+        // fail-open contract used to start only at the chain call below).
         val exchange: Exchange? =
             try {
                 wireExchange(request, response)

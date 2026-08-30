@@ -38,7 +38,11 @@ internal enum class EndpointLogField(
      */
     DURATION_MS("endpoint_duration_ms", Long::class),
 
-    /** ELK: `keyword`, index true, doc_values ON - aggregate. A closed vocabulary of HTTP verbs. */
+    /**
+     * ELK: `keyword`, index true, doc_values ON - aggregate. Normally a handful of well-known HTTP
+     * methods, but NOT a closed vocabulary: RFC 9110 keeps the method token extensible, and the field
+     * carries whatever token the request line named.
+     */
     REQUEST_METHOD("endpoint_request_method", String::class),
 
     /**

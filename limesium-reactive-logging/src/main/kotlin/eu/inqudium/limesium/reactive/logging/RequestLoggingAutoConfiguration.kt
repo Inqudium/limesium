@@ -20,8 +20,9 @@ import org.springframework.core.env.Environment
 /**
  * Registers the [RequestLoggingWebFilter] in a REACTIVE (WebFlux) Spring Boot application - drop the
  * module on the classpath and every exchange is logged; `endpoint-logging.enabled=false` removes it
- * again. The property namespace is IDENTICAL to limesium-servlet-logging's; the two auto-configurations
- * can never clash, as each is conditional on its own web-application type.
+ * again. The property namespace matches limesium-servlet-logging's key for key, plus the reactive-only
+ * `endpoint-logging.variant` selector; the two auto-configurations can never clash, as each is
+ * conditional on its own web-application type.
  *
  * Every bean backs off to a host-provided one. The meter registry arrives as an [ObjectProvider] and is
  * CONSUMED, never exported - a logging library must not define the host's `MeterRegistry`; without one

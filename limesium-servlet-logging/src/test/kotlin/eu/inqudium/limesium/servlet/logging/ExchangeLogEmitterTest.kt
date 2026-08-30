@@ -199,6 +199,10 @@ class ExchangeLogEmitterTest {
         fun `should classify an async onError without a throwable as ERROR failure`() {
             // What is tested: callback-true classification - the servlet API permits onError WITHOUT a
             //   throwable; the disposition, not the throwable, carries the outcome.
+            // Success criteria: the event is an ERROR-level `failure` with no attached throwable.
+            // Why it matters: keying the classification on the throwable's presence would report such an
+            //   async failure as a success - the container signaled ERROR, and the event must say so even
+            //   without a cause to attach.
             // Given: onError with no throwable
             val ex = exchange(200)
             AsyncOutcomeMarker(ex) {}.onError(AsyncEvent(asyncContext()))

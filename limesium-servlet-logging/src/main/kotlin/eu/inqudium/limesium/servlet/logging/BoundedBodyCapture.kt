@@ -85,8 +85,8 @@ class BoundedBodyCapture(
     /**
      * Discards everything captured so far. Called by [CapturingResponseWrapper] when the application
      * resets an UNCOMMITTED response (`reset()`/`resetBuffer()`): nothing written before the reset ever
-     * reached the client, so dropping it keeps the logged body and the size metric aligned with what was
-     * actually delivered (finding 3 of an internal code analysis).
+     * left the container's buffer, so dropping it keeps the logged body and the size metric aligned with
+     * what actually went out through the write path (finding 3 of an internal code analysis).
      */
     fun clear() {
         buffer.reset()

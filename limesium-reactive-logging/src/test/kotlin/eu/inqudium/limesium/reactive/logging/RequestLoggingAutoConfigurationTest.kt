@@ -174,6 +174,8 @@ class RequestLoggingAutoConfigurationTest {
         //   Reactor variant would hide a classpath mistake.
         // Success criteria: with the coroutine classes hidden, the context fails with a message naming the
         //   missing libraries.
+        // Why it matters: a host demanding the coroutine variant relies on its native handler MDC; a
+        //   silent Reactor fallback would surface the classpath mistake only as MDC-less production logs.
         // Given/When: variant=coroutine with the coroutine classes hidden
         shippedContextRunner
             .withClassLoader(FilteredClassLoader(CoWebFilter::class.java, MDCContext::class.java))

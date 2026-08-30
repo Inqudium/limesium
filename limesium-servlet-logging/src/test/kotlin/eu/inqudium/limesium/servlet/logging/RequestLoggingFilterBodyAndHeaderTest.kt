@@ -430,9 +430,9 @@ class RequestLoggingFilterBodyAndHeaderTest {
 
         @Test
         fun `should discard the capture when sendError replaces the buffered response`() {
-            // What is tested: the buffer-replacing operations beyond reset()/resetBuffer() (review            //   finding 4) - sendError clears the delegate's buffer per the servlet
-            //   spec WITHOUT calling the reset overrides, so the capture must follow the buffer through
-            //   the wrapper's own sendError override.
+            // What is tested: the buffer-replacing operations beyond reset()/resetBuffer() - sendError
+            //   clears the delegate's buffer per the servlet spec WITHOUT calling the reset overrides,
+            //   so the capture must follow the buffer through the wrapper's own sendError override.
             // Success criteria: after write-then-sendError, the event carries NO response-body field -
             //   the pre-error bytes never reached the client (the rendered error page bypasses the tee
             //   through the container's ERROR dispatch, the documented boundary).

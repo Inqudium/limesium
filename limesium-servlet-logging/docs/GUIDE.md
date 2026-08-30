@@ -91,7 +91,7 @@ code under `src/main/kotlin/eu/inqudium/limesium/servlet/logging/`; when the two
 - parses the W3C `traceparent` header at filter entry (`traceId`/`parentSpanId`) so the event stays
   joinable with its trace;
 - emits **exactly one** structured completion event at **request destruction** — after the container's
-  error dispatch and after async completion, so the logged status is the one the client received;
+  error dispatch and after async completion, so the logged status is the response's final one;
 - feeds six Micrometer meters that observe the logging itself.
 
 It does all of this **fail-open**: no failure inside the logging — wiring, body tee, MDC adapter,
@@ -290,7 +290,8 @@ event.
 ### 2.4 Emission point: request destruction
 
 Emitting in the filter's `finally` would report the **pre-error-dispatch** status: a crashed exchange
-would log `-> 200` although the client received the 500 the container rendered afterwards. The event is
+would log `-> 200` although the container afterwards rendered the 500 that became the response's
+final status. The event is
 therefore emitted from `ServletRequestListener.requestDestroyed` — the moment the request finally goes
 out of scope:
 

@@ -322,8 +322,8 @@ class RequestLoggingWebFilterMetricsTest {
 
         @Test
         fun `should still serve the request when the fail-open diagnostics themselves throw`() {
-            // What is tested: the secondary guard around the catch handlers' diagnostics (review            //   finding 3) - the wiring fails AND the fail-open counter's
-            //   increment throws.
+            // What is tested: the secondary guard around the catch handlers' diagnostics - the wiring
+            //   fails AND the fail-open counter's increment throws.
             // Success criteria: the chain runs and nothing propagates out of the filter.
             // Why it matters: a throw escaping a catch handler before the chain fails request assembly -
             //   the one outcome the fail-open contract forbids.
