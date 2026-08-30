@@ -50,6 +50,12 @@ import org.springframework.web.server.ServerWebExchange
  * Requires `kotlinx-coroutines-reactor` (for [CoWebFilter]) and `kotlinx-coroutines-slf4j` (for
  * [MDCContext]) - both optional dependencies of this module; their presence is what makes the
  * auto-configuration choose this variant over the Reactor one.
+ *
+ * Manual wiring - ONE filter instance per `MeterRegistry`: the module's meters are identified by name;
+ * a second filter against the same registry shares the counters, but its open-exchange GAUGE
+ * registration is silently ignored and that filter's live exchanges never move
+ * `endpoint.logging.exchanges.open` (see [RequestLoggingWebFilter] - the constraint is variant- and
+ * twin-wide). Hosts constructing additional filters must give each its own registry.
  */
 class CoRequestLoggingWebFilter(
     properties: RequestLoggingProperties,

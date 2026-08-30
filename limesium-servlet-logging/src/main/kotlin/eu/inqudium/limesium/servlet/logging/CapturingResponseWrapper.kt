@@ -28,7 +28,7 @@ import java.nio.charset.Charset
  * The capture is discarded together with the delegate's buffer for EVERY servlet operation that clears
  * it: [reset]/[resetBuffer], [sendError], and the buffer-clearing [sendRedirect] variants - `sendError`
  * and redirects clear the buffer per the servlet spec WITHOUT calling the reset overrides, so relying on
- * those alone logged discarded pre-error bytes as if delivered (finding 4 of
+ * those alone logged discarded pre-error bytes as if they had flowed (finding 4 of
  * an internal code analysis). The committed-response rule is documented on [reset].
  *
  * ## Boundary - container error rendering

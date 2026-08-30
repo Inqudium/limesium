@@ -71,8 +71,10 @@ internal class CapturingRequestDecorator(
 
 /**
  * Tees the response body into [capture] as it is written. There is no reactive analog of the servlet
- * `reset()`/`resetBuffer()` concern: `writeWith` bytes are on their way to the client once the publisher
- * emits them, so what the tee sees is what was delivered.
+ * `reset()`/`resetBuffer()` concern: a buffer the publisher emits into `writeWith` is handed to the
+ * write path and cannot be recalled, so what the tee sees is what crossed the response write path.
+ * That is the observation boundary: client receipt is not observable at this layer - an I/O error or
+ * cancellation can still discard in-flight bytes downstream.
  *
  * ZERO-COPY: this decorator deliberately does NOT implement `ZeroCopyHttpOutputMessage`. Writers check
  * the RESPONSE instance for that interface, so wrapping makes file-serving handlers fall back to the

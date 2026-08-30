@@ -25,8 +25,8 @@ import org.springframework.mock.web.MockHttpServletResponse
 class TwinContractTest {
     @Test
     fun `should pin the meter names to the literal twin contract`() {
-        // What is tested: the duplicated meter-name constants, spelled out as literals (review        //   finding 7) - the cross-module lockstep tests cover configuration and field names, but not
-        //   these.
+        // What is tested: the duplicated meter-name constants, spelled out as literals - the
+        //   cross-module lockstep tests cover configuration and field names, but not these.
         // Success criteria: every meter name matches the literal both twins ship.
         // Why it matters: a renamed meter in ONE twin would split every dashboard by stack - silently.
         // Given/When/Then: the literal meter names, pinned
@@ -83,8 +83,7 @@ class TwinContractTest {
     @Test
     fun `should pin the exchange and arrival message format to the literal twin contract`() {
         // What is tested: the MESSAGE half of the twin contract - the field names are locked by
-        //   EndpointLogFieldTest, the message text was asserted by KDoc only (finding 4 of the reactive
-        //   module's an internal comment audit; pinned in both twins).
+        //   EndpointLogFieldTest, the message text was asserted by KDoc only (pinned in both twins).
         // Success criteria: a pinned exchange renders the literal messages both twins ship.
         // Why it matters: plain-text appenders and the README's parity promise key on this text; a
         //   divergence in one twin would otherwise ship silently.

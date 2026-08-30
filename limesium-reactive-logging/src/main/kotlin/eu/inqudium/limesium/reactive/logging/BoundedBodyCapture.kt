@@ -117,8 +117,8 @@ internal class BoundedBodyCapture(
         }
 
     /**
-     * Discards everything captured so far - the hook for a response reset before anything reached the
-     * client. A no-op once frozen.
+     * Discards everything captured so far - the hook for a reset of a response that has not entered the
+     * write path yet. A no-op once frozen.
      */
     fun clear() =
         lock.withLock {
@@ -130,8 +130,8 @@ internal class BoundedBodyCapture(
 
     /**
      * Makes the capture immutable: the emission's first step. Every later [capture]/[count]/[clear] is a
-     * no-op, so a body chunk delivered after cancellation can neither corrupt the logged text nor make
-     * the size sample disagree with it. Idempotent.
+     * no-op, so a body chunk still flowing through the tee after cancellation can neither corrupt the
+     * logged text nor make the size sample disagree with it. Idempotent.
      */
     fun freeze() =
         lock.withLock {

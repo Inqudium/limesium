@@ -16,8 +16,10 @@ fun interface CorrelationIdGenerator {
     companion object {
         /**
          * The production default: a [CountingCorrelationIdGenerator] - a random per-JVM base-36
-         * prefix plus a monotonically increasing counter, 21 lowercase alphanumeric characters
-         * (NOT a UUID; see that class's documentation for the rationale and the format contract).
+         * prefix plus a monotonically increasing counter, 21 lowercase alphanumeric characters for
+         * the first 36^8 ids of an instance lifetime - roughly nine years at a sustained 10,000
+         * ids per second, so an operational certainty rather than an unconditional one (NOT a
+         * UUID; see that class's documentation for the rationale and the format contract).
          */
         val DEFAULT: CorrelationIdGenerator = CountingCorrelationIdGenerator()
     }
@@ -79,6 +81,12 @@ internal class CountingCorrelationIdGenerator(
      * per-request path only. This runs once, during construction.
      */
     prefixSeed: Long = SecureRandom().nextLong(),
+    /**
+     * Test seam only - production always starts at zero. It exists so the [COUNTER_WIDTH] boundary
+     * is testable without 2.8e12 warm-up calls; see the width-boundary test in
+     * `CountingCorrelationIdGeneratorTest`.
+     */
+    counterStart: Long = 0L,
 ) : CorrelationIdGenerator {
     /**
      * `toUnsignedString` rather than `toString`: half of all long values are negative, and a
@@ -96,7 +104,7 @@ internal class CountingCorrelationIdGenerator(
      * would start a fresh counter at zero — turning guaranteed uniqueness into guaranteed
      * collisions. The shared atomic is the correct structure here.
      */
-    private val counter = AtomicLong()
+    private val counter = AtomicLong(counterStart)
 
     override fun nextCorrelationId(): String =
         prefix +
@@ -129,8 +137,10 @@ internal class CountingCorrelationIdGenerator(
          * a character, and both properties break — with no exception and no log entry, only
          * wrong results from some point in an instance's life onwards. There is deliberately no
          * runtime overflow check, because at this width the case is unreachable and a branch in
-         * the hot path would be the wrong trade. This comment is the guard instead: anyone
-         * narrowing these constants has to pass through it.
+         * the hot path would be the wrong trade. The guard is executable instead: the
+         * width-boundary test in `CountingCorrelationIdGeneratorTest` drives the counter to the
+         * last in-width value through the `counterStart` seam, so anyone narrowing these
+         * constants fails the build rather than silently breaking the format.
          */
         private const val COUNTER_WIDTH = 8
     }

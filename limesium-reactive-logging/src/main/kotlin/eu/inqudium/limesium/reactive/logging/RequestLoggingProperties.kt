@@ -8,9 +8,10 @@ import java.util.HexFormat
 
 /**
  * Configuration surface of the endpoint-logging WebFilter, bound from the `endpoint-logging.*`
- * namespace - IDENTICAL to limesium-servlet-logging's, key for key and default for default;
- * `EndpointLoggingReferenceConfigTest` enforces that by binding the servlet module's reference YAML
- * against THIS class.
+ * namespace - the SHARED keys and defaults are identical to limesium-servlet-logging's, key for key
+ * and default for default, plus exactly one reactive-only key: [variant].
+ * `EndpointLoggingReferenceConfigTest` enforces exactly that contract by binding the servlet module's
+ * reference YAML against THIS class.
  *
  * Everything an operator may tune is a Boot property with a safe default, and everything a host
  * application may want to replace wholesale (time source, id generator, the filter itself) is an

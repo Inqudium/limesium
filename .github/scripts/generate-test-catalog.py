@@ -44,8 +44,14 @@ def extract_rationales(src_dir: Path) -> dict:
     Then stage label; method names are sentence-shaped and unique per
     file, so the file's class name plus the method name is a sufficient
     key.
+
+    A detected rationale must answer all three questions (the
+    CONTRIBUTING.md contract); a partial block fails the run with the
+    exact file and test, so incomplete evidence can never be published
+    as documented.
     """
     rationales = {}
+    incomplete = []
     for kt in sorted(src_dir.rglob("*Test.kt")):
         clazz = kt.stem
         lines = kt.read_text(encoding="utf-8").splitlines()
@@ -76,7 +82,15 @@ def extract_rationales(src_dir: Path) -> dict:
                 if answer:
                     parsed[label] = answer
             if parsed:
+                if len(parsed) < len(QUESTIONS):
+                    missing = [q.pattern for label, q in QUESTIONS if label not in parsed]
+                    incomplete.append(f"{kt}: `{m.group(1)}` lacks {', '.join(missing)}")
                 rationales[(clazz, m.group(1))] = parsed
+    if incomplete:
+        sys.exit(
+            "error: incomplete test rationale blocks (CONTRIBUTING.md requires"
+            " all three labels):\n  " + "\n  ".join(incomplete)
+        )
     return rationales
 
 

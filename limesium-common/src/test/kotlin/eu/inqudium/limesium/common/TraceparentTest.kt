@@ -4,9 +4,9 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 
 /**
- * W3C conformance of [Traceparent], driven by the fixture `traceparent/conformance.txt` - the conformance rules are
- * thereby a build contract, not a KDoc rule (finding 5 of an internal comment audit; the
- * conformance rules themselves are findings of internal code analyses).
+ * W3C conformance of [Traceparent], driven by the fixture `traceparent/conformance.txt` - the
+ * conformance rules are thereby a build contract, not a KDoc rule (the rules themselves originate
+ * from internal code analyses).
  */
 class TraceparentTest {
     @Test

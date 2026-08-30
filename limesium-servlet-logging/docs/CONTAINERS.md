@@ -23,7 +23,7 @@ differ:
 2. **Error rendering** — the final error body is written outside the tee (the filter skips the ERROR
    dispatch), and the emission must still see the FINAL status.
 3. **Buffer semantics** of `sendError`/`reset`/`resetBuffer` — the capture follows the buffer, so
-   discarded bytes must never be logged as delivered.
+   discarded bytes must never show up in the logged body.
 4. **Zero-argument `startAsync()`** — the spec words its context as holding the ORIGINAL
    request/response; whether the engine honors that decides if a raw async worker writes beside or
    through the tee.
@@ -78,7 +78,7 @@ starter is unaffected; the module's own test contexts pin their container explic
 
 **Destruction model — the defining difference:** Jetty fires `requestDestroyed` at the end of **every
 dispatch**, including the initial one that merely started async. Unhandled, that emitted a bodyless
-pre-completion event (`200/success` for exchanges whose client received a 500) and stripped the
+pre-completion event (`200/success` for exchanges the container answered with a 500) and stripped the
 exchange from the async dispatch — found and fixed 2026-08-30. The module now skips a destruction
 observed before the cycle's `onComplete`, completes at the destruction after the final dispatch, and
 completes a raw `complete()`-without-dispatch through the async listener's `onComplete` backstop — all
