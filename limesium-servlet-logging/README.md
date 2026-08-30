@@ -1,7 +1,8 @@
 # limesium-servlet-logging
 
-Auto-configured servlet filter for Spring Boot (Tomcat) applications that logs **one structured line per
-HTTP exchange** and carries the exchange identity in the MDC while the request is handled.
+Auto-configured servlet filter for Spring Boot applications (embedded Tomcat 11+ or Jetty 12.1+) that
+logs **one structured line per HTTP exchange** and carries the exchange identity in the MDC while the
+request is handled.
 
 Design in brief:
 
@@ -27,6 +28,15 @@ metrics and the stack-specific behaviours — is [`docs/GUIDE.md`](docs/GUIDE.md
 ## Usage
 
 Add the module to a servlet-stack Spring Boot application — the filter registers itself:
+
+**Container support:** Tomcat 11+ and Jetty 12.1+, each pinned by its own integration suite (capture
+boundaries + tracing). Undertow — and therefore WildFly, whose servlet engine it is — cannot host this
+stack: Spring Framework 7's baseline is Jakarta Servlet 6.1, which Undertow (2.3.x) does not implement,
+and Spring Boot 4 removed the Undertow starter accordingly. That is a platform boundary, not a module
+limitation — the module's own servlet-API surface is Servlet 3.1-level (listener-based emission: 2.4,
+async lifecycle: 3.0, non-blocking-I/O tee hooks: 3.1) with exactly one 6.1-specific piece, the
+`sendRedirect` overloads the response tee overrides for the 6.1 buffer-clearing redirect variants,
+dormant on older containers. The boundary lifts when Undertow ships Servlet 6.1.
 
 ```xml
 <dependency>
