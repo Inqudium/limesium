@@ -169,8 +169,8 @@ class RequestLoggingWebFilterTest {
         }
 
         @Test
-        fun `should echo the correlation id and adopt one from the request header`() {
-            // Given: a request already carrying a correlation id
+        fun `should echo the correlation id and adopt one from the request header on a traceless exchange`() {
+            // Given: a traceless request already carrying a correlation id
             val exchange =
                 MockServerWebExchange.from(
                     MockServerHttpRequest.get("/api/things").header(properties.correlationIdHeader, "caller-id"),
@@ -184,6 +184,63 @@ class RequestLoggingWebFilterTest {
             val event = appender.list.single()
             assertThat(event.mdcPropertyMap).containsEntry(MdcKeys.REQUEST_ID, "caller-id")
             assertThat(event.formattedMessage).contains("[endpoint_request_id=caller-id]")
+        }
+
+        @Test
+        fun `should use the traceparent trace id as the request id and suppress the echo`() {
+            // What is tested: the identity decision of ADR-0002 - a conformant traceparent's trace id IS
+            //   the request id, a caller-supplied X-Correlation-Id is ignored, and NO X-Correlation-Id
+            //   response header is written.
+            // Success criteria: endpoint_request_id equals the trace id in MDC and message; the response
+            //   carries no correlation header although the request supplied one.
+            // Why it matters: a request logger must be observationally neutral - on a traced exchange the
+            //   wire already carries the identity, and echoing a second, private id would make enabling
+            //   the logger visible in the communication.
+            // Given: a traced request that ALSO carries a correlation header
+            val exchange =
+                MockServerWebExchange.from(
+                    MockServerHttpRequest
+                        .get("/api/things")
+                        .header("traceparent", "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01")
+                        .header(properties.correlationIdHeader, "caller-id"),
+                )
+
+            // When: the filter handles the exchange
+            filter.filter(exchange, okChain()).block()
+
+            // Then: the distributed identity outranks the private one, and the wire stays untouched
+            assertThat(exchange.response.headers.getFirst(properties.correlationIdHeader)).isNull()
+            val event = appender.list.single()
+            assertThat(event.mdcPropertyMap).containsEntry(MdcKeys.REQUEST_ID, "0af7651916cd43dd8448eb211c80319c")
+            assertThat(event.formattedMessage).contains("[endpoint_request_id=0af7651916cd43dd8448eb211c80319c ")
+        }
+
+        @Test
+        fun `should fall back to the correlation contract when the traceparent is not conformant`() {
+            // What is tested: an invalid traceparent counts as ABSENT (ADR-0002) - the traceless
+            //   contract applies in full: the correlation header is accepted and echoed.
+            // Success criteria: the event's request id is the caller's correlation id, the echo header
+            //   is present, and no trace decoration is emitted.
+            // Why it matters: half-trusting a malformed header would mint a request id from bytes the
+            //   W3C validation rejected - the strict parser is the single gate for both the trace
+            //   fields and the identity decision.
+            // Given: a traceparent with an all-zero (forbidden) trace id, plus a correlation header
+            val exchange =
+                MockServerWebExchange.from(
+                    MockServerHttpRequest
+                        .get("/api/things")
+                        .header("traceparent", "00-00000000000000000000000000000000-b7ad6b7169203331-01")
+                        .header(properties.correlationIdHeader, "caller-id"),
+                )
+
+            // When: the filter handles the exchange
+            filter.filter(exchange, okChain()).block()
+
+            // Then
+            assertThat(exchange.response.headers.getFirst(properties.correlationIdHeader)).isEqualTo("caller-id")
+            val event = appender.list.single()
+            assertThat(event.mdcPropertyMap).containsEntry(MdcKeys.REQUEST_ID, "caller-id")
+            assertThat(event.mdcPropertyMap).doesNotContainKey("traceId")
         }
 
         @Test

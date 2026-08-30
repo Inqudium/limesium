@@ -46,12 +46,12 @@ internal class ExchangeLogEmitter(
             if (!exchangeLog.isInfoEnabled) {
                 return
             }
-            MdcScope(exchange.correlationId, exchange.method, exchange.path, exchange.traceId, exchange.parentSpanId).use {
+            MdcScope(exchange.requestId, exchange.method, exchange.path, exchange.traceId, exchange.parentSpanId).use {
                 exchangeLog
                     .atInfo()
                     .setMessage(
                         "Endpoint http exchange started ${exchange.method} ${exchange.path} " +
-                            "[${MdcKeys.REQUEST_ID}=${exchange.correlationId}]",
+                            "[${MdcKeys.REQUEST_ID}=${exchange.requestId}]",
                     ).addKeyValue(EndpointLogField.REQUEST_METHOD, exchange.method)
                     .addKeyValue(EndpointLogField.URL_PATH, exchange.path)
                     .addKeyValueIfPresent(EndpointLogField.URL_QUERY, exchange.query)
@@ -168,7 +168,7 @@ internal class ExchangeLogEmitter(
             } else {
                 ""
             }
-        MdcScope(exchange.correlationId, exchange.method, exchange.path, exchange.traceId, exchange.parentSpanId).use {
+        MdcScope(exchange.requestId, exchange.method, exchange.path, exchange.traceId, exchange.parentSpanId).use {
             // Multi-value resolution, natively from the reactive HttpHeaders.
             val responseHeaders =
                 properties.responseHeaders.select(exchange.response.headers.headerNames()) { name ->
@@ -192,7 +192,7 @@ internal class ExchangeLogEmitter(
                 .atLevel(level)
                 .setMessage(
                     "Endpoint http exchange ${exchange.method} ${exchange.path} -> ${status ?: "-"} " +
-                        "[${MdcKeys.REQUEST_ID}=${exchange.correlationId}$traceSuffix]",
+                        "[${MdcKeys.REQUEST_ID}=${exchange.requestId}$traceSuffix]",
                 ).addKeyValue(EndpointLogField.OUTCOME, outcome)
                 .addKeyValue(EndpointLogField.DURATION_MS, durationMs)
                 .addKeyValue(EndpointLogField.REQUEST_METHOD, exchange.method)

@@ -60,7 +60,7 @@ class ExchangeLogEmitterTest {
             method = "GET",
             path = "/api/things",
             query = null,
-            correlationId = "corr-1",
+            requestId = "corr-1",
             requestHeaders = emptyList(),
             requestCapture = null,
             requestWrapper = null,

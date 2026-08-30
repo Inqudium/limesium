@@ -7,7 +7,6 @@ import jakarta.servlet.ServletRequestListener
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.slf4j.LoggerFactory
-import org.slf4j.MDC
 import org.springframework.http.server.PathContainer
 import org.springframework.web.context.request.async.WebAsyncUtils
 import org.springframework.web.filter.OncePerRequestFilter
@@ -15,7 +14,7 @@ import org.springframework.web.util.pattern.PathPattern
 import org.springframework.web.util.pattern.PathPatternParser
 
 /**
- * Logs ONE structured line per HTTP exchange - method, path, status, duration, correlation id, optionally
+ * Logs ONE structured line per HTTP exchange - method, path, status, duration, request id, optionally
  * selected headers and bounded bodies - and carries the exchange's identity in the MDC while the request
  * is being handled, so every application log line downstream is correlatable.
  *
@@ -34,7 +33,7 @@ import org.springframework.web.util.pattern.PathPatternParser
  *
  * `shouldNotFilterAsyncDispatch` is `false`: when the container re-dispatches a completed async cycle
  * (Spring MVC renders the `Callable`/`DeferredResult` result - or rethrows its failure - in THAT
- * dispatch), this filter runs again, but on the EXISTING exchange: no re-wiring, no second correlation
+ * dispatch), this filter runs again, but on the EXISTING exchange: no re-wiring, no second request
  * id, no second gauge increment. It only opens the chain-wide [MdcScope] around the dispatch and records
  * an exception propagating out of it as the exchange's failure, exactly like the initial dispatch. Without
  * this pass, an async handler failure reached the event only as a bare `status >= 500` (WARN, no cause)
@@ -48,14 +47,15 @@ import org.springframework.web.util.pattern.PathPatternParser
  * A raw zero-argument `startAsync()` cycle reads/writes beside the tee wrappers and its bytes are logged
  * as absent - see [CapturingRequestWrapper] for the mechanism and the pinning test.
  *
- * This class owns the SERVLET side only - correlation resolution, the tee
+ * This class owns the SERVLET side only - identity resolution (`traceparent` first, the correlation
+ * header on traceless exchanges - ADR-0002), the tee
  * wrappers, the [Exchange] handoff, the MDC chain scope, and the listeners; the collaborators own the
  * rest:
  *
  * - [ExchangeLogEmitter] builds and emits the arrival line and the completion event ([EndpointLogField]
  *   family, level/outcome decision, fail-open discipline).
  * - [EndpointLoggingMetrics] owns the module's meters (fail-open, emitted events, open exchanges,
- *   correlation source, body sizes).
+ *   request-id source, body sizes).
  * - [Exchange] carries the per-exchange state from filter entry to emission; [AsyncOutcomeMarker] marks
  *   timeout/error on it during the async lifecycle.
  * - [MdcScope]/[MdcKeys] maintain the `endpoint_*` MDC identity.
@@ -82,7 +82,7 @@ import org.springframework.web.util.pattern.PathPatternParser
  * ## Fail-open, including the wiring
  *
  * The fail-open contract covers the WHOLE filter, not only the emission: a failure while wiring the
- * exchange (correlation resolution against a host-provided bean, header enumeration, capture
+ * exchange (identity resolution against a host-provided bean, header enumeration, capture
  * construction) degrades this filter to a plain pass-through - counted as `stage=wiring` on the fail-open
  * meter - and the request proceeds unlogged but undisturbed.
  */
@@ -147,7 +147,7 @@ class RequestLoggingFilter(
             filterAsyncDispatch(request, response, filterChain)
             return
         }
-        // The WIRING is fail-open too, not only the emission: correlation resolution and the time source
+        // The WIRING is fail-open too, not only the emission: identity resolution and the time source
         // are host-provided beans, and header enumeration touches container edges - an exception in any of
         // them must degrade this filter to a plain pass-through, never fail the request (review        // finding 1: the documented fail-open contract used to start only at the chain call below).
         val exchange: Exchange? =
@@ -181,7 +181,7 @@ class RequestLoggingFilter(
         // keeps half an identity.
         val mdcScope: MdcScope? =
             try {
-                MdcScope(exchange.correlationId, exchange.method, exchange.path)
+                MdcScope(exchange.requestId, exchange.method, exchange.path)
             } catch (e: Exception) {
                 reportQuietly {
                     metrics.wiringFailure()
@@ -230,17 +230,17 @@ class RequestLoggingFilter(
                         exchange.path,
                         it.toString(),
                         MdcKeys.REQUEST_ID,
-                        exchange.correlationId,
+                        exchange.requestId,
                     )
                 }
             } catch (e: Exception) {
                 reportQuietly {
                     metrics.wiringFailure()
                     internalLog.warn(
-                        "Request logging failed for {} {} (correlationId={}): {}",
+                        "Request logging failed for {} {} (requestId={}): {}",
                         exchange.method,
                         exchange.path,
-                        exchange.correlationId,
+                        exchange.requestId,
                         e.toString(),
                         e,
                     )
@@ -285,7 +285,7 @@ class RequestLoggingFilter(
         }
         val mdcScope: MdcScope? =
             try {
-                MdcScope(exchange.correlationId, exchange.method, exchange.path)
+                MdcScope(exchange.requestId, exchange.method, exchange.path)
             } catch (e: Exception) {
                 reportQuietly {
                     metrics.wiringFailure()
@@ -315,16 +315,16 @@ class RequestLoggingFilter(
                     exchange.path,
                     e.toString(),
                     MdcKeys.REQUEST_ID,
-                    exchange.correlationId,
+                    exchange.requestId,
                 )
             } catch (breadcrumb: Exception) {
                 reportQuietly {
                     metrics.wiringFailure()
                     internalLog.warn(
-                        "Request logging failed for {} {} (correlationId={}): {}",
+                        "Request logging failed for {} {} (requestId={}): {}",
                         exchange.method,
                         exchange.path,
-                        exchange.correlationId,
+                        exchange.requestId,
                         breadcrumb.toString(),
                         breadcrumb,
                     )
@@ -379,7 +379,7 @@ class RequestLoggingFilter(
     }
 
     /**
-     * Everything that must exist before the chain runs: correlation resolution and echo, captures and
+     * Everything that must exist before the chain runs: identity resolution and the traceless echo, captures and
      * wrappers, the eagerly captured request-side coordinates, the destruction handoff and the gauge.
      * Called exclusively from the fail-open block in [doFilterInternal] - anything thrown here is
      * confined there and degrades the filter to a pass-through.
@@ -388,12 +388,31 @@ class RequestLoggingFilter(
         request: HttpServletRequest,
         response: HttpServletResponse,
     ): Exchange {
-        val headerCorrelationId = request.getHeader(properties.correlationIdHeader)?.takeUnless { it.isBlank() }
-        val correlationId = headerCorrelationId ?: correlationIds.nextCorrelationId()
+        // The exchange identity, resolved per ADR-0002: a conformant traceparent's trace id IS the
+        // request id (the caller's X-Correlation-Id is ignored on such exchanges - the distributed
+        // identity outranks the private one); only a traceless exchange accepts the correlation header
+        // or generates a fresh id, and only a traceless exchange gets the echo - a traced exchange
+        // passes through observationally untouched.
+        val trace = Traceparent.parse(request.getHeader(Traceparent.HEADER))
+        val headerCorrelationId =
+            if (trace == null) {
+                request.getHeader(properties.correlationIdHeader)?.takeUnless { it.isBlank() }
+            } else {
+                null
+            }
+        val requestId = trace?.first ?: headerCorrelationId ?: correlationIds.nextCorrelationId()
         // Guarded inside the metrics: a throwing host counter must not turn the request into an
         // unlogged pass-through (finding 4 of an internal code analysis).
-        metrics.correlationId(fromHeader = headerCorrelationId != null)
-        response.setHeader(properties.correlationIdHeader, correlationId)
+        metrics.requestId(
+            when {
+                trace != null -> EndpointLoggingMetrics.REQUEST_ID_SOURCE_TRACE
+                headerCorrelationId != null -> EndpointLoggingMetrics.REQUEST_ID_SOURCE_HEADER
+                else -> EndpointLoggingMetrics.REQUEST_ID_SOURCE_GENERATED
+            },
+        )
+        if (trace == null) {
+            response.setHeader(properties.correlationIdHeader, requestId)
+        }
 
         // A capture exists when the body is logged OR measured; measure-only runs the capture in
         // count-only mode (limit 0: nothing buffered, every byte counted).
@@ -423,7 +442,7 @@ class RequestLoggingFilter(
                 method = request.method,
                 path = request.requestURI,
                 query = if (properties.includeQueryString) request.queryString else null,
-                correlationId = correlationId,
+                requestId = requestId,
                 requestHeaders =
                     properties.requestHeaders.select(headerNames) { name ->
                         request
@@ -438,11 +457,8 @@ class RequestLoggingFilter(
                 responseWrapper = responseCapture?.let { CapturingResponseWrapper(response, it) },
                 response = response,
                 startNanos = nanoTime.nanoTime(),
-                // The trace context of THIS exchange's server span, captured while the tracing bridge's
-                // scope is still open (Boot's observation filter runs before this one). The emission at
-                // request destruction restores it, so the exchange event stays joinable with its trace.
-                traceId = MDC.get(TraceMdcKeys.TRACE_ID),
-                spanId = MDC.get(TraceMdcKeys.SPAN_ID),
+                traceId = trace?.first,
+                parentSpanId = trace?.second,
             )
         // The handoff to the emission at request destruction: the ServletRequestListener finds the
         // exchange under this attribute once the request goes out of scope. The gauge goes up with the

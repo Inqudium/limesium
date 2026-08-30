@@ -72,17 +72,20 @@ code under `src/main/kotlin/eu/inqudium/limesium/reactive/logging/`; when the tw
 `limesium-reactive-logging` is a Spring Boot auto-configured `WebFilter` for **reactive** (WebFlux)
 applications. For every inbound HTTP exchange it:
 
-- adopts a correlation id from the configured request header (or generates one) and echoes it back on
+- resolves the exchange identity per ADR-0002: a conformant `traceparent`'s trace id **is** the request
+  id; only a traceless exchange adopts a correlation id from the configured request header (or
+  generates one) and echoes it back on
   the response;
 - optionally logs an **arrival line** the moment the request comes in;
 - measures the exchange duration with an injectable monotonic time source;
 - optionally tees the request and response bodies as they flow (bounded, never buffered or replayed);
 - optionally records the selected request/response headers, with stable masking of sensitive values;
-- parses the incoming W3C `traceparent` header for log-to-trace correlation;
+- parses the incoming W3C `traceparent` header for log-to-trace correlation — a traced exchange
+  passes through observationally untouched (no echo);
 - emits **exactly one** structured completion event on a dedicated logger, with the outcome, status,
   duration, path, handler template, and the optional headers/bodies as SLF4J key-values;
 - feeds six Micrometer meters that observe the logging itself (fail-open counts, emitted events, open
-  exchanges, body sizes, correlation-id origin).
+  exchanges, body sizes, request-id origin).
 
 It does all of this **fail-open**: no failure inside the logging — wiring, body tee, emission,
 metrics, MDC adapter — can ever fail, delay, or alter the request it describes.
@@ -249,7 +252,8 @@ CoRequestLoggingAutoConfiguration          RequestLoggingAutoConfiguration
 3. A host-defined bean of either variant satisfies `@ConditionalOnMissingBean` and backs **both** off.
 
 Result: exactly one `EndpointLoggingFilter` per application, ordered at
-`Ordered.HIGHEST_PRECEDENCE + 10` so that the correlation echo is set before anything else runs.
+`Ordered.HIGHEST_PRECEDENCE + 10` so that the traceless correlation echo is set before anything else
+runs.
 
 The `NanoTimeSource` and `CorrelationIdGenerator` defaults are defined only in the Reactor
 configuration but consumed by both variants — bean creation is independent of registration order.
@@ -267,7 +271,8 @@ client ──▶ Netty ──▶ RequestLoggingWebFilter.filter(exchange, chain)
                        ├─ shouldNotFilter(path)?  ──yes──▶ chain.filter(exchange)   (untouched pass-through)
                        │
                        ├─ wireOrNull(exchange)    ──null─▶ chain.filter(exchange)   (fail-open, stage=wiring)
-                       │     • correlation id: header or generated; echoed on the response
+                       │     • request id: traceparent trace id, else header or generated (ADR-0002);
+                       │       echoed on the response only when traceless
                        │     • body captures created if logging OR measuring is on
                        │     • exchange mutated with capturing decorators (only if a capture exists)
                        │     • traceparent parsed
@@ -427,8 +432,9 @@ Time and randomness are injected, not ambient:
 - `NanoTimeSource` — monotonic nanoseconds for `endpoint_duration_ms` and the slow threshold; the
   single production read of `System.nanoTime()` is `NanoTimeSource.SYSTEM`. Log timestamps come from
   the logging backend, keeping the two time domains separate.
-- `CorrelationIdGenerator` — the id for requests without a correlation header;
-  `CorrelationIdGenerator.RANDOM_UUID` by default.
+- `CorrelationIdGenerator` — the id for traceless requests without a correlation header;
+  `CorrelationIdGenerator.RANDOM_UUID` by default. Never consulted for a traced exchange (ADR-0002:
+  the `traceparent` trace id is the request id).
 
 Both are `fun interface`s, both are `@ConditionalOnMissingBean` beans, and both are what the module's
 tests drive from an `AtomicLong` / a fixed string without any mocking library.
@@ -464,7 +470,8 @@ The current release is shown live by the Maven Central badge:
 [![Maven Central](https://img.shields.io/maven-central/v/eu.inqudium/limesium-reactive-logging.svg?label=Maven%20Central)](https://central.sonatype.com/artifact/eu.inqudium/limesium-reactive-logging)
 
 That is all: the auto-configuration registers the filter, every exchange is logged on the
-`http-exchange` logger at INFO, the correlation id is read from / echoed on `X-Correlation-Id`, and the
+`http-exchange` logger at INFO, the request id comes from the `traceparent` trace id (traceless
+exchanges read/echo `X-Correlation-Id` instead — ADR-0002), and the
 six meters are registered in the host's `MeterRegistry` if one exists.
 
 To remove the module again without touching the classpath:
@@ -690,11 +697,13 @@ the host's encoder layout; map them where the encoder configuration lives.
 1. Start the application and call any endpoint:
 
    ```bash
-   curl -i -H 'X-Correlation-Id: demo-1' -H 'traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01' http://localhost:8080/api/things/42
+   curl -i -H 'traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01' http://localhost:8080/api/things/42
    ```
 
-   Expect `X-Correlation-Id: demo-1` on the response and one `http-exchange` line with
-   `endpoint_request_id=demo-1 traceId=4bf9… parentSpanId=00f0…`.
+   Expect **no** `X-Correlation-Id` response header (the exchange is traced — ADR-0002) and one
+   `http-exchange` line with `endpoint_request_id=4bf92f… traceId=4bf92f… parentSpanId=00f0…`.
+   Without the `traceparent` header (`curl -i -H 'X-Correlation-Id: demo-1' …`), expect
+   `X-Correlation-Id: demo-1` echoed on the response and `endpoint_request_id=demo-1` on the line.
 
 2. Check the meters (with actuator):
 
@@ -730,7 +739,7 @@ twin.
 | `enabled` | boolean | `true` | Master switch. `false` makes both auto-configurations back off — no filter, no beans, no accessors. A context-start decision, not a runtime toggle. |
 | `variant` | `auto` \| `reactor` \| `coroutine` | `auto` | **Reactive-only.** `auto` = coroutine variant when `kotlinx-coroutines-reactor` + `kotlinx-coroutines-slf4j` are present, Reactor otherwise. `reactor` forces the Reactor variant. `coroutine` requires the libraries and fails startup without them. |
 | `logger-name` | string | `http-exchange` | Logger of the arrival line and the exchange event. Its level is the runtime volume control ([§4.5](#45-logger-levels)). |
-| `correlation-id-header` | string (RFC 9110 token) | `X-Correlation-Id` | Header the correlation id is read from; blank/absent means generated. Echoed on the response under the same name, set once at filter entry. |
+| `correlation-id-header` | string (RFC 9110 token) | `X-Correlation-Id` | Header the correlation id is read from on **traceless** exchanges (no conformant `traceparent` — ADR-0002); blank/absent means generated. Only such an exchange gets the echo, set once at filter entry. A traced exchange takes its request id from the `traceparent` trace id, ignores this header and echoes nothing. |
 | `include-query-string` | boolean | `true` | Log the query string as its own field `endpoint_url_query` (never part of the path). Disable when query parameters may carry personal data. |
 | `log-request-start` | boolean | `false` | Additionally log an arrival line before the chain runs, at INFO, with the same emission MDC. Carries no outcome/status/duration. |
 | `include-path-patterns` | list of `PathPattern` | `[]` | Endpoints the filter is active for at all; empty = every endpoint. Parsed once at startup; an invalid pattern fails the context. |
@@ -934,7 +943,7 @@ inside handlers ([§2.6](#26-mdc-and-the-reactor-context)):
 
 | Key | Value | Scope |
 |---|---|---|
-| `endpoint_request_id` | the correlation id | emission; Reactor context; handler MDC when enabled |
+| `endpoint_request_id` | the request id: the `traceparent` trace id, or the accepted/generated correlation id (ADR-0002) — always set | emission; Reactor context; handler MDC when enabled |
 | `endpoint_method` | the HTTP method | same |
 | `endpoint_route` | the request **path** (the template is not known at filter entry) | same |
 | `traceId` | trace id from `traceparent` | emission only |
@@ -970,7 +979,7 @@ status distributions are deliberately left to `http.server.requests` and the log
 | `endpoint.logging.failopen` | counter | `stage` = `emission` \| `arrival` \| `wiring` | Logging failures the fail-open path swallowed. `emission`: an exchange event was **lost**. `arrival`: a start line was lost. `wiring`: bookkeeping failed (pass-through degradation, a lost sample or counter, an unarmed deferral) — the event usually still follows. A lost log line cannot report itself through the same pipeline; this counter is the independent channel. |
 | `endpoint.logging.events` | counter | `outcome` = `success` \| `failure` \| `cancelled` | Exchange events actually **emitted** on the exchange logger — after the level gate, arrival lines excluded. The reconciliation ground truth against the log index. |
 | `endpoint.logging.exchanges.open` | gauge | — | Exchanges between filter entry (wiring) and the exactly-once completion. Hovers near the active-request count in health. |
-| `endpoint.logging.correlation.id` | counter | `source` = `header` \| `generated` | Origin of each exchange's correlation id. |
+| `endpoint.logging.correlation.id` | counter | `source` = `trace` \| `header` \| `generated` | Origin of each exchange's request id (ADR-0002); the meter name predates the decision and stays stable. |
 | `endpoint.request.body.read` | counter | `uri` = handler pattern, `UNKNOWN` without one; `state` = `unread` \| `partial` \| `complete` | How far the application **consumed** the request body, opt-in via `measure-request-body-size`. Recorded once per exchange whenever the measuring tee exists — including bodyless requests the application never touched, which is the `unread` share the counter exists to show. `partial` = a subscription exists but no completion signal was observed (a cancelled subscription such as `take`, a client disconnect, an error mid-stream). Created lazily per `uri`/`state` on first use, like the size summaries. |
 | `endpoint.request.body.size` / `endpoint.response.body.size` | distribution summary, base unit `bytes` | `uri` = handler pattern, `UNKNOWN` without one | Bytes that **actually flowed**, opt-in via `measure-*-body-size`, independent of body logging and level. Exact beyond `max-body-bytes`. Zero-byte bodies record no sample. Created lazily per `uri` on first use. |
 
@@ -989,7 +998,7 @@ The meters are designed to cover each other's blind spots:
 | Are exchange events being lost **loudly** (something threw)? | `failopen{stage=emission}` > 0 |
 | Are exchange events being lost **silently** (nothing threw, terminal signal never arrived, commit never happened)? | `exchanges.open` baseline grows monotonically instead of returning towards 0 |
 | Is the **log pipeline** (appender, broker, index) losing events? | `sum(endpoint.logging.events)` over a window ≠ count of indexed `http-exchange` documents for the same window |
-| Did the upstream stop propagating correlation ids? | the `generated` share of `correlation.id` rises |
+| Did the upstream stop propagating identity (traceparent or correlation ids)? | the `generated` share of `correlation.id` rises |
 | Is an endpoint ignoring or abandoning the payload it is handed? | the `unread` or `partial` share of `request.body.read{uri=...}` rises — the logged body and the size sample cannot show this, both describe only what was consumed |
 | Are payloads growing beyond what the log captures? | `body.size` percentiles vs. `max-body-bytes` |
 
@@ -1026,8 +1035,12 @@ traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
   `spanId`, where it would read as the local span and, with a bridge active, overwrite the real one.
 - Parsing follows the W3C Trace Context Recommendation strictly: lowercase hex of fixed length, no
   all-zero ids, version `ff` forbidden, version `00` exactly four fields, higher versions parsed by the
-  version-00 rules for their first four fields. A non-conformant header is ignored — nothing is logged.
+  version-00 rules for their first four fields. A non-conformant header is ignored — nothing is logged,
+  and the exchange counts as traceless for the identity decision.
 - The conformance is pinned by `traceparent/conformance.txt`.
+- Since ADR-0002 the trace id also **is** the exchange's `endpoint_request_id`, and a traced exchange
+  gets no `X-Correlation-Id` echo — the identity decision and the trace fields share the one strict
+  parse.
 
 Inside handlers, with a Micrometer tracing bridge active, the local `spanId` is the bridge's — the
 module never touches that key.

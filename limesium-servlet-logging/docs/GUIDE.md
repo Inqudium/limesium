@@ -77,8 +77,10 @@ code under `src/main/kotlin/eu/inqudium/limesium/servlet/logging/`; when the two
 `limesium-servlet-logging` is a Spring Boot auto-configured `OncePerRequestFilter` plus a
 `ServletRequestListener` for **servlet** web applications. For every inbound HTTP exchange it:
 
-- adopts a correlation id from the configured request header (or generates one) and echoes it back on
-  the response;
+- resolves the exchange identity per ADR-0002: a conformant `traceparent`'s trace id **is** the request
+  id; only a traceless exchange adopts a correlation id from the configured request header (or
+  generates one) and echoes it back on the response — a traced exchange passes through
+  observationally untouched;
 - puts `endpoint_request_id`, `endpoint_method` and `endpoint_route` into the **MDC for the whole filter
   chain** — and onto the Spring MVC async worker thread — so every application log line downstream is
   correlatable;
@@ -86,8 +88,8 @@ code under `src/main/kotlin/eu/inqudium/limesium/servlet/logging/`; when the two
 - measures the exchange duration with an injectable monotonic time source;
 - optionally tees the request and response bodies as they flow (bounded, never buffered or replayed);
 - optionally records the selected request/response headers, with stable masking of sensitive values;
-- captures the tracing bridge's `traceId`/`spanId` at filter entry so the event stays joinable with its
-  trace;
+- parses the W3C `traceparent` header at filter entry (`traceId`/`parentSpanId`) so the event stays
+  joinable with its trace;
 - emits **exactly one** structured completion event at **request destruction** — after the container's
   error dispatch and after async completion, so the logged status is the one the client received;
 - feeds six Micrometer meters that observe the logging itself.
@@ -115,16 +117,16 @@ On the logger `http-exchange` (configurable) a completed exchange looks like thi
 appender:
 
 ```
-Endpoint http exchange GET /api/things/42 -> 200 [endpoint_request_id=0f7c1a2e-... traceId=4bf92f3577b34da6a3ce929d0e0e4736 spanId=00f067aa0ba902b7]
+Endpoint http exchange GET /api/things/42 -> 200 [endpoint_request_id=4bf92f3577b34da6a3ce929d0e0e4736 traceId=4bf92f3577b34da6a3ce929d0e0e4736 parentSpanId=00f067aa0ba902b7]
 ```
 
-The trace suffix appears only when a Micrometer tracing bridge had put `traceId`/`spanId` into the MDC
-when the filter ran. Alongside the message, the event carries SLF4J key-values that a structured encoder
+The trace suffix appears only when the request carried a conformant W3C `traceparent` header — its
+trace id then doubles as the request id (ADR-0002). Alongside the message, the event carries SLF4J key-values that a structured encoder
 turns into fields:
 
 ```json
 {
-  "message": "Endpoint http exchange GET /api/things/42 -> 200 [endpoint_request_id=0f7c1a2e-...]",
+  "message": "Endpoint http exchange GET /api/things/42 -> 200 [endpoint_request_id=4bf92f3577b34da6a3ce929d0e0e4736 traceId=4bf92f3577b34da6a3ce929d0e0e4736 parentSpanId=00f067aa0ba902b7]",
   "level": "INFO",
   "logger": "http-exchange",
   "endpoint_outcome": "success",
@@ -134,15 +136,15 @@ turns into fields:
   "endpoint_url_path": "/api/things/42",
   "endpoint_url_template": "/api/things/{id}",
   "endpoint_async": false,
-  "endpoint_request_id": "0f7c1a2e-...",
+  "endpoint_request_id": "4bf92f3577b34da6a3ce929d0e0e4736",
   "endpoint_method": "GET",
   "endpoint_route": "/api/things/42",
   "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
-  "spanId": "00f067aa0ba902b7"
+  "parentSpanId": "00f067aa0ba902b7"
 }
 ```
 
-The `endpoint_request_id` / `endpoint_method` / `endpoint_route` / `traceId` / `spanId` entries come from
+The `endpoint_request_id` / `endpoint_method` / `endpoint_route` / `traceId` / `parentSpanId` entries come from
 the MDC ([§5.2](#52-mdc-keys)); the `endpoint_*` key-values are the field family of [§5.1](#51-log-fields).
 How MDC entries land in the document (flat, nested, renamed) is the encoder's decision.
 
@@ -207,7 +209,7 @@ Fifteen Kotlin files in one package, `eu.inqudium.limesium.servlet.logging`, in 
 |---|---|
 | `RequestLoggingAutoConfiguration` | Registers the filter bean, its `FilterRegistrationBean` (order `HIGHEST_PRECEDENCE + 10`), the `ServletListenerRegistrationBean` for the completion listener, and the default `NanoTimeSource` / `CorrelationIdGenerator`. |
 | `RequestLoggingProperties` | The `endpoint-logging.*` binding, validated in `init`. `HeaderLogProperties` is one header section with `includes` / `excludes` / `masked` and the masking fingerprint. |
-| `RequestLoggingFilter` | Owns the **servlet side**: path activation, fail-open wiring, correlation resolution and echo, the tee wrappers, the chain-wide `MdcScope`, the async dispatch pass, the breadcrumb, the handoff to destruction. |
+| `RequestLoggingFilter` | Owns the **servlet side**: path activation, fail-open wiring, identity resolution (`traceparent` first, correlation header on traceless exchanges) with the traceless echo, the tee wrappers, the chain-wide `MdcScope`, the async dispatch pass, the breadcrumb, the handoff to destruction. |
 | `Exchange` / `AsyncDisposition` / `AsyncOutcomeMarker` | Per-exchange state from entry to emission; the async disposition as one atomic value with built-in precedence; the `AsyncListener` that marks timeout/error. |
 | `EndpointMdcCallableInterceptor` | Restores the `endpoint_*` MDC on the Spring MVC `Callable`/`WebAsyncTask` worker thread. |
 | `ExchangeLogEmitter` | Builds and emits the arrival line and the completion event; resolves level, outcome and cause; records body sizes; opens the emission `MdcScope` with trace ownership. |
@@ -253,15 +255,16 @@ client ──▶ Tomcat ──▶ (ServerHttpObservationFilter @ HIGHEST+1, if t
                        ├─ shouldNotFilter(requestURI)?  ──yes──▶ chain (untouched pass-through)
                        │
                        ├─ wireExchange  ──throws──▶ chain (fail-open, stage=wiring)
-                       │     • correlation id: header or generated; echoed on the response
+                       │     • request id: traceparent trace id, else header or generated (ADR-0002);
+                       │       echoed on the response only when traceless
                        │     • body captures + wrappers if logging OR measuring is on
                        │     • request headers selected and masked (multi-value, comma-joined)
-                       │     • traceId/spanId read from the bridge's MDC
+                       │     • traceId/parentSpanId parsed from the traceparent header
                        │     • startNanos read from NanoTimeSource
                        │     • exchange stored as request attribute; gauge exchanges.open += 1
                        │
                        ├─ registerAsyncMdcPropagation   (EndpointMdcCallableInterceptor via WebAsyncUtils)
-                       ├─ MdcScope(correlationId, method, path) opened   (fail-open: no scope on failure)
+                       ├─ MdcScope(requestId, method, path) opened   (fail-open: no scope on failure)
                        ├─ logRequestStart if enabled
                        │
                        └─ try     chain.doFilter(wrappedRequest, wrappedResponse)
@@ -387,9 +390,10 @@ The module advertises "request identity in MDC while the request is handled". Co
 
 `MdcScope` is an **additive overlay**: it puts the three `endpoint_*` keys and restores the previous
 values on close (container threads are pooled; an outer filter may own the same keys). Around the chain
-it leaves the trace keys alone — the bridge's own scope is authoritative there. Around the emission it
-**owns** them: a captured id is installed, an uncaptured one is removed for the scope's lifetime, so a
-stale id on the pooled destruction thread can never join the event to a foreign trace.
+it leaves the trace keys alone — a tracing bridge's own scope is authoritative there. Around the
+emission it **owns** them (a bridge's `spanId` included): a parsed id is installed, an unparsed one is
+removed for the scope's lifetime, so a stale id on the pooled destruction thread can never join the
+event to a foreign trace.
 
 ### 2.8 Fail-open contract
 
@@ -430,7 +434,9 @@ Time and randomness are injected, not ambient:
 - `NanoTimeSource` — monotonic nanoseconds for `endpoint_duration_ms` and the slow threshold; the single
   production read of `System.nanoTime()` is `NanoTimeSource.SYSTEM`. Log timestamps come from the
   logging backend, keeping the two time domains separate.
-- `CorrelationIdGenerator` — the id for requests without a correlation header; `RANDOM_UUID` by default.
+- `CorrelationIdGenerator` — the id for traceless requests without a correlation header; `RANDOM_UUID`
+  by default. Never consulted for a traced exchange (ADR-0002: the `traceparent` trace id is the
+  request id).
 
 Both are `fun interface`s, both are `@ConditionalOnMissingBean` beans, and both are what the module's
 tests drive from an `AtomicLong` / a fixed string without any mocking library.
@@ -468,9 +474,9 @@ The current release is shown live by the Maven Central badge:
 [![Maven Central](https://img.shields.io/maven-central/v/eu.inqudium/limesium-servlet-logging.svg?label=Maven%20Central)](https://central.sonatype.com/artifact/eu.inqudium/limesium-servlet-logging)
 
 That is all: the auto-configuration registers the filter and the listener, every exchange is logged on
-the `http-exchange` logger at INFO, the correlation id is read from / echoed on `X-Correlation-Id`, the
-`endpoint_*` keys are in the MDC for the chain, and the six meters are registered in the host's
-`MeterRegistry` if one exists.
+the `http-exchange` logger at INFO, the request id comes from the `traceparent` trace id (traceless
+exchanges read/echo `X-Correlation-Id` instead — ADR-0002), the `endpoint_*` keys are in the MDC for
+the chain, and the six meters are registered in the host's `MeterRegistry` if one exists.
 
 To remove the module again without touching the classpath:
 
@@ -483,17 +489,18 @@ endpoint-logging:
 
 The filter is registered at `Ordered.HIGHEST_PRECEDENCE + 10`. The chain runs in ascending order, so:
 
-- Boot's `ServerHttpObservationFilter` (`HIGHEST_PRECEDENCE + 1`) wraps this filter — that is what puts
-  the bridge's `traceId`/`spanId` into the MDC before this filter captures them
+- Boot's `ServerHttpObservationFilter` (`HIGHEST_PRECEDENCE + 1`) wraps this filter — the trace context
+  itself comes from the `traceparent` header, not from that filter's MDC, but running inside the
+  observation keeps the exchange event within the server span's timing
   ([§6.9](#69-the--10-order-is-load-bearing));
 - everything ordered after `+ 10` — Spring Security, the application's own filters, the
   `DispatcherServlet` — runs **inside** the chain-wide MDC scope and sees `endpoint_request_id`;
-- the correlation id is echoed on the response before any later filter can commit it.
+- on a traceless exchange the correlation id is echoed on the response before any later filter can
+  commit it (a traced exchange writes no header at all — ADR-0002).
 
 Path activation is evaluated **in the filter** (`shouldNotFilter`), not via the registration's URL
 patterns, so its semantics are byte-identical with the reactive twin. If the host needs a different
-order, define its own `FilterRegistrationBean<RequestLoggingFilter>` — but keep it after `+ 1` if trace
-correlation matters.
+order, define its own `FilterRegistrationBean<RequestLoggingFilter>`.
 
 ### 3.4 Overriding beans
 
@@ -541,7 +548,7 @@ an encoder treats them differently:
 | Data | Carried as | Examples |
 |---|---|---|
 | The field family | SLF4J **key-value pairs** (`addKeyValue`) | `endpoint_outcome`, `endpoint_duration_ms`, `endpoint_url_path`, `endpoint_request_body` |
-| The identity and trace context | **MDC** entries, set by the emission scope (and, for the chain, by the chain scope) | `endpoint_request_id`, `endpoint_method`, `endpoint_route`, `traceId`, `spanId` (from the tracing bridge) |
+| The identity and trace context | **MDC** entries, set by the emission scope (and, for the chain, by the chain scope) | `endpoint_request_id`, `endpoint_method`, `endpoint_route`, `traceId`, `parentSpanId` (from the `traceparent` header) |
 
 A plain `%msg` pattern shows neither — only the message, which repeats the gist inline
 (`… -> 200 [endpoint_request_id=…]`) precisely for that case. Logback offers three ways to render the
@@ -561,7 +568,7 @@ Logback ≥ 1.3 renders the key-value pairs with the `%kvp` conversion word and 
 ```
 
 ```
-13:54:58.534 INFO  [http-nio-8080-exec-3] http-exchange - Endpoint http exchange GET /api/things/42 -> 200 [endpoint_request_id=0f7c… traceId=4bf9… spanId=00f0…] endpoint_outcome=success endpoint_duration_ms=17 endpoint_request_method=GET endpoint_url_path=/api/things/42 endpoint_url_template=/api/things/{id} endpoint_response_status_code=200 endpoint_async=false [endpoint_method=GET, endpoint_request_id=0f7c…, endpoint_route=/api/things/42, traceId=4bf9…, spanId=00f0…]
+13:54:58.534 INFO  [http-nio-8080-exec-3] http-exchange - Endpoint http exchange GET /api/things/42 -> 200 [endpoint_request_id=4bf9… traceId=4bf9… parentSpanId=00f0…] endpoint_outcome=success endpoint_duration_ms=17 endpoint_request_method=GET endpoint_url_path=/api/things/42 endpoint_url_template=/api/things/{id} endpoint_response_status_code=200 endpoint_async=false [endpoint_method=GET, endpoint_request_id=4bf9…, endpoint_route=/api/things/42, traceId=4bf9…, parentSpanId=00f0…]
 ```
 
 - `%kvp` quotes values with double quotes by default; `%kvp{NONE}` leaves them bare, `%kvp{SINGLE}` uses
@@ -658,7 +665,10 @@ depends on the host's encoder layout; map them where the encoder configuration l
    ```
 
    Expect `X-Correlation-Id: demo-1` on the response and one `http-exchange` line with
-   `endpoint_request_id=demo-1`; with a tracing bridge active, also `traceId=… spanId=…`.
+   `endpoint_request_id=demo-1`. With a `traceparent` header instead
+   (`curl -i -H 'traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01' …`), expect
+   **no** `X-Correlation-Id` response header and `endpoint_request_id=4bf92f…` plus
+   `traceId=… parentSpanId=…` on the line (ADR-0002).
 
 2. Log something inside the controller and confirm `endpoint_request_id` is on that line too.
 
@@ -691,7 +701,7 @@ identical across the stacks (the twin adds one reactive-only key, `variant`, whi
 |---|---|---|---|
 | `enabled` | boolean | `true` | Master switch. `false` makes the auto-configuration back off — no filter, no listener, no beans. A context-start decision, not a runtime toggle. |
 | `logger-name` | string | `http-exchange` | Logger of the arrival line and the exchange event. Its level is the runtime volume control ([§4.5](#45-logger-levels)). |
-| `correlation-id-header` | string (RFC 9110 token) | `X-Correlation-Id` | Header the correlation id is read from; blank/absent means generated. Echoed on the response under the same name, set once at filter entry — downstream code that sets the header itself or calls `response.reset()` decides what the client finally sees; event and MDC keep the id resolved at entry. |
+| `correlation-id-header` | string (RFC 9110 token) | `X-Correlation-Id` | Header the correlation id is read from on **traceless** exchanges (no conformant `traceparent` — ADR-0002); blank/absent means generated. Only such an exchange gets the echo, set once at filter entry — downstream code that sets the header itself or calls `response.reset()` decides what the client finally sees; event and MDC keep the id resolved at entry. A traced exchange takes its request id from the `traceparent` trace id, ignores this header and echoes nothing. |
 | `include-query-string` | boolean | `true` | Log the query string as its own field `endpoint_url_query` (never part of the path). Disable when query parameters may carry personal data. |
 | `log-request-start` | boolean | `false` | Additionally log an arrival line before the chain runs, at INFO, inside the chain MDC scope. Carries no outcome/status/duration. |
 | `include-path-patterns` | list of `PathPattern` | `[]` | Endpoints the filter is active for at all; empty = every endpoint. Parsed once at startup; an invalid pattern fails the context. |
@@ -896,11 +906,11 @@ stack trace alongside the fields.
 
 | Key | Value | Scope |
 |---|---|---|
-| `endpoint_request_id` | the correlation id | chain, MVC async worker, async dispatch, emission |
+| `endpoint_request_id` | the request id: the `traceparent` trace id, or the accepted/generated correlation id (ADR-0002) — always set | chain, MVC async worker, async dispatch, emission |
 | `endpoint_method` | the HTTP method | same |
 | `endpoint_route` | the request **path** (the template is not known at filter entry) | same |
-| `traceId` | the bridge's trace id captured at entry | emission only (the bridge owns it during the chain) |
-| `spanId` | the bridge's span id captured at entry | emission only |
+| `traceId` | the trace id parsed from the `traceparent` header | emission only (a bridge owns the key during the chain) |
+| `parentSpanId` | the caller's span id parsed from the `traceparent` header — never published as `spanId` | emission only |
 
 `MdcScope` restores the previous value of every key on close, rolls back a partial install if the
 adapter throws mid-put, and restores best-effort on close with the first failure rethrown and later ones
@@ -934,7 +944,7 @@ status distributions are deliberately left to `http.server.requests` and the log
 | `endpoint.logging.failopen` | counter | `stage` = `emission` \| `arrival` \| `wiring` | Logging failures the fail-open path swallowed. `emission`: an exchange event was **lost**. `arrival`: a start line was lost. `wiring`: bookkeeping failed (pass-through degradation, a lost MDC scope, a lost sample or counter) — the event usually still follows. A lost log line cannot report itself through the same pipeline; this counter is the independent channel. |
 | `endpoint.logging.events` | counter | `outcome` = `success` \| `failure` \| `timeout` | Exchange events actually **emitted** on the exchange logger — after the level gate, arrival lines excluded. The reconciliation ground truth against the log index. |
 | `endpoint.logging.exchanges.open` | gauge | — | Exchanges between filter entry and request destruction. Hovers near the active-request count in health. |
-| `endpoint.logging.correlation.id` | counter | `source` = `header` \| `generated` | Origin of each exchange's correlation id. |
+| `endpoint.logging.correlation.id` | counter | `source` = `trace` \| `header` \| `generated` | Origin of each exchange's request id (ADR-0002); the meter name predates the decision and stays stable. |
 | `endpoint.request.body.read` | counter | `uri` = handler pattern, `UNKNOWN` without one; `state` = `unread` \| `partial` \| `complete` | How far the application **consumed** the request body, opt-in via `measure-request-body-size`. Recorded once per exchange whenever the measuring tee exists — including bodyless requests the application never touched, which is the `unread` share the counter exists to show. `partial` = consumption started but the end of the stream was never observed (an early-exiting parser, an exception mid-read, a read loop that never asked for the final EOF). Created lazily per `uri`/`state` on first use, like the size summaries. |
 | `endpoint.request.body.size` / `endpoint.response.body.size` | distribution summary, base unit `bytes` | `uri` = handler pattern, `UNKNOWN` without one | Bytes that **actually flowed**, opt-in via `measure-*-body-size`, independent of body logging and level. Exact beyond `max-body-bytes`. Zero-byte bodies record no sample. Created lazily per `uri` on first use. |
 
@@ -974,19 +984,24 @@ sum(rate(endpoint_logging_correlation_id_total{source="generated"}[10m]))
 
 ### 5.6 Trace correlation
 
-When a Micrometer tracing bridge is present, Boot's `ServerHttpObservationFilter` (order
-`HIGHEST_PRECEDENCE + 1`) opens the server span and puts `traceId`/`spanId` into the MDC **before** this
-filter runs. The filter captures both at entry onto the `Exchange`; the destruction callback's thread
-carries no bridge MDC, so the emission `MdcScope` restores them around the event — as MDC fields for
-structured encoders, and inline in the message (`… traceId=… spanId=…`) for plain-text appenders.
+The trace context comes from the incoming W3C `traceparent` header, parsed by this module at filter
+entry with the full W3C validation (ADR-0002, lockstep with the reactive twin — `Traceparent.kt` is
+deliberately duplicated twin code). The header's trace id is the trace the server span runs under, so
+the log-to-trace join holds; the header's parent-id is the **caller's** span and is published as
+`parentSpanId`, never as `spanId`, where it would read as the local span. The destruction callback's
+thread carries no per-request state, so the emission `MdcScope` restores the parsed pair around the
+event — as MDC fields for structured encoders, and inline in the message
+(`… traceId=… parentSpanId=…`) for plain-text appenders.
 
-The emission scope **owns** the trace keys: a captured id is installed, an uncaptured one is removed for
-the scope's lifetime, so a stale id on the pooled destruction thread can never join the event to a
-foreign trace. Without a bridge, nothing is captured and nothing is decorated.
+The emission scope **owns** the trace keys, a bridge's `spanId` included: a parsed id is installed, an
+unparsed one is removed for the scope's lifetime, so a stale id on the pooled destruction thread can
+never join the event to a foreign trace or span. Without a (valid) `traceparent`, nothing is decorated —
+a trace the bridge mints locally is deliberately not joined; such an exchange carries a generated
+request id instead.
 
 The ids ride the MDC only, never the key-values,
 so the log-to-trace join uses Boot's standard `traceId` key. `RequestLoggingFilterTracingIntegrationTest`
-pins the ordering and the scope semantics against a real Brave bridge.
+pins the parsed context and the identity decision against a real Brave bridge running beside it.
 
 ---
 
@@ -1003,7 +1018,6 @@ Everything not listed here behaves identically in `limesium-reactive-logging`.
 | `endpoint_response_status_code` | always present | absent for a never-committed cancellation |
 | Emission point | `requestDestroyed`, after the error dispatch and async completion | terminal signal; commit-deferred on error |
 | Chain-wide MDC | thread-local, for the whole chain, plus the MVC async worker | Reactor context + opt-in accessors, or `MDCContext` in the coroutine variant |
-| Trace context | bridge MDC captured at filter entry (`traceId`/`spanId`) | parsed from `traceparent` (`traceId`/`parentSpanId`) |
 | Body tee | stream/reader and stream/writer wrappers; `reset()`/`sendError` clear the capture | `DataBuffer` map-tee; no reset analog |
 | Body capture concurrency | single writer, late reader; volatile total as the happens-before edge | lock-guarded, frozen at emission (late chunks after cancellation) |
 | Variant selection | one filter | `endpoint-logging.variant` |
@@ -1084,11 +1098,12 @@ failure before any tee can see it.
 ### 6.9 The `+ 10` order is load-bearing
 
 Boot registers `ServerHttpObservationFilter` at `Ordered.HIGHEST_PRECEDENCE + 1`, and the chain runs in
-ascending order — so that filter wraps this one and the bridge's `traceId`/`spanId` are in the MDC when
-this filter captures them at entry. Moving the order before `+ 1` would not fail; it would **silently
-strip the trace join** from every exchange event. Ordering and scope-around-the-chain are convention,
-not contract, which is why `RequestLoggingFilterTracingIntegrationTest` pins them against a real bridge
-and records where the constant comes from: a Boot upgrade that changes either breaks the build.
+ascending order — so that filter wraps this one. Since ADR-0002 the trace context no longer depends on
+that ordering (it is parsed from the `traceparent` header, not captured from the bridge's MDC), but the
+order stays at `+ 10` deliberately: the exchange runs inside the server span's observation, the chain
+MDC scope opens before Security and the application filters, and the traceless echo lands before any
+later filter can commit the response. `RequestLoggingFilterTracingIntegrationTest` pins the parsed
+context against a real bridge - its MDC writes and its own server span must never leak into the event.
 
 ### 6.10 One metrics instance per registry
 
@@ -1149,6 +1164,7 @@ limesium-servlet-logging/
     │   ├── CapturingRequestWrapper.kt             request stream/reader tee
     │   ├── CapturingResponseWrapper.kt            response stream/writer tee
     │   ├── BoundedBodyCapture.kt                  bounded capture target, BodyReadState
+    │   ├── Traceparent.kt                         W3C traceparent parsing (lockstep twin code)
     │   ├── Mdc.kt                                 MdcKeys, TraceMdcKeys, MdcScope
     │   ├── NanoTimeSource.kt                      injectable monotonic time
     │   ├── CorrelationIdGenerator.kt              injectable id generation

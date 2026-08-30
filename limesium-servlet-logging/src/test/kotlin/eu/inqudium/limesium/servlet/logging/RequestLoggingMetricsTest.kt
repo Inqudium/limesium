@@ -193,25 +193,31 @@ class RequestLoggingMetricsTest {
                 .count()
 
         @Test
-        fun `should count an adopted header id as source header and a missing one as generated`() {
-            // What is tested: the upstream-propagation watch - which side of the contract each request
-            //   lands on.
-            // Success criteria: both sources are pre-registered at zero; one request with and one
-            //   without the correlation header count 1 each on their side.
+        fun `should count the request id source as trace, header or generated`() {
+            // What is tested: the upstream-propagation watch - which side of the identity contract
+            //   (ADR-0002) each request lands on.
+            // Success criteria: all three sources are pre-registered at zero; one request with a
+            //   conformant traceparent, one with only the correlation header and one with neither
+            //   count 1 each on their side.
             // Why it matters: a rising generated share is the earliest signal that a gateway or sidecar
-            //   stopped propagating correlation ids - invisible in logs, where every event simply
-            //   carries SOME id.
-            // Given: a fresh registry - both sources already exist at zero
+            //   stopped propagating traceparent or correlation ids - invisible in logs, where every
+            //   event simply carries SOME id.
+            // Given: a fresh registry - all three sources already exist at zero
+            assertThat(sourceCount("trace")).isEqualTo(0.0)
             assertThat(sourceCount("header")).isEqualTo(0.0)
             assertThat(sourceCount("generated")).isEqualTo(0.0)
 
-            // When: one request carries the header, one does not
+            // When: one traced request, one with the correlation header only, one with neither
+            val withTraceparent = MockHttpServletRequest("GET", "/api/things")
+            withTraceparent.addHeader("traceparent", "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01")
+            handle(withTraceparent, MockHttpServletResponse())
             val withHeader = MockHttpServletRequest("GET", "/api/things")
             withHeader.addHeader(properties.correlationIdHeader, "caller-id")
             handle(withHeader, MockHttpServletResponse())
             handle(MockHttpServletRequest("GET", "/api/things"), MockHttpServletResponse())
 
             // Then: one count on each side
+            assertThat(sourceCount("trace")).isEqualTo(1.0)
             assertThat(sourceCount("header")).isEqualTo(1.0)
             assertThat(sourceCount("generated")).isEqualTo(1.0)
         }
