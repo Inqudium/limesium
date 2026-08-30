@@ -47,7 +47,9 @@ Two paradigm twins with identical fields and identical configuration:
 | [`limesium-reactive-logging`](limesium-reactive-logging/README.md) | Spring WebFlux (Reactor and coroutines) | `eu.inqudium.limesium.reactive.logging` |
 
 Both are auto-configured Spring Boot libraries — no starter, no forced logging transitives;
-the host application brings the runtime (Tomcat resp. Netty) and the Logback binding.
+the host application brings the runtime (Tomcat 11+/Jetty 12.1+ resp. Netty) and the Logback binding.
+Undertow/WildFly cannot host this stack (no Jakarta Servlet 6.1 implementation — a platform boundary,
+see the servlet module's README).
 
 ## Documentation
 
