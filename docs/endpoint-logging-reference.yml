@@ -45,7 +45,9 @@ endpoint-logging:
 
   # URL patterns (Spring PathPattern syntax) that determine for which endpoints the filter is active
   # AT ALL. Empty (the default) means every endpoint; a request is logged when it matches ANY include
-  # pattern and NO exclude prefix - an exclude always wins. Invalid patterns fail the context start.
+  # pattern and NO exclude prefix - an exclude always wins. Both match the path WITHIN the
+  # application (a configured context/base path is stripped first, as in Spring's handler mapping).
+  # Invalid patterns fail the context start.
   include-path-patterns: []
   #  - /api/**
 

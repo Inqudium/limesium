@@ -463,6 +463,41 @@ class RequestLoggingFilterTest {
         }
 
         @Test
+        fun `should match activation against the path within the application under a context path`() {
+            // What is tested: finding 3 of the repo-wide code analysis of 2026-08-30 - activation must
+            //   match what Spring MVC's handler mapping matches, the path WITHIN the application, not
+            //   the full request URI that includes server.servlet.context-path.
+            // Success criteria: under context path /app, /app/api/things is logged by include /api/**
+            //   and /app/actuator/health is excluded by /actuator/health; matching against the full
+            //   URI would silently invert both.
+            // Why it matters: on a non-root deployment, include patterns modeled after MVC routes
+            //   otherwise match nothing - total, silent loss of exchange logging exactly where the
+            //   operator configured it.
+            // Given: a filter scoped to /api/** with /actuator/health excluded, under context path /app
+            val scoped =
+                RequestLoggingFilter(
+                    properties.copy(includePathPatterns = listOf("/api/**"), excludePathPrefixes = listOf("/actuator/health")),
+                    { ticker.get() },
+                    { "generated-42" },
+                    SimpleMeterRegistry(),
+                )
+            val included =
+                MockHttpServletRequest("GET", "/app/api/things").apply { contextPath = "/app" }
+            val excluded =
+                MockHttpServletRequest("GET", "/app/actuator/health").apply { contextPath = "/app" }
+
+            // When: both requests run through the full OncePerRequestFilter entry point
+            scoped.doFilter(included, MockHttpServletResponse(), MockFilterChain())
+            scoped.exchangeCompletionListener().requestDestroyed(ServletRequestEvent(included.servletContext, included))
+            scoped.doFilter(excluded, MockHttpServletResponse(), MockFilterChain())
+            scoped.exchangeCompletionListener().requestDestroyed(ServletRequestEvent(excluded.servletContext, excluded))
+
+            // Then: exactly the included exchange is logged, under its full (context-path-keeping) path
+            val event = appender.list.single()
+            assertThat(event.formattedMessage).contains("GET /app/api/things")
+        }
+
+        @Test
         fun `should be active only for endpoints matching an include pattern`() {
             // What is tested: the include side of the activation rule - patterns determine for which
             //   endpoints the filter runs AT ALL.

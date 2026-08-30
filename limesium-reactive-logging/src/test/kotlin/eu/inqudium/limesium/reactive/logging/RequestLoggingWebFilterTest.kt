@@ -476,6 +476,39 @@ class RequestLoggingWebFilterTest {
         }
 
         @Test
+        fun `should match activation against the path within the application under a base path`() {
+            // What is tested: finding 3 of the repo-wide code analysis of 2026-08-30 - activation must
+            //   match what the WebFlux handler mapping matches, the path WITHIN the application, not
+            //   the full request path that includes a configured base path.
+            // Success criteria: under base path /app, /app/api/things is logged by include /api/** and
+            //   /app/actuator/health is excluded by /actuator/health; matching against the full path
+            //   would silently invert both.
+            // Why it matters: on a non-root deployment, include patterns modeled after the routes
+            //   otherwise match nothing - total, silent loss of exchange logging exactly where the
+            //   operator configured it.
+            // Given: a filter scoped to /api/** with /actuator/health excluded, under base path /app
+            val scoped =
+                RequestLoggingWebFilter(
+                    properties.copy(includePathPatterns = listOf("/api/**"), excludePathPrefixes = listOf("/actuator/health")),
+                    { ticker.get() },
+                    { "generated-42" },
+                    SimpleMeterRegistry(),
+                )
+            val included =
+                MockServerWebExchange.from(MockServerHttpRequest.get("/app/api/things").contextPath("/app"))
+            val excluded =
+                MockServerWebExchange.from(MockServerHttpRequest.get("/app/actuator/health").contextPath("/app"))
+
+            // When: both exchanges run through the filter
+            scoped.filter(included, okChain()).block()
+            scoped.filter(excluded, okChain()).block()
+
+            // Then: exactly the included exchange is logged, under its full (base-path-keeping) path
+            val event = appender.list.single()
+            assertThat(event.formattedMessage).contains("GET /app/api/things")
+        }
+
+        @Test
         fun `should match activation on the raw request path exactly as the WebFlux router does`() {
             // What is tested: twin parity with finding 1 of the servlet module's
             //   an internal security audit - activation must see the request target the way

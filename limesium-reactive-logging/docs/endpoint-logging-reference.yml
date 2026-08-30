@@ -62,8 +62,9 @@ endpoint-logging:
 
   # URL patterns (Spring PathPattern syntax) that determine for which endpoints the filter is active
   # AT ALL. Empty (the default) means every endpoint; a request is logged when it matches ANY include
-  # pattern and NO exclude prefix - an exclude always wins. Matched against the raw request path the
-  # WebFlux router matches, segments decoded for matching. Invalid patterns fail the context start.
+  # pattern and NO exclude prefix - an exclude always wins. Matched against the path WITHIN the
+  # application (a configured base path is stripped first, as in the WebFlux handler mapping),
+  # segments decoded for matching. Invalid patterns fail the context start.
   include-path-patterns: []
   #  - /api/**
 

@@ -781,9 +781,12 @@ endpoint-logging:
 
 `include-path-patterns` uses Spring's `PathPattern` syntax (`/api/**`, `/api/{*rest}`,
 `/files/{id}.pdf`); `exclude-path-prefixes` is a prefix match. Both see the request target the way
-Spring MVC routes it — the raw `requestURI` parsed into segments that **decode for matching** and drop
-path parameters — so `/%61pi/things` is included by `/api/**` and `/%61ctuator/health` is excluded by
-`/actuator/health`, exactly as the router would serve them. The logged `endpoint_url_path` stays raw.
+Spring MVC routes it — the **path within the application** (a configured `server.servlet.context-path`
+is stripped first, exactly as in MVC's handler mapping), parsed into segments that **decode for
+matching** and drop path parameters — so `/api/**` matches `/app/api/things` under context path
+`/app`, `/%61pi/things` is included by `/api/**` and `/%61ctuator/health` is excluded by
+`/actuator/health`, exactly as the router would serve them. The logged `endpoint_url_path` stays raw
+and keeps the context path.
 
 ### 4.5 Logger levels
 

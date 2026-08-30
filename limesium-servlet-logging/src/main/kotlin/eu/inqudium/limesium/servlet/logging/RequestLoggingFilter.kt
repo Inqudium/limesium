@@ -14,6 +14,7 @@ import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.slf4j.LoggerFactory
 import org.springframework.http.server.PathContainer
+import org.springframework.http.server.RequestPath
 import org.springframework.web.context.request.async.WebAsyncUtils
 import org.springframework.web.filter.OncePerRequestFilter
 import org.springframework.web.util.pattern.PathPattern
@@ -112,12 +113,15 @@ class RequestLoggingFilter(
      * the registration's `urlPatterns`, so the semantics are identical with the reactive twin.
      *
      * Both rules see the request target the way Spring MVC routes it: the raw `requestURI` is parsed
-     * into a [PathContainer] whose segments DECODE for matching (the include patterns match it exactly
-     * as `PathPattern`-based handler mapping does), and the exclude prefixes are compared against the
-     * decoded path rebuilt from those segments. A byte-wise `startsWith` on the raw URI let a
-     * percent-encoded variant (`/%61ctuator/health`) slip past an exclude while the container served it
-     * under the excluded route (finding 1 of an internal security audit - the include side
-     * was already consistent). Path parameters (`;x=1`) are dropped, as in routing.
+     * with the context path split off, and the include patterns match the path WITHIN the application -
+     * exactly what `PathPattern`-based handler mapping matches, so `/api/{asterisk}{asterisk}` behaves
+     * identically here and in MVC under a non-root `server.servlet.context-path` (finding 3 of the
+     * repo-wide code analysis of 2026-08-30: matching the full request URI silently deactivated
+     * configured includes on such deployments). Segments DECODE for matching, and the exclude prefixes
+     * are compared against the decoded path rebuilt from those segments. A byte-wise `startsWith` on
+     * the raw URI let a percent-encoded variant (`/%61ctuator/health`) slip past an exclude while the
+     * container served it under the excluded route (finding 1 of an internal security audit - the
+     * include side was already consistent). Path parameters (`;x=1`) are dropped, as in routing.
      */
     override fun shouldNotFilter(request: HttpServletRequest): Boolean {
         // Nothing configured to match (the shipped default): the filter is active for every
@@ -127,7 +131,7 @@ class RequestLoggingFilter(
         if (includePathPatterns.isEmpty() && properties.excludePathPrefixes.isEmpty()) {
             return false
         }
-        val container = PathContainer.parsePath(request.requestURI)
+        val container = RequestPath.parse(request.requestURI, request.contextPath).pathWithinApplication()
         if (includePathPatterns.isNotEmpty() && includePathPatterns.none { it.matches(container) }) {
             return true
         }
