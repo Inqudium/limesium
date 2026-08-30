@@ -1197,6 +1197,8 @@ lists every test with its rationale):
 
 ### 7.2 Related documents
 
+- [`CONTAINERS.md`](CONTAINERS.md) — the per-container guide: Tomcat, Jetty and Undertow documented
+  individually (destruction models, error paths, pinned deviations, suites).
 - [`README.md`](../README.md) — module summary and the twin decision.
 - [`/docs/endpoint-logging-reference.yml`](../../docs/endpoint-logging-reference.yml) — the complete commented
   configuration reference; every key and default, bound by `EndpointLoggingReferenceConfigTest` here and

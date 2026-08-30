@@ -29,7 +29,8 @@ metrics and the stack-specific behaviours — is [`docs/GUIDE.md`](docs/GUIDE.md
 
 Add the module to a servlet-stack Spring Boot application — the filter registers itself:
 
-**Container support:** Tomcat 11+ and Jetty 12.1+, each pinned by its own integration suite (capture
+**Container support** (documented per engine in [`docs/CONTAINERS.md`](docs/CONTAINERS.md)):
+Tomcat 11+ and Jetty 12.1+, each pinned by its own integration suite (capture
 boundaries + tracing). Undertow — and therefore WildFly, whose servlet engine it is — is
 **unsupported** on this stack: Spring Framework 7's baseline is Jakarta Servlet 6.1 (with no
 runtime-compatibility statement downwards), which Undertow (2.3.x) does not implement, and Spring

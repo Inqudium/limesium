@@ -62,6 +62,8 @@ guides, Elasticsearch mapping, generated [test evidence](https://inqudium.github
 
 - [Servlet guide](limesium-servlet-logging/docs/GUIDE.md) — the long-form guide of the
   reference implementation: architecture, integration, configuration, metrics.
+- [Container guide](limesium-servlet-logging/docs/CONTAINERS.md) — Tomcat, Jetty and Undertow
+  documented individually: destruction models, error paths, pinned per-engine deviations.
 - [Reactive guide](limesium-reactive-logging/docs/GUIDE.md) — the twin's guide, including
   the deliberate stack differences and the coroutine variant.
 - [Module READMEs](limesium-servlet-logging/README.md) ([reactive](limesium-reactive-logging/README.md)) —
