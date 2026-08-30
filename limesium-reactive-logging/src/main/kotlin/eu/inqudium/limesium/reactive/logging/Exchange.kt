@@ -1,5 +1,6 @@
 package eu.inqudium.limesium.reactive.logging
 
+import eu.inqudium.limesium.common.TraceMdcKeys
 import org.springframework.http.server.reactive.ServerHttpResponse
 import java.nio.charset.Charset
 import java.util.concurrent.atomic.AtomicReference

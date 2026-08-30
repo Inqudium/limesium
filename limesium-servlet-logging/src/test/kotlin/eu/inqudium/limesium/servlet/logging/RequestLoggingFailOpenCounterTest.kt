@@ -7,6 +7,8 @@ import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.classic.turbo.TurboFilter
 import ch.qos.logback.core.read.ListAppender
 import ch.qos.logback.core.spi.FilterReply
+import eu.inqudium.limesium.common.CorrelationIdGenerator
+import eu.inqudium.limesium.common.NanoTimeSource
 import io.micrometer.core.instrument.Counter
 import io.micrometer.core.instrument.Gauge
 import io.micrometer.core.instrument.Meter

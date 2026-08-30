@@ -56,8 +56,11 @@ jobs:
       # describe the commit being deployed - the site never shows numbers
       # a human typed. A red suite blocks the docs deploy on purpose:
       # stale docs beat docs that certify a broken build.
+      # `install`, not `verify`: the per-module dokka:dokka run below resolves
+      # limesium-common as an artifact, which therefore must be in the runner's
+      # local repository (ADR-0003).
       - name: Run the test suite (Surefire results + JaCoCo report)
-        run: mvn --batch-mode --no-transfer-progress verify
+        run: mvn --batch-mode --no-transfer-progress install
 
       - name: Generate the test-evidence page
         run: python3 .github/scripts/generate-test-catalog.py

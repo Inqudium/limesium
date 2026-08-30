@@ -1,5 +1,7 @@
 package eu.inqudium.limesium.reactive.logging
 
+import eu.inqudium.limesium.common.MdcKeys
+import eu.inqudium.limesium.common.MdcScope
 import io.micrometer.context.ContextRegistry
 import io.micrometer.context.ThreadLocalAccessor
 import org.slf4j.LoggerFactory

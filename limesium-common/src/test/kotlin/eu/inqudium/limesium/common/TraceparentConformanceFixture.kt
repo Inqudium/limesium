@@ -1,4 +1,4 @@
-package eu.inqudium.limesium.reactive.logging
+package eu.inqudium.limesium.common
 
 import org.springframework.core.io.ClassPathResource
 
