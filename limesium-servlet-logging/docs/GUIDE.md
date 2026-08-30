@@ -455,7 +455,7 @@ tests drive from an `AtomicLong` / a fixed string without any mocking library.
 
 | Requirement | Notes |
 |---|---|
-| Spring Boot 4.x servlet web application (embedded Tomcat, Jetty or Undertow) | `@ConditionalOnWebApplication(type = SERVLET)`; the module is inert in a reactive application |
+| Spring Boot 4.x servlet web application (embedded Tomcat 11+ or Jetty 12.1+) | `@ConditionalOnWebApplication(type = SERVLET)`; the module is inert in a reactive application. Both containers are pinned by their own integration suites (capture boundaries + tracing). **Undertow — and therefore WildFly, whose servlet engine it is — cannot host this stack at all:** Spring Framework 7's baseline is Jakarta Servlet 6.1, Undertow (latest 2.3.x) implements only 6.0, and Spring Boot 4 removed the Undertow starter for that reason. This is a platform boundary, not a module limitation; it lifts when Undertow ships Servlet 6.1 |
 | Jakarta Servlet API on the runtime classpath | `provided` scope in the module; the host's container supplies it |
 | Java 21, Kotlin stdlib | the module is written in Kotlin; a Java host only needs `kotlin-stdlib`, which the jar pulls transitively |
 | SLF4J 2.x binding (Logback by default in Boot) | the module uses the fluent `LoggingEventBuilder` API (`addKeyValue`) |
