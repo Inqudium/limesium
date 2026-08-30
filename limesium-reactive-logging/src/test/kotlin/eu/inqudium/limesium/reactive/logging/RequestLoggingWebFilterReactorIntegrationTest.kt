@@ -3,6 +3,9 @@ package eu.inqudium.limesium.reactive.logging
 import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
+import eu.inqudium.limesium.common.CorrelationIdGenerator
+import eu.inqudium.limesium.common.MdcKeys
+import eu.inqudium.limesium.common.NanoTimeSource
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.AfterEach

@@ -123,7 +123,7 @@ deliberately left to Boot's own `http.server.requests` and to the structured log
 | `endpoint.logging.exchanges.open` | gauge | — | Exchanges between filter entry and request destruction. Hovers near the active-request count in health; a **monotonically growing baseline** means `requestDestroyed` is not firing and events are lost silently — the one failure mode neither the fail-open counter (nothing throws) nor the events counter (no baseline) can see. |
 | `endpoint.logging.correlation.id` | counter | `source` = `trace` \| `header` \| `generated` | Origin of each exchange's request id (ADR-0002). A rising `generated` share means the upstream (gateway, sidecar) stopped propagating traceparent or the correlation header. |
 
-## The reactive twin — deliberate duplication, no shared base module
+## The reactive twin and the shared layer
 
 [`limesium-reactive-logging`](../limesium-reactive-logging/README.md) is the WebFlux twin of this module:
 identical message format, field family, `endpoint-logging.*` configuration and meters, so that a
@@ -132,26 +132,19 @@ implementation** — the configuration reference (`/docs/endpoint-logging-refere
 component template (`/docs/elk/`) live in the repository-shared `/docs` and are bound by both
 modules' lockstep tests.
 
-Eleven production files exist in both modules, roughly a thousand lines identical (field enum, properties
-and header masking, meters, MDC keys, event rendering, the injectable time/id interfaces). This is a
-**deliberate decision**, reviewed in an internal architecture review and kept:
+The **byte-identical** part of the shared layer (the `traceparent` parser with its fuzz target, the
+injectable time/id interfaces, `reportQuietly`, the MDC keys and scope) lives in the internal
+`limesium-common` module and is **inlined into this jar** by the Maven Shade plugin
+([ADR-0003](../docs/adr/ADR-0003-limesium-common-inlined-by-shade.md)): consumers add exactly one
+artifact, the published POM carries no extra dependency, and `limesium-common` itself is never
+published.
 
-- **One twin per host, never both.** An application is either a servlet or a reactive application, so
-  the two copies never share a classpath — there is no runtime drift to guard against, only an
-  organisational contract (dashboards, alerts, index mapping), which the lockstep tests pin.
-- **Standalone by design.** Each twin is one jar with no dependency on the other, and no third artifact
-  to version, release, and keep from becoming a dumping ground. With exactly two consumers, a base
-  module sits at — not beyond — the rule-of-three threshold.
-- **The shared layer changes rarely.** It is contract-level code (wire names, configuration keys, meter
-  names, rendering) that stabilises after the initial remediation rounds; porting an occasional change
-  by hand is cheaper than carrying a module boundary for it.
-
-**Accepted residual cost:** every change to the shared layer is a port — in *both* directions, since
-fixes originate in whichever twin an analysis hit first. The pins in `TwinContractTest` and the twin's
-cross-module tests catch *named* contract drift (meter names, field names, configuration keys), not
-behavioural drift inside the identical emitter or metrics code; a change there must be ported
-consciously and verified in both modules. Revisit the decision if a third stack appears or the port
-frequency stops being occasional.
+Everything whose twin copies genuinely differ (field enum and metrics with their per-stack outcome
+vocabulary, emitters, exchanges, properties, body capture) stays **deliberately duplicated**, per the
+original architecture-review decision: one twin per host, standalone jars, contract-level code that
+changes rarely. For that remainder every change is still a conscious port in *both* directions; the
+pins in `TwinContractTest` and the cross-module tests catch *named* contract drift, not behavioural
+drift — a change there must be ported consciously and verified in both modules.
 
 ## Overriding
 

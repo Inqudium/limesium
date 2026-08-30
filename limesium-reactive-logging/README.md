@@ -38,28 +38,23 @@ level/outcome decoupling, slow escalation, header sections with `includes`/`excl
 stable masking fingerprint, the arrival line (`log-request-start`), count-only body measuring — behaves
 exactly as documented in the servlet twin's README.
 
-## Deliberate duplication — why there is no shared base module
+## The shared layer
 
-Eleven of this module's production files are twins of files in `limesium-servlet-logging`, and roughly
-a thousand lines (field enum, properties and header masking, meters, MDC keys, event rendering, the
-injectable time/id interfaces) are identical. This is a **deliberate decision**, reviewed in an
-internal architecture review and kept:
+The **byte-identical** part of the twins' shared layer (the `traceparent` parser with its fuzz target,
+the injectable time/id interfaces, `reportQuietly`, the MDC keys and scope) lives in the internal
+`limesium-common` module and is **inlined into this jar** by the Maven Shade plugin
+([ADR-0003](../docs/adr/ADR-0003-limesium-common-inlined-by-shade.md)): consumers add exactly one
+artifact, the published POM carries no extra dependency, and `limesium-common` itself is never
+published.
 
-- **One twin per host, never both.** An application is either a servlet or a reactive application, so
-  the two copies never share a classpath — there is no runtime drift to guard against, only an
-  organisational contract (dashboards, alerts, index mapping), which the lockstep tests pin.
-- **Standalone by design.** Each twin is one jar with no dependency on the other, and no third artifact
-  to version, release, and keep from becoming a dumping ground. With exactly two consumers, a base
-  module sits at — not beyond — the rule-of-three threshold.
-- **The shared layer changes rarely.** It is contract-level code (wire names, configuration keys, meter
-  names, rendering) that stabilises after the initial remediation rounds; porting an occasional change
-  by hand is cheaper than carrying a module boundary for it.
-
-**Accepted residual cost:** every change to the shared layer is a port, and the pins in
-`TwinContractTest` / `EndpointLogFieldTest` / `EndpointLoggingReferenceConfigTest` catch *named*
-contract drift (meter names, field names, configuration keys) — not behavioural drift inside the
-identical emitter or metrics code. A change there must be ported consciously and verified in both
-modules. Revisit the decision if a third stack appears or the port frequency stops being occasional.
+Everything whose twin copies genuinely differ (field enum and metrics with their per-stack outcome
+vocabulary, emitters, exchanges, properties with the reactive-only `variant`, body capture with its
+own concurrency design) stays **deliberately duplicated**, per the original architecture-review
+decision: one twin per host, standalone jars, contract-level code that changes rarely. For that
+remainder every change is still a conscious port in both directions; the pins in `TwinContractTest` /
+`EndpointLogFieldTest` / `EndpointLoggingReferenceConfigTest` catch *named* contract drift (meter
+names, field names, configuration keys) — not behavioural drift inside near-identical code. A change
+there must be ported consciously and verified in both modules.
 
 ## Usage
 

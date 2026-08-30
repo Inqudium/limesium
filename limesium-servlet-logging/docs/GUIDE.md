@@ -63,7 +63,7 @@ code under `src/main/kotlin/eu/inqudium/limesium/servlet/logging/`; when the two
    9. [The `+ 10` order is load-bearing](#69-the--10-order-is-load-bearing)
    10. [One metrics instance per registry](#610-one-metrics-instance-per-registry)
    11. [Masking is a fingerprint, not a secret](#611-masking-is-a-fingerprint-not-a-secret)
-   12. [Deliberate duplication with the reactive twin](#612-deliberate-duplication-with-the-reactive-twin)
+   12. [Shared code: limesium-common, inlined by Shade](#612-shared-code-limesium-common-inlined-by-shade)
 7. [Appendix](#7-appendix)
    1. [File map](#71-file-map)
    2. [Related documents](#72-related-documents)
@@ -985,8 +985,8 @@ sum(rate(endpoint_logging_correlation_id_total{source="generated"}[10m]))
 ### 5.6 Trace correlation
 
 The trace context comes from the incoming W3C `traceparent` header, parsed by this module at filter
-entry with the full W3C validation (ADR-0002, lockstep with the reactive twin — `Traceparent.kt` is
-deliberately duplicated twin code). The header's trace id is the trace the server span runs under, so
+entry with the full W3C validation (ADR-0002; the parser is the shared `Traceparent` from
+`limesium-common`, inlined into this jar — ADR-0003). The header's trace id is the trace the server span runs under, so
 the log-to-trace join holds; the header's parent-id is the **caller's** span and is published as
 `parentSpanId`, never as `spanId`, where it would read as the local span. The destruction callback's
 thread carries no per-request state, so the emission `MdcScope` restores the parsed pair around the
@@ -1122,21 +1122,21 @@ unkeyed**: it prevents plaintext exposure, not offline guessing. A reader with a
 (usernames, tenant names, short API keys) can confirm a candidate by hashing it. Do not treat `masked` as
 a security boundary for guessable values; omit such headers from the selection instead.
 
-### 6.12 Deliberate duplication with the reactive twin
+### 6.12 Shared code: limesium-common, inlined by Shade
 
-Eleven production files — roughly a thousand lines: field enum, properties and masking, meters, MDC keys,
-event rendering, the injectable interfaces — are near-identical twins of files in
-`limesium-reactive-logging`. There is **no shared base module**, by decision of the internal
-architecture review:
+The BYTE-identical part of the twins' shared layer lives in the `limesium-common` module
+([ADR-0003](../../docs/adr/ADR-0003-limesium-common-inlined-by-shade.md)): the `Traceparent` parser
+(with its tests and fuzz target), `NanoTimeSource`, `CorrelationIdGenerator`, `reportQuietly`, and the
+MDC keys and scope. The Maven Shade plugin inlines those classes into THIS jar at package time, the
+dependency-reduced POM drops the dependency, and `limesium-common` is never published — consumers keep
+adding exactly one artifact, and the shared classes stay `internal` (`-Xfriend-paths`).
 
-- an application is either servlet or reactive, so the two copies never share a classpath;
-- each twin is one standalone jar with no third artifact to version and release;
-- the shared layer is contract-level code that changes rarely.
-
-The accepted cost: a change to the shared layer is a conscious port in **both** directions (fixes
-originate in whichever twin an analysis hit first), and the lockstep tests catch *named* contract drift
-(keys, field names, meter names, message text), not behavioural drift inside identical code. Revisit if a
-third stack appears or ports stop being occasional.
+Everything whose twin copies genuinely differ stays deliberately duplicated, per the original
+architecture-review decision: the field enum and metrics (per-stack outcome vocabulary and meter
+descriptions), the emitters and exchanges, the properties (`variant` is reactive-only), and
+`BoundedBodyCapture` (two different concurrency designs). For those the accepted cost is unchanged: a
+change is a conscious port in **both** directions, and the lockstep tests catch *named* contract drift
+(keys, field names, meter names, message text), not behavioural drift inside near-identical code.
 
 ---
 
@@ -1164,11 +1164,9 @@ limesium-servlet-logging/
     │   ├── CapturingRequestWrapper.kt             request stream/reader tee
     │   ├── CapturingResponseWrapper.kt            response stream/writer tee
     │   ├── BoundedBodyCapture.kt                  bounded capture target, BodyReadState
-    │   ├── Traceparent.kt                         W3C traceparent parsing (lockstep twin code)
-    │   ├── Mdc.kt                                 MdcKeys, TraceMdcKeys, MdcScope
-    │   ├── NanoTimeSource.kt                      injectable monotonic time
-    │   ├── CorrelationIdGenerator.kt              injectable id generation
-    │   └── FailOpenDiagnostics.kt                 reportQuietly
+    │   └── EndpointLogFields.kt … (see above)     Traceparent, Mdc, NanoTimeSource,
+    │                                              CorrelationIdGenerator and reportQuietly live in
+    │                                              ../limesium-common (inlined into this jar, §6.12)
     ├── main/resources/META-INF/spring/…AutoConfiguration.imports
     └── test/kotlin/eu/inqudium/limesium/servlet/logging/   unit, async, tracing (real Brave bridge), integration (real Tomcat), lockstep tests
 ```

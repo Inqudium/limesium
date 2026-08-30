@@ -1,4 +1,4 @@
-package eu.inqudium.limesium.servlet.logging
+package eu.inqudium.limesium.common
 
 /**
  * Minimal W3C `traceparent` parsing (`version-traceid-parentid-flags`). On the INBOUND side the header carries the

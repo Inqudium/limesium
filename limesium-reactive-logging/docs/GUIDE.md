@@ -58,7 +58,7 @@ code under `src/main/kotlin/eu/inqudium/limesium/reactive/logging/`; when the tw
    6. [Coroutine boundary and exception copies](#66-coroutine-boundary-and-exception-copies)
    7. [One metrics instance per registry](#67-one-metrics-instance-per-registry)
    8. [Masking is a fingerprint, not a secret](#68-masking-is-a-fingerprint-not-a-secret)
-   9. [Deliberate duplication with the servlet twin](#69-deliberate-duplication-with-the-servlet-twin)
+   9. [Shared code: limesium-common, inlined by Shade](#69-shared-code-limesium-common-inlined-by-shade)
 7. [Appendix](#7-appendix)
    1. [File map](#71-file-map)
    2. [Related documents](#72-related-documents)
@@ -1131,20 +1131,21 @@ unkeyed**: it prevents plaintext exposure, not offline guessing. A reader with a
 (usernames, tenant names, short API keys) can confirm a candidate by hashing it. Do not treat `masked` as
 a security boundary for guessable values; omit such headers from the selection instead.
 
-### 6.9 Deliberate duplication with the servlet twin
+### 6.9 Shared code: limesium-common, inlined by Shade
 
-Eleven production files — roughly a thousand lines: field enum, properties and masking, meters, MDC keys,
-event rendering, the injectable interfaces — are near-identical twins of files in
-`limesium-servlet-logging`. There is **no shared base module**, by decision of the internal
-architecture review:
+The BYTE-identical part of the twins' shared layer lives in the `limesium-common` module
+([ADR-0003](../../docs/adr/ADR-0003-limesium-common-inlined-by-shade.md)): the `Traceparent` parser
+(with its tests and fuzz target), `NanoTimeSource`, `CorrelationIdGenerator`, `reportQuietly`, and the
+MDC keys and scope. The Maven Shade plugin inlines those classes into THIS jar at package time, the
+dependency-reduced POM drops the dependency, and `limesium-common` is never published — consumers keep
+adding exactly one artifact, and the shared classes stay `internal` (`-Xfriend-paths`).
 
-- an application is either servlet or reactive, so the two copies never share a classpath;
-- each twin is one standalone jar with no third artifact to version and release;
-- the shared layer is contract-level code that changes rarely.
-
-The accepted cost: a change to the shared layer is a conscious port in both directions, and the lockstep
-tests catch *named* contract drift (keys, field names, meter names, message text), not behavioural drift
-inside identical code. Revisit if a third stack appears or ports stop being occasional.
+Everything whose twin copies genuinely differ stays deliberately duplicated, per the original
+architecture-review decision: the field enum and metrics (per-stack outcome vocabulary and meter
+descriptions), the emitters and exchanges, the properties (`variant` is reactive-only), and
+`BoundedBodyCapture` (two different concurrency designs). For those the accepted cost is unchanged: a
+change is a conscious port in both directions, and the lockstep tests catch *named* contract drift
+(keys, field names, meter names, message text), not behavioural drift inside near-identical code.
 
 ---
 
@@ -1175,12 +1176,9 @@ limesium-reactive-logging/
     │   ├── EndpointLoggingMetrics.kt              the six meters
     │   ├── CapturingDecorators.kt                 request/response DataBuffer tee
     │   ├── BoundedBodyCapture.kt                  bounded, freezable capture target, BodyReadState
-    │   ├── Mdc.kt                                 MdcKeys, TraceMdcKeys, MdcScope
-    │   ├── EndpointMdcContextPropagation.kt       ThreadLocalAccessors and the propagation warning
-    │   ├── Traceparent.kt                         W3C traceparent parser
-    │   ├── NanoTimeSource.kt                      injectable monotonic time
-    │   ├── CorrelationIdGenerator.kt              injectable id generation
-    │   └── FailOpenDiagnostics.kt                 reportQuietly
+    │   └── EndpointMdcContextPropagation.kt       ThreadLocalAccessors and the propagation warning
+    │   (Traceparent, Mdc, NanoTimeSource, CorrelationIdGenerator and reportQuietly live in
+    │    ../limesium-common - inlined into this jar, §6.9)
     ├── main/resources/META-INF/spring/…AutoConfiguration.imports
     └── test/kotlin/eu/inqudium/limesium/reactive/logging/  unit, integration (real Netty), lockstep tests
 ```

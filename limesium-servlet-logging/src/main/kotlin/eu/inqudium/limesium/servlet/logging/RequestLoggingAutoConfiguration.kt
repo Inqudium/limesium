@@ -1,5 +1,8 @@
 package eu.inqudium.limesium.servlet.logging
 
+import eu.inqudium.limesium.common.CorrelationIdGenerator
+import eu.inqudium.limesium.common.NanoTimeSource
+import eu.inqudium.limesium.common.TraceMdcKeys
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import jakarta.servlet.ServletRequestListener

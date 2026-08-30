@@ -1,4 +1,4 @@
-package eu.inqudium.limesium.servlet.logging
+package eu.inqudium.limesium.common
 
 /**
  * Injectable monotonic time, used exclusively for measuring the duration of an HTTP exchange.

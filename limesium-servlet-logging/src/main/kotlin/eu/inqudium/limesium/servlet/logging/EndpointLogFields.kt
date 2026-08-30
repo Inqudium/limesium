@@ -1,5 +1,6 @@
 package eu.inqudium.limesium.servlet.logging
 
+import eu.inqudium.limesium.common.NanoTimeSource
 import org.slf4j.LoggerFactory
 import org.slf4j.spi.LoggingEventBuilder
 import kotlin.reflect.KClass

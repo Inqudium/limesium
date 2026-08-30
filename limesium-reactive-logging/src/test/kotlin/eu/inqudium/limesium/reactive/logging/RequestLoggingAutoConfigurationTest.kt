@@ -4,6 +4,9 @@ import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
+import eu.inqudium.limesium.common.CorrelationIdGenerator
+import eu.inqudium.limesium.common.MdcKeys
+import eu.inqudium.limesium.common.NanoTimeSource
 import io.micrometer.context.ContextRegistry
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry

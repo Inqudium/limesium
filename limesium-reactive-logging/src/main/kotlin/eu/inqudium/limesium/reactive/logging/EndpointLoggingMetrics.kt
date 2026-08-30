@@ -1,5 +1,6 @@
 package eu.inqudium.limesium.reactive.logging
 
+import eu.inqudium.limesium.common.reportQuietly
 import io.micrometer.core.instrument.Counter
 import io.micrometer.core.instrument.DistributionSummary
 import io.micrometer.core.instrument.Gauge

@@ -1,5 +1,7 @@
 package eu.inqudium.limesium.servlet.logging
 
+import eu.inqudium.limesium.common.MdcScope
+import eu.inqudium.limesium.common.reportQuietly
 import org.slf4j.LoggerFactory
 import org.springframework.web.context.request.NativeWebRequest
 import org.springframework.web.context.request.async.CallableProcessingInterceptor

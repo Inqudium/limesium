@@ -70,6 +70,7 @@
     </distributionManagement>
 
     <modules>
+        <module>limesium-common</module>
         <module>limesium-servlet-logging</module>
         <module>limesium-reactive-logging</module>
     </modules>
@@ -99,6 +100,7 @@
         <flatten-maven-plugin.version>1.8.0</flatten-maven-plugin.version>
         <ktlint-maven-plugin.version>3.7.1</ktlint-maven-plugin.version>
         <dokka-maven-plugin.version>2.2.0</dokka-maven-plugin.version>
+        <maven-shade-plugin.version>3.6.2</maven-shade-plugin.version>
         <jacoco-maven-plugin.version>0.8.15</jacoco-maven-plugin.version>
         <cyclonedx-maven-plugin.version>2.9.3</cyclonedx-maven-plugin.version>
         <maven-gpg-plugin.version>3.2.8</maven-gpg-plugin.version>
@@ -300,6 +302,64 @@
                             <sourceRoot>${project.basedir}/src/test/kotlin</sourceRoot>
                         </sourceRoots>
                     </configuration>
+                </plugin>
+
+                <!--
+                    Inlines the limesium-common classes into each twin's jar
+                    (ADR-0003): consumers keep adding exactly ONE artifact, and
+                    limesium-common itself is never published. No relocation -
+                    relocating rewrites bytecode but not the Kotlin metadata, so
+                    the classes keep their eu.inqudium.limesium.common names;
+                    both twins carry byte-identical copies at the same version.
+                    The dependency-reduced POM (a shade default) removes the
+                    common dependency from the published POM.
+                -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-shade-plugin</artifactId>
+                    <version>${maven-shade-plugin.version}</version>
+                    <executions>
+                        <!-- spring-boot-starter-parent pre-configures an UNNAMED shade
+                             execution (uber-jar transformers, no artifactSet) that would
+                             activate alongside ours and swallow the whole compile
+                             classpath into the jar - unbind it. -->
+                        <execution>
+                            <id>default</id>
+                            <phase>none</phase>
+                        </execution>
+                        <execution>
+                            <id>inline-limesium-common</id>
+                            <phase>package</phase>
+                            <goals>
+                                <goal>shade</goal>
+                            </goals>
+                            <!-- combine.self="override": do NOT merge the starter-parent's
+                                 plugin-level shade configuration (transformers, mainClass,
+                                 keepDependenciesWithProvidedScope=true) into this execution. -->
+                            <configuration combine.self="override">
+                                <artifactSet>
+                                    <includes>
+                                        <include>eu.inqudium:limesium-common</include>
+                                    </includes>
+                                </artifactSet>
+                                <!-- The published POM must not mention the unpublished
+                                     limesium-common at all: false REMOVES the shaded
+                                     dependency instead of demoting it to provided. -->
+                                <keepDependenciesWithProvidedScope>false</keepDependenciesWithProvidedScope>
+                                <dependencyReducedPomLocation>${project.build.directory}/dependency-reduced-pom.xml</dependencyReducedPomLocation>
+                                <!-- The jar carries its own Maven metadata only, not the
+                                     unpublished module's. -->
+                                <filters>
+                                    <filter>
+                                        <artifact>eu.inqudium:limesium-common</artifact>
+                                        <excludes>
+                                            <exclude>META-INF/maven/**</exclude>
+                                        </excludes>
+                                    </filter>
+                                </filters>
+                            </configuration>
+                        </execution>
+                    </executions>
                 </plugin>
             </plugins>
         </pluginManagement>

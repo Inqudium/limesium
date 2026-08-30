@@ -1,5 +1,7 @@
 package eu.inqudium.limesium.reactive.logging
 
+import eu.inqudium.limesium.common.CorrelationIdGenerator
+import eu.inqudium.limesium.common.NanoTimeSource
 import io.micrometer.context.ContextRegistry
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry

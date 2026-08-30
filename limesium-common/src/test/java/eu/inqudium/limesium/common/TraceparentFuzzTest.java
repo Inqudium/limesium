@@ -1,11 +1,11 @@
-package eu.inqudium.limesium.reactive.logging;
+package eu.inqudium.limesium.common;
 
 import com.code_intelligence.jazzer.api.FuzzedDataProvider;
 import com.code_intelligence.jazzer.junit.FuzzTest;
 import java.util.regex.Pattern;
 
 /**
- * Fuzzes the W3C traceparent parser of the reactive twin - the one component
+ * Fuzzes the W3C traceparent parser of both twins - the one component
  * that parses a wire header carrying a caller-controlled value.
  *
  * Invariants under test: parse() never throws for any input; an accepted
