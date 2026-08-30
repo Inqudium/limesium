@@ -28,7 +28,8 @@ contract tests passing in both.
 
 Prerequisites:
 
-- JDK 21
+- JDK 24+ to BUILD (CI uses 25; `.mvn/jvm.config` passes flags a pre-24 JVM
+  rejects) - the published artifacts still target Java 21
 - Maven 3.9+ (or use your IDE's bundled Maven)
 
 Build and test everything:

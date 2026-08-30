@@ -116,9 +116,9 @@
 
         <!--
             Extra test-JVM flags, empty by default: the jdk-24-plus profile
-            below fills them so a modern local JDK does not spam Unsafe/
-            native-access warnings, while the CI JDK (21) would reject the
-            flags and therefore never sees them.
+            below fills them so a modern JDK (CI runs 25, see the workflows)
+            does not spam Unsafe/native-access warnings, while an older build
+            JDK would reject the flags and therefore never sees them.
         -->
         <surefire.jvmCompatArgs></surefire.jvmCompatArgs>
     </properties>
@@ -408,7 +408,7 @@
                          set the property), so the coverage agent and the JVM flags
                          combine instead of the literal argLine overriding the
                          agent. The compat property is filled by the jdk-24-plus
-                         profile and stays empty on the CI JDK (21). -->
+                         profile and stays empty on a pre-24 build JDK. -->
                     <argLine>
                         @{argLine}
                         --add-opens java.base/java.lang=ALL-UNNAMED
@@ -510,8 +510,11 @@
             JDK 24+ prints warnings when Jazzer's native agent and Netty touch
             sun.misc.Unsafe / restricted native methods from the test JVM, and
             the appended JaCoCo agent additionally triggers the CDS sharing
-            warning. These flags acknowledge the accesses; they do not exist on
-            JDK 21, hence the activation guard (CI stays flag-free).
+            warning. These flags acknowledge the accesses; they do not exist
+            before JDK 23/24, hence the activation guard for older build JDKs
+            (CI runs 25). The MAVEN JVM gets the same acknowledgements from
+            .mvn/jvm.config - that silences the embedded Kotlin compiler's
+            Unsafe warning during ktlint/dokka runs.
         -->
         <profile>
             <id>jdk-24-plus-test-jvm</id>
