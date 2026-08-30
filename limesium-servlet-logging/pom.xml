@@ -13,6 +13,12 @@
     <name>limesium-servlet-logging</name>
     <description>Auto-configured servlet filter that logs one structured line per HTTP exchange</description>
 
+    <properties>
+        <!-- Test-only: the Undertow capture-boundary suite. Boot 4 dropped Undertow (no Servlet 6.1
+             release exists), so the version is pinned here, not BOM-managed. -->
+        <undertow.version>2.3.26.Final</undertow.version>
+    </properties>
+
     <dependencies>
         <!-- The shared twin code (ADR-0003). Inlined into this jar by the Shade plugin at package
              time and removed from the published POM (dependency-reduced POM), so consumers still add
@@ -74,6 +80,16 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-jetty</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Third engine, UNSUPPORTED territory (see the container-support note in the README):
+             Boot 4 dropped its Undertow integration, so the Undertow capture-boundary test brings the
+             engine itself and a minimal hand-rolled ServletWebServerFactory (UndertowTestServer).
+             Version managed here explicitly - Undertow left the Boot BOM with the drop. -->
+        <dependency>
+            <groupId>io.undertow</groupId>
+            <artifactId>undertow-servlet</artifactId>
+            <version>${undertow.version}</version>
             <scope>test</scope>
         </dependency>
         <!-- Real Micrometer Tracing (Brave bridge) for the tracing integration test: pins the whole

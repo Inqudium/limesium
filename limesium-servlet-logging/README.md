@@ -38,8 +38,14 @@ limitation — the module's own servlet-API surface is Servlet 3.1-level (listen
 async lifecycle: 3.0, non-blocking-I/O tee hooks: 3.1) with one dormant 6.1-specific piece (the
 `sendRedirect` overloads the response tee overrides for the 6.1 buffer-clearing redirect variants),
 and a bytecode scan of the servlet-MVC path (spring-web/-webmvc/Boot servlet layer) found no hard
-Servlet 6.1 invocation either. A WAR on an EE 10 WildFly might therefore start, but without any
-guarantee from Spring and untested here; the boundary lifts properly when Undertow ships Servlet 6.1.
+Servlet 6.1 invocation either. An unsupported-territory integration suite
+(`RequestLoggingFilterUndertowIntegrationTest`, on a hand-rolled embedded-Undertow factory) pins that
+empirically: the module runs, the capture boundaries hold, with two pinned engine deviations —
+Undertow hands the wrappers to zero-argument `startAsync()` (the raw-async body IS captured there,
+unlike Tomcat/Jetty), and its default error rendering rebuilds the response, dropping the correlation
+echo from error responses (the id stays on the log event). None of that is a guarantee from Spring —
+every patch release may adopt 6.1 API, and the suite is the tripwire for exactly that; the boundary
+lifts properly when Undertow ships Servlet 6.1.
 
 ```xml
 <dependency>
