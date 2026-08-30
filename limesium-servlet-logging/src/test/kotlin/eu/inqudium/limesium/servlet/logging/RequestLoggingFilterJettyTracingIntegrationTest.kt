@@ -125,8 +125,7 @@ class RequestLoggingFilterJettyTracingIntegrationTest {
         assertThat(keyValues(event)).containsEntry("endpoint_async", true)
     }
 
-    private fun keyValues(event: ch.qos.logback.classic.spi.ILoggingEvent): Map<String, Any?> =
-        event.keyValuePairs?.associate { it.key to it.value } ?: emptyMap()
+    private fun keyValues(event: ch.qos.logback.classic.spi.ILoggingEvent): Map<String, Any?> = event.keyValuePairs?.associate { it.key to it.value } ?: emptyMap()
 
     private companion object {
         val REQUEST_TIMEOUT: Duration = Duration.ofSeconds(15)
