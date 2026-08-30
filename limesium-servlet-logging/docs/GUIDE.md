@@ -1177,8 +1177,23 @@ limesium-servlet-logging/
     │                                              CorrelationIdGenerator and reportQuietly live in
     │                                              ../limesium-common (inlined into this jar, §6.12)
     ├── main/resources/META-INF/spring/…AutoConfiguration.imports
-    └── test/kotlin/eu/inqudium/limesium/servlet/logging/   unit, async, tracing (real Brave bridge), integration (real Tomcat AND real Jetty - the capture boundaries are pinned per container), lockstep tests
+    └── test/kotlin/eu/inqudium/limesium/servlet/logging/   see the suite overview below
 ```
+
+Test-suite overview (the generated [test-evidence page](https://inqudium.github.io/limesium/tests/test-evidence/)
+lists every test with its rationale):
+
+| Suite | Scope |
+|---|---|
+| Unit suites (`RequestLoggingFilterTest`, `…AsyncTest`, `…BodyAndHeaderTest`, `…FailOpenCounterTest`, `…TraceContextTest`, `ExchangeLogEmitterTest`, `BoundedBodyCaptureTest`, …) | mock-driven, deterministic; the async suite drives the per-dispatch destruction choreography by hand |
+| `RequestLoggingFilterTomcatIntegrationTest` | capture boundaries on real embedded **Tomcat** (the reference container); owns the shared `ItApp` |
+| `RequestLoggingFilterJettyIntegrationTest` | capture boundaries on real embedded **Jetty** — found and pins Jetty's per-dispatch destruction model |
+| `RequestLoggingFilterUndertowIntegrationTest` | capture boundaries on real embedded **Undertow** (hand-rolled factory, unsupported territory — the tripwire from the container-support note), incl. the two pinned engine deviations |
+| `RequestLoggingFilterTomcatTracingIntegrationTest` | ADR-0002 trace contract beside a real Brave bridge on Tomcat, plus the container-independent bridge-propagation assertions |
+| `RequestLoggingFilterJettyTracingIntegrationTest` | trace-key suppression against Jetty's LIVE in-dispatch bridge MDC |
+| `RequestLoggingFilterUndertowTracingIntegrationTest` | trace-key suppression on Undertow's emission threads |
+| Lockstep/contract tests (`TwinContractTest`, `EndpointLogFieldTest`, `EndpointLoggingReferenceConfigTest`, `HandlerMappingAttributeTest`) | pin the twin/wire/config contracts |
+| Fuzz targets (`src/test/java`: `BoundedBodyCaptureFuzzTest`, `HeaderMaskingFuzzTest`; `Traceparent` fuzzing lives in limesium-common) | Jazzer `@FuzzTest`, corpus replay in every build, nightly exploration |
 
 ### 7.2 Related documents
 
