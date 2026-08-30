@@ -43,6 +43,7 @@ nav:
   # locally, or the --strict build fails (which is the guard against a
   # hand-maintained, drifting copy).
   - Servlet guide: guides/limesium-servlet-logging/GUIDE.md
+  - Container guide: guides/limesium-servlet-logging/CONTAINERS.md
   - Reactive guide: guides/limesium-reactive-logging/GUIDE.md
   - Elasticsearch mapping: elk/README.md
   - Configuration reference: https://github.com/Inqudium/limesium/blob/main/docs/endpoint-logging-reference.yml
