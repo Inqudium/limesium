@@ -18,3 +18,31 @@ internal inline fun reportQuietly(report: () -> Unit) {
         // The diagnostics channel is itself broken; the original failure was already contained.
     }
 }
+
+/**
+ * The FULLY-CONFINING fail-open guard shape the emitters and callbacks share: [operation] runs; an
+ * [InterruptedException] first restores the thread's interrupt flag (the JVM cleared it when it threw,
+ * and on a request-serving or event-loop thread the interrupt must still reach its addressee), then -
+ * like every other [Exception] - the failure goes to its handler, itself wrapped in [reportQuietly] so
+ * a broken diagnostics channel cannot escape either. Nothing is rethrown and nothing runs after a
+ * failure.
+ *
+ * Deliberately NOT used by guards with richer semantics - a rethrow of the original exception (the
+ * filters' chain calls), a produced value (fail-open wiring), or work that must still happen after a
+ * confined failure (`ExchangeLifecycle.onTerminal` completes the exchange) - those keep their explicit
+ * try/catch, where the deviation is visible.
+ */
+internal inline fun failOpen(
+    onInterrupted: (InterruptedException) -> Unit,
+    onFailure: (Exception) -> Unit,
+    operation: () -> Unit,
+) {
+    try {
+        operation()
+    } catch (e: InterruptedException) {
+        Thread.currentThread().interrupt()
+        reportQuietly { onInterrupted(e) }
+    } catch (e: Exception) {
+        reportQuietly { onFailure(e) }
+    }
+}

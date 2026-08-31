@@ -4,6 +4,7 @@ import eu.inqudium.limesium.common.MdcKeys
 import eu.inqudium.limesium.common.MdcScope
 import eu.inqudium.limesium.common.NanoTimeSource
 import eu.inqudium.limesium.common.TraceMdcKeys
+import eu.inqudium.limesium.common.failOpen
 import eu.inqudium.limesium.common.reportQuietly
 import org.slf4j.LoggerFactory
 import org.slf4j.event.Level
@@ -53,7 +54,22 @@ internal class ExchangeLogEmitter(
         // The guard covers the COMPLETE arrival operation including the level gate: isInfoEnabled is a
         // call into the host's logging backend and as fallible as the emission itself - outside the
         // guard it could fail the request this line merely announces.
-        try {
+        failOpen(
+            onInterrupted = { e ->
+                metrics.arrivalFailure()
+                internalLog.debug("Interrupted while logging a request start; the line is dropped", e)
+            },
+            onFailure = { e ->
+                metrics.arrivalFailure()
+                internalLog.error(
+                    "Exception while logging request start {} {}: {}",
+                    exchange.method,
+                    exchange.path,
+                    e.toString(),
+                    e,
+                )
+            },
+        ) {
             if (!exchangeLog.isInfoEnabled) {
                 return
             }
@@ -76,24 +92,6 @@ internal class ExchangeLogEmitter(
                     .addKeyValueIfPresent(EndpointLogField.REQUEST_HEADERS, renderHeaders(exchange.requestHeaders))
                     .log()
             }
-        } catch (e: InterruptedException) {
-            // Restore what the JVM cleared when it threw, so the interrupt still reaches its addressee.
-            Thread.currentThread().interrupt()
-            reportQuietly {
-                metrics.arrivalFailure()
-                internalLog.debug("Interrupted while logging a request start; the line is dropped", e)
-            }
-        } catch (e: Exception) {
-            reportQuietly {
-                metrics.arrivalFailure()
-                internalLog.error(
-                    "Exception while logging request start {} {}: {}",
-                    exchange.method,
-                    exchange.path,
-                    e.toString(),
-                    e,
-                )
-            }
         }
     }
 
@@ -115,17 +113,12 @@ internal class ExchangeLogEmitter(
         // pre-gate section reads host-provided beans (the time source) and the response object at
         // destruction time - an exception there used to escape into the container's listener invocation
         // and lose the event WITHOUT the emission counter seeing it, defeating that counter's purpose.
-        try {
-            emitExchange(exchange)
-        } catch (e: InterruptedException) {
-            // Restore what the JVM cleared when it threw, so the interrupt still reaches its addressee.
-            Thread.currentThread().interrupt()
-            reportQuietly {
+        failOpen(
+            onInterrupted = { e ->
                 metrics.emissionFailure()
                 internalLog.debug("Interrupted while logging an exchange; the event is dropped", e)
-            }
-        } catch (e: Exception) {
-            reportQuietly {
+            },
+            onFailure = { e ->
                 metrics.emissionFailure()
                 internalLog.error(
                     "Exception while logging exchange {} {}: {}",
@@ -134,7 +127,9 @@ internal class ExchangeLogEmitter(
                     e.toString(),
                     e,
                 )
-            }
+            },
+        ) {
+            emitExchange(exchange)
         }
     }
 
