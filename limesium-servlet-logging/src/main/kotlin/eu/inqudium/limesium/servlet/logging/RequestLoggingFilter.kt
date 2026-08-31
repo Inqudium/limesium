@@ -29,7 +29,7 @@ import org.springframework.web.util.pattern.PathPatternParser
  *
  * The chain scope covers the initial dispatch thread; for MVC async controllers the per-request
  * [EndpointMdcCallableInterceptor] restores the identity on the `Callable`/`WebAsyncTask` WORKER thread
- * as well (finding 2 of an internal code analysis), and the filter PARTICIPATES in the container's
+ * as well, and the filter PARTICIPATES in the container's
  * ASYNC dispatch (see below), so the result/error rendering phase carries the identity too. Boundary:
  * `DeferredResult` producers and raw Servlet async workers run on APPLICATION-owned threads that neither
  * the container nor Spring routes through this module - propagating context there is the application's
@@ -45,7 +45,7 @@ import org.springframework.web.util.pattern.PathPatternParser
  * an exception propagating out of it as the exchange's failure, exactly like the initial dispatch. Without
  * this pass, an async handler failure reached the event only as a bare `status >= 500` (WARN, no cause)
  * while the synchronous equivalent logged ERROR with its cause, and every log line of the rendering
- * phase lacked the `endpoint_*` identity (finding 1 of an internal code analysis). A handled
+ * phase lacked the `endpoint_*` identity. A handled
  * async exception (resolved by an `@ExceptionHandler` in the dispatch) never propagates and is
  * classified by its status - parity with the sync path.
  *
@@ -132,14 +132,14 @@ class RequestLoggingFilter(
      * configured includes on such deployments). Segments DECODE for matching, and the exclude prefixes
      * are compared against the decoded path rebuilt from those segments. A byte-wise `startsWith` on
      * the raw URI let a percent-encoded variant (`/%61ctuator/health`) slip past an exclude while the
-     * container served it under the excluded route (finding 1 of an internal security audit - the
-     * include side was already consistent). Path parameters (`;x=1`) are dropped, as in routing.
+     * container served it under the excluded route (the include side was already consistent). Path parameters
+     * (`;x=1`) are dropped, as in routing.
      */
     override fun shouldNotFilter(request: HttpServletRequest): Boolean {
         // Nothing configured to match (the shipped default): the filter is active for every
         // endpoint, so the answer needs no PathContainer - parsing the URI per dispatch bought a
-        // discarded result at ~110 B per path segment (finding 1 of an internal performance
-        // analysis, confirmed by benchmark).
+        // discarded result at ~110 B per path segment (finding 1 of the module's performance
+        // analysis of 2026-08-29, confirmed by benchmark).
         if (includePathPatterns.isEmpty() && properties.excludePathPrefixes.isEmpty()) {
             return false
         }
@@ -198,8 +198,8 @@ class RequestLoggingFilter(
         registerAsyncMdcPropagation(request, exchange)
 
         // The chain-wide MDC scope is logging-owned work and therefore fail-open too: a throwing MDC
-        // adapter degrades the identity feature, never the request (finding 8 of
-        // an internal code analysis - construction used to run unguarded before the chain try).
+        // adapter degrades the identity feature, never the request (construction used to run
+        // unguarded before the chain try).
         // MdcScope itself rolls back a partial install before rethrowing, so the pooled thread never
         // keeps half an identity.
         val mdcScope: MdcScope? =
@@ -272,7 +272,7 @@ class RequestLoggingFilter(
             } finally {
                 // Restoration is guarded separately: a throwing MDC adapter here must neither fail the
                 // request nor MASK an application exception already propagating out of the chain
-                // (finding 8 of an internal code analysis) - it costs the restoration, counted as stage=wiring.
+                // - it costs the restoration, counted as stage=wiring.
                 try {
                     mdcScope?.close()
                 } catch (e: Exception) {
@@ -329,8 +329,7 @@ class RequestLoggingFilter(
             // The async handler's failure, rethrown by Spring MVC in this dispatch and propagating to the
             // container's error handling - recorded like a sync chain failure, breadcrumb included. The
             // breadcrumb is a host-backend call and guarded like the initial dispatch's: a throwing
-            // backend must not REPLACE the application exception on its way to the container (finding 3
-            // of an internal code analysis).
+            // backend must not REPLACE the application exception on its way to the container.
             exchange.failure = e
             try {
                 internalLog.warn(
@@ -375,8 +374,8 @@ class RequestLoggingFilter(
 
     /**
      * Registers the per-request [EndpointMdcCallableInterceptor], so `Callable`/`WebAsyncTask`
-     * controllers see the `endpoint_*` identity on their MVC worker thread (finding 2 of
-     * an internal code analysis). `WebAsyncUtils` lives in spring-web, so this adds no MVC dependency;
+     * controllers see the `endpoint_*` identity on their MVC worker thread. `WebAsyncUtils` lives in
+     * spring-web, so this adds no MVC dependency;
      * in a non-MVC servlet application the registered interceptor is simply never consulted. Fail-open like
      * everything else the filter wires.
      */
@@ -426,7 +425,7 @@ class RequestLoggingFilter(
             }
         val requestId = trace?.first ?: headerCorrelationId ?: correlationIds.nextCorrelationId()
         // Guarded inside the metrics: a throwing host counter must not turn the request into an
-        // unlogged pass-through (finding 4 of an internal code analysis).
+        // unlogged pass-through.
         metrics.requestId(
             when {
                 trace != null -> EndpointLoggingMetrics.REQUEST_ID_SOURCE_TRACE

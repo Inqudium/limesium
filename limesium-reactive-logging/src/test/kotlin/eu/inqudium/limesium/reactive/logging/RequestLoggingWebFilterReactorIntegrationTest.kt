@@ -42,13 +42,14 @@ import java.time.Duration
  * classpath carries the coroutine libraries, so the shipped auto-configuration selects the coroutine
  * variant in [RequestLoggingWebFilterIntegrationTest]; this class excludes the coroutine
  * auto-configuration at context discovery, which leaves the Reactor filter as the active bean - the
- * majority consumer configuration, where the optional coroutine dependencies are absent (review * finding 6). Proves the Reactor-specific `Mono.defer`/`doFinally`
+ * majority consumer configuration, where the optional coroutine dependencies are absent. Proves
+ * the Reactor-specific `Mono.defer`/`doFinally`
  * lifecycle, the DataBuffer tee on real Netty buffers, and the commit-deferred error emission.
  *
  * Determinism: pinned time and id beans; events awaited via [AwaitingAppender]. FLAT class with an inner
  * static configuration - see the Spring Boot test isolation caveat. The Reactor variant's
  * initializer writes the accessors into the JVM-global ContextRegistry at context start; the class-level
- * guard takes them out again afterwards (finding 4 of an internal code analysis).
+ * guard takes them out again afterwards.
  */
 @SpringBootTest(
     classes = [RequestLoggingWebFilterReactorIntegrationTest.ItApp::class],
@@ -160,8 +161,8 @@ class RequestLoggingWebFilterReactorIntegrationTest {
 
     @Test
     fun `should log the status and header a later commit action applies on a real error response`() {
-        // What is tested: the commit-action ordering against a REAL container (finding 1 of the
-        //   internal analysis) - a downstream WebFilter registers a beforeCommit action that
+        // What is tested: the commit-action ordering against a REAL container - a downstream WebFilter
+        //   registers a beforeCommit action that
         //   turns Boot's rendered 500 into a 503 and adds a header; the module's callback, registered at
         //   the error signal, must run behind it.
         // Success criteria: the client receives 503 plus the header, and the single ERROR event carries

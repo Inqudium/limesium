@@ -144,8 +144,8 @@ class CoRequestLoggingWebFilterTest {
 
     @Test
     fun `should run the chain without handler MDC and still log when the ambient MDC snapshot throws`() {
-        // What is tested: the fail-open boundary around the ambient MDC snapshot (finding 2 of the
-        //   internal analysis) - MDC.getCopyOfContextMap() is a host-adapter call made by the
+        // What is tested: the fail-open boundary around the ambient MDC snapshot - MDC.getCopyOfContextMap()
+        //   is a host-adapter call made by the
         //   filter, outside the handler's try/catch.
         // Success criteria: the chain runs and completes normally, nothing propagates to the host, the
         //   exchange event is emitted with outcome success, the degradation is counted stage=wiring, and
@@ -186,7 +186,7 @@ class CoRequestLoggingWebFilterTest {
 
     @Test
     fun `should preserve ambient MDC entries under the endpoint overlay inside suspend handlers`() {
-        // What is tested: the ADDITIVE MDC contract (review finding 2) -
+        // What is tested: the ADDITIVE MDC contract -
         //   MDCContext installs its map as the coroutine's COMPLETE MDC, so the filter must snapshot the
         //   ambient MDC (trace ids, host keys) and overlay only the endpoint_* identity; an
         //   implementation handing MDCContext just the three identity keys would delete everything else
@@ -196,7 +196,7 @@ class CoRequestLoggingWebFilterTest {
         //   thread's MDC still carries the seeded entries and no endpoint_* residue.
         // Why it matters: replacing the ambient MDC silently destroys trace correlation in every
         //   coroutine application that already carries tracing or tenant context - the exact data loss
-        //   the previous single-key proof (finding 9) could never detect.
+        //   the previous single-key proof could never detect.
         // Given: ambient MDC carrying a trace id and an unrelated host entry
         MDC.put("traceId", "ambient-trace")
         MDC.put("tenant", "acme")
@@ -264,7 +264,7 @@ class CoRequestLoggingWebFilterTest {
     @Test
     fun `should observe status and header mutations of later commit actions on the deferred error path`() {
         // What is tested: the commit-action ordering of the deferred error path in the COROUTINE
-        //   variant (finding 1 of the internal analysis) - the callback is registered in the
+        //   variant - the callback is registered in the
         //   catch block, after the chain ran, behind every action a downstream filter registered.
         // Success criteria: a later action turns the rendered 500 into a 503 and adds a selected
         //   header; the single ERROR event carries both.

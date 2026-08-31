@@ -8,7 +8,7 @@ package eu.inqudium.limesium.common
  * against host-provided components (a throwing `Counter` implementation, a global throwing
  * appender/TurboFilter that also covers the internal logger). Unguarded, such a throw would leave the
  * catch handler and fail request assembly or disturb the response commit - the one outcome the fail-open
- * contract forbids (finding 3 of an internal code analysis). There is nothing left to report
+ * contract forbids. There is nothing left to report
  * to when the reporting channel is broken, so the secondary failure is deliberately dropped.
  */
 internal inline fun reportQuietly(report: () -> Unit) {

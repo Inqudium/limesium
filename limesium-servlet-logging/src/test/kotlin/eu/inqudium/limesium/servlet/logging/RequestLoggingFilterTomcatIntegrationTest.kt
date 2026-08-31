@@ -85,7 +85,7 @@ class RequestLoggingFilterTomcatIntegrationTest {
     private var port: Int = 0
 
     // Every real-HTTP call carries its own deadline: a stalled embedded endpoint must produce a bounded
-    // failing test, not a hung executor (review finding 6). The
+    // failing test, not a hung executor. The
     // appender's wait is a SEPARATE bound for the post-response emission.
     private val http: HttpClient = HttpClient.newBuilder().connectTimeout(REQUEST_TIMEOUT).build()
     private lateinit var logger: Logger
@@ -198,13 +198,13 @@ class RequestLoggingFilterTomcatIntegrationTest {
     fun `should log a real async exchange after completion with the async flag set`() {
         // What is tested: the genuine servlet async lifecycle - MVC's Callable support calls startAsync,
         //   the response is written on a worker thread, the CONTAINER fires onComplete - AND the
-        //   worker-thread MDC (review finding 2): the Callable itself reads its
+        //   worker-thread MDC: the Callable itself reads its
         //   own MDC and echoes the correlation id it saw there, so the response body is the proof that
         //   the identity reached the ASYNC WORKER, not merely the final emitter overlay.
         // Success criteria: the body carries the correlation id the worker observed in ITS MDC; one INFO
         //   event, endpoint_async=true, correct status, correlation id in the event's MDC.
         // Why it matters: the async path is where naive synchronous logging silently reports
-        //   wrong data, and worker logs without the identity were review finding 2's exact defect - the mock
+        //   wrong data, and worker logs without the identity were exactly the earlier defect - the mock
         //   test drives the listener by hand, only Tomcat proves the real thread hand-off.
         // Given/When: the real Tomcat application; a real GET against a Callable controller method that echoes its worker MDC
         val response = get("/it/async")
@@ -224,8 +224,8 @@ class RequestLoggingFilterTomcatIntegrationTest {
 
     @Test
     fun `should carry the endpoint MDC into the real async dispatch that renders the result`() {
-        // What is tested: the ASYNC-dispatch pass against real Tomcat and real MVC (finding 1 of the
-        //   internal analysis) - the Callable's result is rendered in the container's ASYNC
+        // What is tested: the ASYNC-dispatch pass against real Tomcat and real MVC - the Callable's result is
+        //   rendered in the container's ASYNC
         //   dispatch, where a ResponseBodyAdvice observes the MDC.
         // Success criteria: the advice appends the correlation id it saw during rendering; the body
         //   therefore carries it twice - from the worker AND from the rendering dispatch.
@@ -277,8 +277,8 @@ class RequestLoggingFilterTomcatIntegrationTest {
 
     @Test
     fun `should pin that zero-argument servlet async bypasses the body tee by contract`() {
-        // What is tested: the documented async capture BOUNDARY (review finding 3, internal
-        //   analysis) - Jakarta Servlet specifies that zero-argument startAsync() initializes its
+        // What is tested: the documented async capture BOUNDARY - Jakarta Servlet specifies that
+        //   zero-argument startAsync() initializes its
         //   AsyncContext with the ORIGINAL request/response, so a raw async worker writes beside the
         //   tee; only the wrapper-preserving two-argument path (which Spring MVC uses) captures.
         // Success criteria: the raw-async response reaches the client, the exchange event exists, and it
@@ -297,7 +297,7 @@ class RequestLoggingFilterTomcatIntegrationTest {
 
     @Test
     fun `should discard buffered output replaced by sendError and log no stale body`() {
-        // What is tested: the sendError half of review finding 4 (internal analysis) against the
+        // What is tested: the sendError half of the buffer-replacement handling against the
         //   real container - the controller writes into the buffer and then replaces the response via
         //   sendError; the wrapper's sendError override discards the capture with the buffer, and the
         //   rendered error page is written through the ERROR dispatch outside the tee (the documented
@@ -325,7 +325,7 @@ class RequestLoggingFilterTomcatIntegrationTest {
     @Test
     fun `should echo the correlation id even on the error-dispatched 500 response`() {
         // What is tested: the client-visible half of the error path - whether the correlation echo set at
-        //   filter entry survives the container's error dispatch (review findings 5 and 6).
+        //   filter entry survives the container's error dispatch.
         // Success criteria: the 500 response carries the X-Correlation-Id header.
         // Why it matters: the reference configuration promises the id is ALWAYS echoed; failures are
         //   exactly the responses a support case needs to correlate.
@@ -362,7 +362,7 @@ class RequestLoggingFilterTomcatIntegrationTest {
             .containsEntry("endpoint_response_status_code", 500)
         assertThat(causeMessages(event.throwableProxy)).anySatisfy { assertThat(it).contains("it boom") }
 
-        // And: the documented capture BOUNDARY (review findings 4/10) - the
+        // And: the documented capture BOUNDARY - the
         //   error body is rendered by the container's ERROR dispatch through the ORIGINAL response, so
         //   the client receives a body while the event must NOT carry endpoint_response_body although
         //   log-response-body is enabled class-wide. Whoever routes error rendering through an
@@ -408,7 +408,7 @@ class RequestLoggingFilterTomcatIntegrationTest {
         /**
          * A RAW servlet using the Servlet-specified zero-argument startAsync(): per spec its
          * AsyncContext holds the ORIGINAL request/response, so its worker writes beside the tee - the
-         * boundary of review finding 3, pinned by the raw-async test.
+         * documented capture boundary, pinned by the raw-async test.
          */
         @Bean
         fun rawAsyncServlet(): ServletRegistrationBean<HttpServlet> {
@@ -446,7 +446,7 @@ class RequestLoggingFilterTomcatIntegrationTest {
         /**
          * A genuinely asynchronous MVC endpoint: startAsync, worker-thread completion, async dispatch.
          * The Callable echoes the correlation id it observes in ITS OWN MDC - the worker-side proof of
-         * the async MDC propagation (finding 2 of an internal code analysis).
+         * the async MDC propagation.
          */
         @GetMapping("/it/async")
         fun async(): Callable<String> = Callable { "async-done:" + (MDC.get(MdcKeys.REQUEST_ID) ?: "absent") }
@@ -467,7 +467,7 @@ class RequestLoggingFilterTomcatIntegrationTest {
                 )
             }
 
-        /** Writes into the buffer, then replaces the response via sendError - review finding 4. */
+        /** Writes into the buffer, then replaces the response via sendError - the buffer-replacement case. */
         @GetMapping("/it/partial-error")
         fun partialError(response: HttpServletResponse) {
             response.outputStream.write("partial".toByteArray())

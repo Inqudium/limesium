@@ -10,8 +10,8 @@ import org.slf4j.spi.MDCAdapter
 import java.util.Deque
 
 /**
- * Partial-install rollback and best-effort restoration of [MdcScope] against a FAILING MDC adapter
- * (review finding 9). SLF4J exposes no public adapter setter, so the
+ * Partial-install rollback and best-effort restoration of [MdcScope] against a FAILING MDC
+ * adapter. SLF4J exposes no public adapter setter, so the
  * package-private `MDC.setMDCAdapter` is invoked reflectively and the original adapter is restored
  * after every test; the failing adapter delegates everything else to the original, so MDC state stays
  * real.

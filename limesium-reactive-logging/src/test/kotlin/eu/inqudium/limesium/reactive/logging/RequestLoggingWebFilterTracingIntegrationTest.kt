@@ -42,12 +42,12 @@ import java.time.Duration
  *   agree - the handler reads the bridge's span through the observation context and returns it, and the
  *   event's MDC must carry the same trace id.
  * - **The caller's span is never the local span.** The header's parent-id is published as
- *   `parentSpanId`; the `spanId` key belongs to the bridge and is never written by this module (finding
- *   2 of an internal code analysis) - the server span's own id differs from the parent, and
+ *   `parentSpanId`; the `spanId` key belongs to the bridge and is never written by this module - the server
+ *   span's own id differs from the parent, and
  *   the event must not carry the parent under `spanId`.
  * - **The boundary is explicit.** Without a caller `traceparent` the bridge still traces the exchange,
- *   but the module logs no trace context at all - the documented limitation (finding 4 of
- *   an internal security audit), pinned so that a change of that decision is conscious.
+ *   but the module logs no trace context at all - the documented limitation, pinned so that a change of that
+ *   decision is conscious.
  * - **The identity follows the trace (ADR-0002).** A traced exchange's `endpoint_request_id` IS the
  *   caller's trace id and gets NO `X-Correlation-Id` echo; a traceless exchange keeps the correlation
  *   contract - generated id, echoed.
@@ -146,7 +146,7 @@ class RequestLoggingWebFilterTracingIntegrationTest {
         //   MDC at filter time and the module deliberately avoids an observation-context dependency.
         // Success criteria: the bridge reports a well-formed trace id for the exchange, yet the event
         //   carries neither traceId nor parentSpanId in its MDC and no trace suffix in the message.
-        // Why it matters: this is a conscious limitation (finding 4 of the internal security audit);
+        // Why it matters: this is a conscious limitation;
         //   pinning it makes a future change of that decision deliberate and visible in both twins.
         // Given/When: the real Netty application; a real GET without any trace header
         val response = get("/tr/things/3")

@@ -6,8 +6,7 @@ package eu.inqudium.limesium.common
  * makes the log-to-trace join work), the parent-id is the CALLER's span - it is published as
  * `parentSpanId`, never under the conventional local `spanId` key (see [TraceMdcKeys]).
  *
- * Validity follows the W3C Trace Context Recommendation in full (finding 5 of
- * an internal code analysis, completed by finding 2 of an internal code analysis):
+ * Validity follows the W3C Trace Context Recommendation in full:
  * both ids are lowercase hexadecimal of fixed length and neither may be all zeros; the version is two
  * lowercase-hex characters and `ff` is forbidden; the flags are two lowercase-hex characters. Version
  * `00` is exactly four fields; a higher version is parsed by the version-00 rules for its first four

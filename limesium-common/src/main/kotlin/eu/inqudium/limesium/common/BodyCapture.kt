@@ -25,7 +25,7 @@ enum class BodyReadState(
 /**
  * Decodes a byte-bounded PREFIX of a text: the capture limit bounds bytes, not characters, so the cut can
  * fall inside a multi-byte sequence; decoded as a whole, that incomplete tail would render as a
- * replacement character and corrupt the logged prefix (finding 8 of an internal code analysis).
+ * replacement character and corrupt the logged prefix.
  * Decoding with `endOfInput = false` leaves an incomplete trailing sequence undecoded (underflow) instead
  * of reporting it as malformed; malformed bytes INSIDE the prefix are still replaced, as `String(bytes,
  * charset)` would. Shared by both endpoint-logging twins (ADR-0003 amendment).

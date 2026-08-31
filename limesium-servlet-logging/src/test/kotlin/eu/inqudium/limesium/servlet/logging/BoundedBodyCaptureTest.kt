@@ -15,8 +15,8 @@ class BoundedBodyCaptureTest {
     inner class `Truncation at a character boundary` {
         @Test
         fun `should drop an incomplete trailing UTF-8 sequence instead of decoding a replacement character`() {
-            // What is tested: byte-bounded truncation of multi-byte text (finding 8 of the
-            //   internal analysis) - the cap counts bytes, so it can split a character.
+            // What is tested: byte-bounded truncation of multi-byte text - the cap counts bytes, so it can
+            //   split a character.
             // Success criteria: with a 2-byte cap over "h\u00e9" (3 bytes: 68 c3 a9) the logged prefix is
             //   "h", not "h\uFFFD"; the byte count stays exact.
             // Why it matters: a replacement character in the logged prefix is corruption the reader

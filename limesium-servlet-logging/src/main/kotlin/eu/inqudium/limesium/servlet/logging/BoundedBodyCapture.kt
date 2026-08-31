@@ -18,7 +18,7 @@ import java.nio.charset.Charset
  * established by THIS class, not borrowed from container internals: [totalBytes] is `@Volatile` and is
  * written LAST in every mutation, so the reader's initial [totalBytes] read publishes all preceding
  * buffer writes (a piggybacked happens-before edge; relying on the async state machine's incidental
- * synchronization instead was finding 4 of an internal code analysis).
+ * synchronization instead proved unsafe).
  *
  * With `maxBytes = 0` the capture runs in COUNT-ONLY mode: nothing is buffered, [totalBytes] still
  * counts every byte - the mode the body-size metrics use when body logging is off.
@@ -86,7 +86,7 @@ class BoundedBodyCapture(
      * Discards everything captured so far. Called by [CapturingResponseWrapper] when the application
      * resets an UNCOMMITTED response (`reset()`/`resetBuffer()`): nothing written before the reset ever
      * left the container's buffer, so dropping it keeps the logged body and the size metric aligned with
-     * what actually went out through the write path (finding 3 of an internal code analysis).
+     * what actually went out through the write path.
      */
     fun clear() {
         buffer.reset()

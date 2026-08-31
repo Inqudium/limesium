@@ -124,7 +124,7 @@ class CoRequestLoggingWebFilterCoroutineIntegrationTest {
         // Success criteria: exactly one EndpointLoggingFilter bean, of the coroutine type; no Reactor
         //   filter; no endpoint_* accessor in the JVM-global ContextRegistry.
         // Why it matters: accessors registered alongside the coroutine variant would be dead weight at
-        //   best and a false startup warning at worst (finding 8 of an internal code analysis).
+        //   best and a false startup warning at worst.
         // Given/When: the application started with the coroutine variant demanded
         // Then: the coroutine filter owns the slot, the Reactor variant is absent, no accessors registered
         assertThat(context.getBeansOfType(EndpointLoggingFilter::class.java).values)

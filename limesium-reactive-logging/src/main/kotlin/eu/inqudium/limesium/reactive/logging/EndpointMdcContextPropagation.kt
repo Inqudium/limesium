@@ -63,8 +63,8 @@ internal object EndpointMdcContextPropagation {
      * Validates the handler-MDC prerequisite at startup: Spring Boot enables
      * `Hooks.enableAutomaticContextPropagation()` only for [PROPAGATION_MODE_PROPERTY]`=auto` - its
      * default `limited` restores thread-locals around `tap`/`handle` operators only, so a log statement
-     * in an ordinary `map` would carry no `endpoint_*` identity although the accessors are registered
-     * (finding 1 of an internal code analysis). Registering accessors while the mode is not `auto`
+     * in an ordinary `map` would carry no `endpoint_*` identity although the accessors are
+     * registered. Registering accessors while the mode is not `auto`
      * is therefore called out loudly and once, at startup - a host that enables the hook
      * programmatically instead can ignore the warning.
      */

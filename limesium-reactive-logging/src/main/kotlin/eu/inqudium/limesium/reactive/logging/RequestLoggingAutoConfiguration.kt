@@ -80,8 +80,7 @@ class RequestLoggingAutoConfiguration {
          * [RequestLoggingWebFilter]): the accessors read the Reactor context THAT variant writes, and the
          * propagation-mode warning is about that variant's handler MDC. With the coroutine variant
          * active (handler MDC natively via `MDCContext`) or a host filter of another type, nothing here
-         * applies and a startup warning would be false noise (finding 8 of
-         * an internal code analysis). Resolved at initialization time rather than by
+         * applies and a startup warning would be false noise. Resolved at initialization time rather than by
          * `@ConditionalOnBean`, whose evaluation order against the sibling bean methods is not guaranteed.
          */
         @Bean
