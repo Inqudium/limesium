@@ -1,6 +1,6 @@
 package eu.inqudium.limesium.benchmarks;
 
-import eu.inqudium.limesium.reactive.logging.HeaderLogProperties;
+import eu.inqudium.limesium.common.HeaderLogProperties;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;

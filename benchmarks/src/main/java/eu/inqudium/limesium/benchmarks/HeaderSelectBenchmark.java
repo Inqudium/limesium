@@ -1,6 +1,6 @@
 package eu.inqudium.limesium.benchmarks;
 
-import eu.inqudium.limesium.reactive.logging.HeaderLogProperties;
+import eu.inqudium.limesium.common.HeaderLogProperties;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;

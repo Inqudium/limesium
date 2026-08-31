@@ -5,6 +5,7 @@ import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
 import eu.inqudium.limesium.common.BodyReadState
+import eu.inqudium.limesium.common.HeaderLogProperties
 import eu.inqudium.limesium.common.MdcKeys
 import eu.inqudium.limesium.common.TraceMdcKeys
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry

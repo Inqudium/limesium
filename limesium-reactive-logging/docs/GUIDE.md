@@ -203,7 +203,7 @@ layers:
 |---|---|
 | `RequestLoggingAutoConfiguration` | Registers the Reactor variant, the default `NanoTimeSource` and `CorrelationIdGenerator`, and — when `io.micrometer:context-propagation` is on the classpath — the MDC `ThreadLocalAccessor`s plus the propagation-mode warning. |
 | `CoRequestLoggingAutoConfiguration` | Registers the coroutine variant when `kotlinx-coroutines-reactor` and `kotlinx-coroutines-slf4j` are present; ordered **before** the Reactor configuration so it claims the filter slot first. |
-| `RequestLoggingProperties` | The `endpoint-logging.*` binding, validated in `init`. `HeaderLogProperties` is one header section; `Variant` the reactive-only selector. |
+| `RequestLoggingProperties` | The `endpoint-logging.*` binding, validated in `init`. `HeaderLogProperties` (shared, limesium-common - §6.9) is one header section; `Variant` the reactive-only selector. |
 | `EndpointLoggingFilter` | Marker contract (`WebFilter + Ordered`) both variants implement; the `@ConditionalOnMissingBean` target that guarantees exactly one filter. |
 | `RequestLoggingWebFilter` | The **reference variant**: wires, runs the chain inside `Mono.defer`, maps `doOnError` / `doOnCancel` / `doFinally` to the lifecycle, and writes the identity into the Reactor context. |
 | `CoRequestLoggingWebFilter` | The coroutine variant (`CoWebFilter`): same lifecycle, chain invoked inside `withContext(MDCContext(...))`, signals mapped via `try`/`catch`. |
@@ -1138,14 +1138,16 @@ a security boundary for guessable values; omit such headers from the selection i
 
 The BYTE-identical part of the twins' shared layer lives in the `limesium-common` module
 ([ADR-0003](../../docs/adr/ADR-0003-limesium-common-inlined-by-shade.md)): the `Traceparent` parser
-(with its tests and fuzz target), `NanoTimeSource`, `CorrelationIdGenerator`, `reportQuietly`, and the
-MDC keys and scope. The Maven Shade plugin inlines those classes into THIS jar at package time, the
+(with its tests and fuzz target), `HeaderLogProperties` (selection and masking fingerprint, with its
+unit test and fuzz target - ADR-0003 amendment 2026-08-31), `NanoTimeSource`, `CorrelationIdGenerator`,
+`reportQuietly`, and the MDC keys and scope. The Maven Shade plugin inlines those classes into THIS jar at package time, the
 dependency-reduced POM drops the dependency, and `limesium-common` is never published — consumers keep
 adding exactly one artifact, and the shared classes stay `internal` (`-Xfriend-paths`).
 
 Everything whose twin copies genuinely differ stays deliberately duplicated, per the original
 architecture-review decision: the field enum and metrics (per-stack outcome vocabulary and meter
-descriptions), the emitters and exchanges, the properties (`variant` is reactive-only), and
+descriptions), the emitters and exchanges, the properties (`variant` is reactive-only; the header
+sections themselves are the shared `HeaderLogProperties`), and
 `BoundedBodyCapture` (two different concurrency designs). For those the accepted cost is unchanged: a
 change is a conscious port in both directions, and the lockstep tests catch *named* contract drift
 (keys, field names, meter names, message text), not behavioural drift inside near-identical code.
@@ -1168,7 +1170,7 @@ limesium-reactive-logging/
     ├── main/kotlin/eu/inqudium/limesium/reactive/logging/
     │   ├── RequestLoggingAutoConfiguration.kt     Reactor variant, defaults, MDC accessors
     │   ├── CoRequestLoggingAutoConfiguration.kt   coroutine variant (before the Reactor one)
-    │   ├── RequestLoggingProperties.kt            endpoint-logging.* binding, HeaderLogProperties, Variant
+    │   ├── RequestLoggingProperties.kt            endpoint-logging.* binding, Variant (HeaderLogProperties: §6.9)
     │   ├── EndpointLoggingFilter.kt               WebFilter + Ordered marker
     │   ├── RequestLoggingWebFilter.kt             reference variant
     │   ├── CoRequestLoggingWebFilter.kt           coroutine variant
@@ -1196,9 +1198,9 @@ lists every test with its rationale):
 | `RequestLoggingWebFilterReactorIntegrationTest` | the **Reactor variant** on real Netty (coroutine auto-configuration excluded) — the majority consumer configuration without the optional coroutine libraries |
 | `CoRequestLoggingWebFilterCoroutineIntegrationTest` | the **coroutine variant**'s `MDCContext` handler-MDC parity across real dispatcher hops |
 | `RequestLoggingWebFilterTracingIntegrationTest` | ADR-0002 trace contract beside a real Brave bridge on Netty: header-parse join, identity decision, the documented no-`traceparent` boundary, the commit-deferred error path |
-| Lockstep/contract tests (`TwinContractTest`, `EndpointLogFieldTest`, `EndpointLoggingReferenceConfigTest`, `HandlerMappingAttributeTest`, `HeaderLogPropertiesTest`) | pin the twin/wire/config contracts against the servlet twin and the shared reference YAML |
+| Lockstep/contract tests (`TwinContractTest`, `EndpointLogFieldTest`, `EndpointLoggingReferenceConfigTest`, `HandlerMappingAttributeTest`) | pin the twin/wire/config contracts against the servlet twin and the shared reference YAML |
 
-Fuzzing of the shared `Traceparent` parser lives in limesium-common; this module's engine matrix is a
+Fuzzing of the shared `Traceparent` parser and header masking lives in limesium-common; this module's engine matrix is a
 single one (Netty) - WebFlux has no per-container WAR story, unlike the servlet twin's
 Tomcat/Jetty/Undertow suites.
 

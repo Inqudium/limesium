@@ -1,6 +1,6 @@
 package eu.inqudium.limesium.benchmarks;
 
-import eu.inqudium.limesium.reactive.logging.HeaderLogProperties;
+import eu.inqudium.limesium.common.HeaderLogProperties;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;

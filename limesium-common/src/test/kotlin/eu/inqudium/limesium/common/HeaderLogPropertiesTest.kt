@@ -1,4 +1,4 @@
-package eu.inqudium.limesium.servlet.logging
+package eu.inqudium.limesium.common
 
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.catchThrowable
