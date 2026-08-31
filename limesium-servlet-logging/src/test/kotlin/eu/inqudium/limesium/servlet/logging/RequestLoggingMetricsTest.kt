@@ -169,6 +169,38 @@ class RequestLoggingMetricsTest {
         }
 
         @Test
+        fun `should share one metrics owner between two filters on the same registry`() {
+            // What is tested: the per-registry metrics ownership - a second filter wired against the
+            //   SAME registry must observe through the shared owner, not through a duplicate instance
+            //   whose gauge registration Micrometer would silently ignore.
+            // Success criteria: an exchange handled by the SECOND filter moves the registry's
+            //   open-exchanges gauge to 1 mid-flight and back to 0 at destruction.
+            // Why it matters: with a duplicate owner the second filter's live exchanges were invisible
+            //   on the gauge - exactly the wiring a host reaches by constructing filters manually.
+            // Given: a second filter against the same registry, a chain observing the gauge mid-flight
+            val second =
+                RequestLoggingFilter(
+                    properties,
+                    NanoTimeSource { ticker.get() },
+                    CorrelationIdGenerator { "generated-43" },
+                    meterRegistry,
+                )
+            var openDuringChain = -1.0
+            val request = MockHttpServletRequest("GET", "/api/things")
+
+            // When: the second filter handles an exchange to destruction
+            try {
+                second.doFilterInternal(request, MockHttpServletResponse(), FilterChain { _, _ -> openDuringChain = openExchanges() })
+            } finally {
+                second.exchangeCompletionListener().requestDestroyed(ServletRequestEvent(request.servletContext, request))
+            }
+
+            // Then: the shared gauge saw the second filter's exchange
+            assertThat(openDuringChain).isEqualTo(1.0)
+            assertThat(openExchanges()).isEqualTo(0.0)
+        }
+
+        @Test
         fun `should keep counting an exchange whose destruction never fires`() {
             // What is tested: the failure mode the gauge exists for - the container never fires
             //   requestDestroyed, so the event is silently lost.

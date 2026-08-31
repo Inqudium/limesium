@@ -36,7 +36,7 @@ class ExchangeLogEmitterTest {
             loggerName = "http-exchange-emitter-test",
             slowRequestThreshold = Duration.ofMillis(200),
         )
-    private val metrics = EndpointLoggingMetrics(meterRegistry)
+    private val metrics = EndpointLoggingMetrics.forRegistry(meterRegistry)
     private val emitter = ExchangeLogEmitter(properties, NanoTimeSource { ticker.get() }, metrics)
 
     private lateinit var logger: Logger

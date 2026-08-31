@@ -37,7 +37,7 @@ internal class ExchangeLifecycle(
     meterRegistry: MeterRegistry,
 ) {
     /** Shared with the variants for the arrival line and for tests; one instance per filter. */
-    val metrics = EndpointLoggingMetrics(meterRegistry)
+    val metrics = EndpointLoggingMetrics.forRegistry(meterRegistry)
     val emitter = ExchangeLogEmitter(properties, nanoTime, metrics)
 
     // Parsed ONCE at construction: an invalid pattern is a configuration error and fails the context
