@@ -16,21 +16,23 @@ import org.openjdk.jmh.annotations.Warmup;
 import org.springframework.http.server.PathContainer;
 
 /**
- * Finding #1 of the servlet module's PERF_ANALYSIS-2026-08-29T22-49-04 (plan M2a):
- * {@code RequestLoggingFilter.shouldNotFilter} runs {@code PathContainer.parsePath(requestURI)}
- * on EVERY dispatch, before the early returns that make it unnecessary - with the shipped
- * defaults (no include patterns, no exclude prefixes) the parsed container is discarded unused.
+ * Finding #1 of the servlet module's PERF_ANALYSIS-2026-08-29T22-49-04 (plan M2a), CONFIRMED AND
+ * ADOPTED: at the time of the recorded runs {@code RequestLoggingFilter.shouldNotFilter} ran
+ * {@code PathContainer.parsePath(requestURI)} on EVERY dispatch; production has since adopted the
+ * sketched short-circuit - with the shipped defaults (no include patterns, no exclude prefixes)
+ * the method now returns before parsing, so the parse below is no longer a shipped-default cost.
  *
  * <p>{@code shouldNotFilter} itself is protected on a final class, so the unit under measurement
- * is the mechanism the finding names: the unconditional parse. Baseline: the parse as the filter
- * performs it. Candidate: the sketched short-circuit - with empty configuration the method
- * returns before parsing, so the candidate is the constant-false path (measured to show the
- * floor, expected ~1 ns).
+ * is the mechanism the finding named: the parse in isolation. Baseline: the parse - since the
+ * adoption this is the per-dispatch cost a host pays only WITH path configuration, which keeps
+ * the measurement relevant as sizing data. Candidate: the adopted empty-configuration
+ * short-circuit, the constant-false path (measured to show the floor, expected ~1 ns). The
+ * pre-adoption evidence lives in {@code results/path-activation.*}.
  *
  * <p>URIs rotate through a pool per invocation so the JIT cannot specialize on one string.
  *
- * <p>Decision rule (fixed before the run): confirmed if the parse costs >= 150 ns/op or
- * >= 300 B/op at a typical segment count; retired otherwise.
+ * <p>Decision rule of the historical confirmation run (fixed before that run): confirmed if the
+ * parse costs >= 150 ns/op or >= 300 B/op at a typical segment count; retired otherwise.
  */
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
@@ -73,9 +75,9 @@ public class PathActivationBenchmark {
 
     @Benchmark
     public boolean candidateShortCircuit() {
-        // The sketched fix: with includePathPatterns and excludePathPrefixes both empty the
-        // method answers without parsing. The uri() call stays so both methods share the
-        // pool-rotation overhead.
+        // The adopted short-circuit: with includePathPatterns and excludePathPrefixes both empty
+        // the production method answers without parsing. The uri() call stays so both methods
+        // share the pool-rotation overhead.
         return uri() == null;
     }
 }

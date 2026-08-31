@@ -12,9 +12,9 @@ import org.openjdk.jmh.annotations.OutputTimeUnit;
 import org.openjdk.jmh.annotations.Warmup;
 
 /**
- * Finding #4 of PERF_ANALYSIS-2026-08-29T22-31-30: {@code UUID.randomUUID()} draws from the
- * process-global {@code SecureRandom} for every request without a correlation header - a
- * potential serialization point across event-loop threads.
+ * Finding #4 of PERF_ANALYSIS-2026-08-29T22-31-30, RESOLVED BY RETIREMENT: the then-shipped
+ * {@code UUID.randomUUID()} drew from the process-global {@code SecureRandom} for every request
+ * without a correlation header - a potential serialization point across event-loop threads.
  *
  * <p>CONTENTION PROBE, not the finding's prescribed verification: the input report's plan M4
  * (JFR lock profiling on a loaded Netty instance) remains the instrument that can settle
@@ -22,14 +22,20 @@ import org.openjdk.jmh.annotations.Warmup;
  * and (b) how throughput scales when 16 threads draw concurrently - run once with {@code -t 1}
  * and once with {@code -t 16}; JMH prints per-thread and aggregate throughput.
  *
- * <p>Baseline: {@code UUID.randomUUID().toString()} (the module's shipped generator). Candidate:
- * a {@link ThreadLocalRandom}-based v4-format id - the injectable-generator escape hatch the
- * report sketches for contended hosts (NOT cryptographically random; that trade-off is the host's
- * documented decision, and correlation ids carry no security function).
+ * <p>Baseline: {@code UUID.randomUUID().toString()} - the generator the module shipped WHEN THE
+ * FINDING WAS RAISED. It has since been RETIRED from production: the shipped default is the
+ * {@code SecureRandom}-free {@code CountingCorrelationIdGenerator} (ADR-0004), so this class is
+ * archived evidence for the {@code results/correlation-t1.*}/{@code results/correlation-t16.*}
+ * trail, not a measurement of a shipped path. Candidate: a {@link ThreadLocalRandom}-based
+ * v4-format id - the injectable-generator escape hatch the report sketched for contended hosts
+ * (NOT cryptographically random; that trade-off is the host's documented decision, and
+ * correlation ids carry no security function). Both remain the cost class a host opts back into
+ * by overriding the generator bean with a UUID-shaped one.
  *
- * <p>Decision rule (fixed before the run): contention confirmed if per-thread throughput at 16
- * threads drops by more than 5x versus 1 thread for the baseline while the candidate scales;
- * the uncontended cost verifies or refutes the finding's cost class either way.
+ * <p>Decision rule of the historical run (fixed before that run): contention confirmed if
+ * per-thread throughput at 16 threads drops by more than 5x versus 1 thread for the baseline
+ * while the candidate scales; the uncontended cost verifies or refutes the finding's cost class
+ * either way.
  */
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
