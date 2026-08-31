@@ -89,3 +89,19 @@ duplicated as decided above. The TEST helper `MdcAdapterSwap.kt`
 remains duplicated on purpose: test classes are not shared across
 modules (no test-jar dependency), and a copy of sixteen lines is
 cheaper than publishing one; the copies carry a comment saying so.
+
+## Amendment (2026-08-31)
+
+Finding 1 of `docs/assessment/ARCHITECTURE_REVIEW-2026-08-31T10-51-58.md`
+identified a second byte-identical residue, hidden inside a file that
+legitimately stays duplicated: `HeaderLogProperties` (selection
+semantics plus the `mask()` fingerprint - a cross-twin contract) was
+byte-identical in both twins' `RequestLoggingProperties.kt`, although
+the enumeration above counted "the properties" as genuinely differing.
+The class now lives in `limesium-common`; the twins' property files
+keep only what actually differs (the reactive-only `variant` key and
+stack-specific wording). Its unit test and the `HeaderMaskingFuzzTest`
+target moved along, as the Traceparent suite did in the original
+extraction. NOTE - source-breaking for hosts that import the class
+(bean-less, but referenced in configuration code): same break class as
+the original ADR-0003 package moves, shipped in the same release.

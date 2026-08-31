@@ -1,4 +1,4 @@
-package eu.inqudium.limesium.servlet.logging;
+package eu.inqudium.limesium.common;
 
 import com.code_intelligence.jazzer.api.FuzzedDataProvider;
 import com.code_intelligence.jazzer.junit.FuzzTest;
@@ -10,9 +10,9 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
- * Fuzzes header selection and masking (the servlet variant; the reactive twin
- * shares the contract): arbitrary include/exclude/masked configurations against
- * arbitrary header names and values.
+ * Fuzzes header selection and masking (the shared implementation both twins
+ * inline, ADR-0003 amendment): arbitrary include/exclude/masked configurations
+ * against arbitrary header names and values.
  *
  * Invariants under test: construction rejects only its documented cases
  * (blank entries, wildcard exclude) and select() never throws; a value

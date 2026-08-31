@@ -208,7 +208,7 @@ Fifteen Kotlin files in one package, `eu.inqudium.limesium.servlet.logging`, in 
 | Class | Responsibility |
 |---|---|
 | `RequestLoggingAutoConfiguration` | Registers the filter bean, its `FilterRegistrationBean` (order `HIGHEST_PRECEDENCE + 10`), the `ServletListenerRegistrationBean` for the completion listener, and the default `NanoTimeSource` / `CorrelationIdGenerator`. |
-| `RequestLoggingProperties` | The `endpoint-logging.*` binding, validated in `init`. `HeaderLogProperties` is one header section with `includes` / `excludes` / `masked` and the masking fingerprint. |
+| `RequestLoggingProperties` | The `endpoint-logging.*` binding, validated in `init`. `HeaderLogProperties` (shared, limesium-common - §6.12) is one header section with `includes` / `excludes` / `masked` and the masking fingerprint. |
 | `RequestLoggingFilter` | Owns the **servlet side**: path activation, fail-open wiring, identity resolution (`traceparent` first, correlation header on traceless exchanges) with the traceless echo, the tee wrappers, the chain-wide `MdcScope`, the async dispatch pass, the breadcrumb, the handoff to destruction. |
 | `Exchange` / `AsyncDisposition` / `AsyncOutcomeMarker` | Per-exchange state from entry to emission; the async disposition as one atomic value with built-in precedence; the `AsyncListener` that marks timeout/error. |
 | `EndpointMdcCallableInterceptor` | Restores the `endpoint_*` MDC on the Spring MVC `Callable`/`WebAsyncTask` worker thread. |
@@ -1136,14 +1136,16 @@ a security boundary for guessable values; omit such headers from the selection i
 
 The BYTE-identical part of the twins' shared layer lives in the `limesium-common` module
 ([ADR-0003](../../docs/adr/ADR-0003-limesium-common-inlined-by-shade.md)): the `Traceparent` parser
-(with its tests and fuzz target), `NanoTimeSource`, `CorrelationIdGenerator`, `reportQuietly`, and the
-MDC keys and scope. The Maven Shade plugin inlines those classes into THIS jar at package time, the
+(with its tests and fuzz target), `HeaderLogProperties` (selection and masking fingerprint, with its
+unit test and fuzz target - ADR-0003 amendment 2026-08-31), `NanoTimeSource`, `CorrelationIdGenerator`,
+`reportQuietly`, and the MDC keys and scope. The Maven Shade plugin inlines those classes into THIS jar at package time, the
 dependency-reduced POM drops the dependency, and `limesium-common` is never published — consumers keep
 adding exactly one artifact, and the shared classes stay `internal` (`-Xfriend-paths`).
 
 Everything whose twin copies genuinely differ stays deliberately duplicated, per the original
 architecture-review decision: the field enum and metrics (per-stack outcome vocabulary and meter
-descriptions), the emitters and exchanges, the properties (`variant` is reactive-only), and
+descriptions), the emitters and exchanges, the properties (`variant` is reactive-only; the header
+sections themselves are the shared `HeaderLogProperties`), and
 `BoundedBodyCapture` (two different concurrency designs). For those the accepted cost is unchanged: a
 change is a conscious port in **both** directions, and the lockstep tests catch *named* contract drift
 (keys, field names, meter names, message text), not behavioural drift inside near-identical code.
@@ -1164,7 +1166,7 @@ limesium-servlet-logging/
 └── src/
     ├── main/kotlin/eu/inqudium/limesium/servlet/logging/
     │   ├── RequestLoggingAutoConfiguration.kt     filter, registration, listener, defaults
-    │   ├── RequestLoggingProperties.kt            endpoint-logging.* binding, HeaderLogProperties
+    │   ├── RequestLoggingProperties.kt            endpoint-logging.* binding (HeaderLogProperties: §6.12)
     │   ├── RequestLoggingFilter.kt                the servlet lifecycle, completion listener
     │   ├── Exchange.kt                            per-exchange state, AsyncDisposition, AsyncOutcomeMarker
     │   ├── EndpointMdcCallableInterceptor.kt      MDC on the MVC async worker
@@ -1194,7 +1196,7 @@ lists every test with its rationale):
 | `RequestLoggingFilterJettyTracingIntegrationTest` | trace-key suppression against Jetty's LIVE in-dispatch bridge MDC |
 | `RequestLoggingFilterUndertowTracingIntegrationTest` | trace-key suppression on Undertow's emission threads |
 | Lockstep/contract tests (`TwinContractTest`, `EndpointLogFieldTest`, `EndpointLoggingReferenceConfigTest`, `HandlerMappingAttributeTest`) | pin the twin/wire/config contracts |
-| Fuzz targets (`src/test/java`: `BoundedBodyCaptureFuzzTest`, `HeaderMaskingFuzzTest`; `Traceparent` fuzzing lives in limesium-common) | Jazzer `@FuzzTest`, corpus replay in every build, nightly exploration |
+| Fuzz targets (`src/test/java`: `BoundedBodyCaptureFuzzTest`; `Traceparent` and header-masking fuzzing lives in limesium-common) | Jazzer `@FuzzTest`, corpus replay in every build, nightly exploration |
 
 ### 7.2 Related documents
 

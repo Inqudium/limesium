@@ -4,6 +4,7 @@ import eu.inqudium.limesium.common.CorrelationIdGenerator
 import eu.inqudium.limesium.common.MdcKeys
 import eu.inqudium.limesium.common.NanoTimeSource
 import eu.inqudium.limesium.common.Traceparent
+import eu.inqudium.limesium.common.failOpen
 import eu.inqudium.limesium.common.reportQuietly
 import io.micrometer.core.instrument.MeterRegistry
 import org.slf4j.LoggerFactory
@@ -123,45 +124,12 @@ internal class ExchangeLifecycle(
         webExchange: ServerWebExchange,
         exchange: Exchange,
     ) {
-        try {
-            webExchange.response.beforeCommit {
-                Mono.fromRunnable {
-                    try {
-                        exchange.committedStatus = webExchange.response.statusCode?.value()
-                        if (exchange.state.get() == ExchangeState.AWAITING_COMMIT) {
-                            complete(exchange)
-                        }
-                    } catch (e: InterruptedException) {
-                        // Restore what the JVM cleared when it threw, so the interrupt still reaches its addressee.
-                        Thread.currentThread().interrupt()
-                        reportQuietly {
-                            metrics.emissionFailure()
-                            internalLog.debug("Interrupted in the commit callback; the event is dropped", e)
-                        }
-                    } catch (e: Exception) {
-                        reportQuietly {
-                            metrics.emissionFailure()
-                            internalLog.error(
-                                "Exception in the commit callback for {} {}: {}",
-                                exchange.method,
-                                exchange.path,
-                                e.toString(),
-                                e,
-                            )
-                        }
-                    }
-                }
-            }
-            exchange.commitCallbackArmed = true
-        } catch (e: InterruptedException) {
-            // Restore what the JVM cleared when it threw, so the interrupt still reaches its addressee.
-            Thread.currentThread().interrupt()
-            reportQuietly {
+        failOpen(
+            onInterrupted = { e ->
                 metrics.wiringFailure()
                 internalLog.debug("Interrupted while registering the commit callback; the error path will not defer", e)
-            }
-        } catch (e: Exception) {
-            reportQuietly {
+            },
+            onFailure = { e ->
                 metrics.wiringFailure()
                 internalLog.error(
                     "Could not register the commit callback for {} {} - the error path will not defer: {}",
@@ -170,7 +138,34 @@ internal class ExchangeLifecycle(
                     e.toString(),
                     e,
                 )
+            },
+        ) {
+            webExchange.response.beforeCommit {
+                Mono.fromRunnable {
+                    failOpen(
+                        onInterrupted = { e ->
+                            metrics.emissionFailure()
+                            internalLog.debug("Interrupted in the commit callback; the event is dropped", e)
+                        },
+                        onFailure = { e ->
+                            metrics.emissionFailure()
+                            internalLog.error(
+                                "Exception in the commit callback for {} {}: {}",
+                                exchange.method,
+                                exchange.path,
+                                e.toString(),
+                                e,
+                            )
+                        },
+                    ) {
+                        exchange.committedStatus = webExchange.response.statusCode?.value()
+                        if (exchange.state.get() == ExchangeState.AWAITING_COMMIT) {
+                            complete(exchange)
+                        }
+                    }
+                }
             }
+            exchange.commitCallbackArmed = true
         }
     }
 
