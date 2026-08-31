@@ -8,8 +8,7 @@ import org.springframework.web.reactive.HandlerMapping
  * Pins the mirrored attribute name against the real WebFlux constant. The production code spells the
  * name itself to stay free of a `spring-webflux` dependency; the constant is computed from the class
  * name, so it cannot be inlined at compile time. This test - `spring-webflux` IS on the test classpath -
- * turns a silent rename into a build failure (twin parity with the servlet module's architecture review
- * finding 5).
+ * turns a silent rename into a build failure (twin parity with the servlet module).
  */
 class HandlerMappingAttributeTest {
     @Test

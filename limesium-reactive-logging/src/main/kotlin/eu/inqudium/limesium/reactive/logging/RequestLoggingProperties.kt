@@ -31,7 +31,7 @@ data class RequestLoggingProperties(
      * `kotlinx-coroutines-reactor` and `kotlinx-coroutines-slf4j` are present, the Reactor variant
      * otherwise. [Variant.REACTOR] forces the Reactor variant even with the coroutine libraries present
      * (e.g. pulled in transitively by a Reactor-only host); [Variant.COROUTINE] requires them and fails
-     * the context start when they are missing, instead of silently falling back (finding 3 of an internal architecture review).
+     * the context start when they are missing, instead of silently falling back.
      */
     val variant: Variant = Variant.AUTO,
     /**
@@ -124,7 +124,7 @@ data class RequestLoggingProperties(
          * RFC 9110 `token` grammar for a field name. The configured name is written to every response;
          * a server adapter that validates field names would reject a non-token at runtime on EVERY
          * request, degrading the filter to an unlogged pass-through without ever failing startup
-         * (finding 5 of an internal code analysis) - so it is validated at binding time.
+         * - so it is validated at binding time.
          */
         private val HTTP_FIELD_NAME = Regex("[!#$%&'*+\\-.^_`|~0-9A-Za-z]+")
     }
@@ -164,8 +164,8 @@ data class HeaderLogProperties(
     }
 
     // Derived ONCE from the immutable configuration (after the validation above): rebuilding these
-    // sets on every call was a measured allocation cost on the per-request path (finding on
-    // header selection of an internal performance analysis, confirmed by benchmark).
+    // sets on every call was a measured allocation cost on the per-request path (header-selection
+    // finding of the module's performance analysis of 2026-08-29, confirmed by benchmark).
     private val excludedLower: Set<String> = excludes.map { it.lowercase() }.toSet()
     private val maskedLower: Set<String> = masked.map { it.lowercase() }.toSet()
     private val maskAll: Boolean = WILDCARD in masked
@@ -205,8 +205,7 @@ data class HeaderLogProperties(
          * the twin module uses. STABLE: identical values render
          * identically, so a masked token can still be correlated across events and modules without
          * exposing the secret itself; a 64-bit cryptographic prefix makes accidental collisions
-         * negligible (the former 32-bit `String.hashCode` fingerprint collided trivially - finding 3 of
-         * an internal code analysis).
+         * negligible (the former 32-bit `String.hashCode` fingerprint collided trivially).
          *
          * Privacy model: the fingerprint is unsalted and unkeyed - it prevents PLAINTEXT exposure, not
          * offline guessing. A log reader with a candidate list (low-entropy values: usernames, tenant
@@ -216,8 +215,8 @@ data class HeaderLogProperties(
         fun mask(value: String): String {
             val digest = MessageDigest.getInstance("SHA-256").digest(value.toByteArray(StandardCharsets.UTF_8))
             // HexFormat instead of a per-byte "%02x".format: byte-identical output at a fraction
-            // of the allocation (finding on masking of an internal performance analysis,
-            // confirmed by benchmark).
+            // of the allocation (masking finding of the module's performance analysis of
+            // 2026-08-29, confirmed by benchmark).
             return "${value.length}:${HEX.formatHex(digest, 0, FINGERPRINT_BYTES)}"
         }
 

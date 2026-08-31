@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * those of an undecorated exchange (the reactive counterpart of the servlet module's tee streams: a
  * passive copy, never a pre-read or replay). Transient allocation is bounded by
  * [RequestLoggingProperties.maxBodyBytes], not by the buffer size, and count-only captures (limit 0)
- * copy nothing at all - previously every buffer was cloned in full regardless of the cap (finding 6 of an internal code analysis).
+ * copy nothing at all - previously every buffer was cloned in full regardless of the cap.
  */
 private fun tee(
     capture: BoundedBodyCapture,
@@ -43,8 +43,7 @@ private fun tee(
  * SUBSCRIPTION-AWARE: only the FIRST subscription to the body feeds the capture; a later subscription
  * (legal for the owner of the request, and real with a replay-capable request or a caching filter)
  * passes through untouched - the logical request body is one body, and logging or counting it twice
- * would duplicate the logged text and inflate the size sample (finding 7 of
- * an internal code analysis).
+ * would duplicate the logged text and inflate the size sample.
  *
  * The claiming subscription also records the READ STATE on the capture: the subscription marks
  * consumption as started, the publisher's completion signal marks it complete. A cancellation or an
@@ -79,8 +78,8 @@ internal class CapturingRequestDecorator(
  * ZERO-COPY: this decorator deliberately does NOT implement `ZeroCopyHttpOutputMessage`. Writers check
  * the RESPONSE instance for that interface, so wrapping makes file-serving handlers fall back to the
  * buffered path - the bytes then flow THROUGH this tee and are captured correctly, at the price of
- * losing the zero-copy optimization while body capture/measuring is enabled (finding 3 of an internal code analysis;
- * capture off means no decoration and untouched zero-copy). Implementing the interface here would
+ * losing the zero-copy optimization while body capture/measuring is enabled (capture off means no
+ * decoration and untouched zero-copy). Implementing the interface here would
  * silently re-open a capture bypass - the mechanism is pinned by test.
  *
  * BOUNDARY - outer error rendering: this decorator sees only what is written through the MUTATED
@@ -90,8 +89,7 @@ internal class CapturingRequestDecorator(
  * bypass this tee. The exchange event still carries the rendered status (the commit callback observes
  * the shared delegate), but `endpoint_response_body` and the response-size sample stay absent for
  * globally rendered error responses; locally handled controller/advice responses traverse the tee
- * normally. Documented as a capture boundary and pinned by the error-path integration test
- * (finding 3 of an internal code analysis).
+ * normally. Documented as a capture boundary and pinned by the error-path integration test.
  */
 internal class CapturingResponseDecorator(
     delegate: ServerHttpResponse,
@@ -101,7 +99,7 @@ internal class CapturingResponseDecorator(
      * Preserves the publisher SPECIALIZATION: Spring's `AbstractServerHttpResponse.writeWith` has an
      * optimized branch for a `Mono` body (the common single-buffer response) that bypasses the
      * `ChannelSendOperator` coordination it needs for a `Flux`; wrapping every body in a `Flux` would
-     * defeat that branch whenever capture is enabled (finding 9 of an internal code analysis).
+     * defeat that branch whenever capture is enabled.
      */
     override fun writeWith(body: Publisher<out DataBuffer>): Mono<Void> =
         when (body) {

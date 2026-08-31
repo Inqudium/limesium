@@ -19,7 +19,7 @@ object MdcKeys {
  * both twins source the trace id from the header, never from a tracing bridge). [TRACE_ID] is Boot's
  * logging-correlation key: the header's trace id IS the trace the server span runs under, so the join
  * holds. The header's parent-id is the CALLER's span and is published as [PARENT_SPAN_ID] - never as
- * [BRIDGE_SPAN_ID], where it would read as the local span (finding 2 of an internal code analysis).
+ * [BRIDGE_SPAN_ID], where it would read as the local span.
  * Absent header means not logged.
  */
 internal object TraceMdcKeys {
@@ -41,8 +41,8 @@ internal object TraceMdcKeys {
  * scope may be active and is authoritative for the chain, so the trace keys are left alone) and both
  * twins open it around the emission; with [ownsTraceKeys] the scope is the ONLY authority on the trace
  * keys - a parsed id is installed, an unparsed one is REMOVED for the scope's lifetime, so a stale id
- * on the pooled emission thread cannot be attached to the event (finding 5 of an internal code
- * analysis). Either way every touched key is restored on close.
+ * on the pooled emission thread cannot be attached to the event. Either way every touched key is
+ * restored on close.
  */
 internal class MdcScope(
     requestId: String,
@@ -81,7 +81,7 @@ internal class MdcScope(
             removed.forEach { MDC.remove(it) }
         } catch (e: Exception) {
             // Roll back a PARTIAL install before propagating: a broken MDC adapter failing mid-put must
-            // not leave half an identity on a pooled thread (finding 8 of an internal code analysis).
+            // not leave half an identity on a pooled thread.
             try {
                 close()
             } catch (rollback: Exception) {

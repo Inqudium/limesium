@@ -12,7 +12,7 @@ class RequestLoggingPropertiesTest {
     inner class `Slow request threshold` {
         @Test
         fun `should reject a positive threshold below one millisecond`() {
-            // What is tested: the resolution floor (review finding 4) -
+            // What is tested: the resolution floor -
             //   the logged duration has millisecond resolution, so a sub-millisecond threshold would
             //   flag exchanges whose logged duration reads 0 ms.
             // Success criteria: construction fails with a message naming the floor.
@@ -49,8 +49,8 @@ class RequestLoggingPropertiesTest {
     inner class `Correlation id header` {
         @Test
         fun `should reject a correlation header name outside the HTTP field-name grammar`() {
-            // What is tested: binding-time validation of the header NAME (finding 5 of the
-            //   internal analysis) - the name is written onto every response, and a server
+            // What is tested: binding-time validation of the header NAME - the name is written onto every
+            //   response, and a server
             //   adapter that validates field names rejects a non-token at runtime on every request.
             // Success criteria: whitespace, separators and a non-ASCII character fail construction
             //   with a message naming the property.

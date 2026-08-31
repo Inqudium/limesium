@@ -41,11 +41,11 @@ internal class ExchangeLogEmitter(
      * chain, identical in format to the servlet twin - INCLUDING the MDC: the servlet twin's arrival
      * line runs inside its chain scope, so structured encoders see the `endpoint_*` identity on it;
      * this emission opens the same [MdcScope] (with the traceparent-derived trace overlay) around the
-     * single log statement for output parity (finding 2 of an internal code analysis).
+     * single log statement for output parity.
      */
     fun logRequestStart(exchange: Exchange) {
         // The whole arrival operation is inside the guard - the level gate and the MDC adapter are host
-        // calls and fail like the emission itself (finding 7 of an internal code analysis); `use`
+        // calls and fail like the emission itself; `use`
         // records a close-time failure as suppressed instead of masking the original one.
         try {
             if (!exchangeLog.isInfoEnabled) {
@@ -132,7 +132,7 @@ internal class ExchangeLogEmitter(
         val slow = Duration.ofNanos(elapsedNanos) >= properties.slowRequestThreshold
         // Metrics BEFORE the level gate: a metric must not depend on how loud the logger is configured.
         // Guarded on their own: a host registry that rejects the body-size summary (meter-id conflict)
-        // costs the sample, never the event (finding 2 of an internal code analysis).
+        // costs the sample, never the event.
         try {
             recordBodySizes(exchange)
         } catch (e: Exception) {
@@ -213,7 +213,7 @@ internal class ExchangeLogEmitter(
                 .addKeyValueIfPresent(EndpointLogField.RESPONSE_BODY, responseBody)
                 .log()
             // Guarded inside the metrics: a throwing host counter after a successful log() must not be
-            // reported as a lost emission (finding 3 of an internal code analysis).
+            // reported as a lost emission.
             metrics.eventEmitted(outcome)
         }
     }

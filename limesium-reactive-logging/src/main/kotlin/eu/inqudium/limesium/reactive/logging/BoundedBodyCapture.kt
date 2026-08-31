@@ -23,7 +23,7 @@ import kotlin.concurrent.withLock
  * itself instead of relying on a single-writer assumption: every mutation and every read runs under
  * one uncontended [ReentrantLock], and the emitter calls [freeze] FIRST - from then on the capture is
  * immutable, a late tee call is a no-op, and the logged body and the size sample are one consistent
- * snapshot instead of a moving target (finding 1 of an internal code analysis).
+ * snapshot instead of a moving target.
  *
  * With `maxBytes = 0` the capture runs in COUNT-ONLY mode: nothing is buffered, [totalBytes] still
  * counts every byte - the mode the body-size metrics use when body logging is off. The tee is fed from

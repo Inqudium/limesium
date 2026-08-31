@@ -138,7 +138,7 @@ class RequestLoggingWebFilterTest {
 
         @Test
         fun `should log the raw request target so percent-encoded control characters cannot forge log lines`() {
-            // What is tested: the log-injection guard of finding 1 of an internal security audit -
+            // What is tested: the log-injection guard for the raw request target -
             //   java.net.URI decodes getPath()/getQuery(), so `%0A` in the request target used to become a
             //   real line break in the message, the MDC route and the fields.
             // Success criteria: path and query appear percent-encoded as sent in the message, in the
@@ -312,8 +312,8 @@ class RequestLoggingWebFilterTest {
 
         @Test
         fun `should compare the slow threshold at full precision instead of truncated milliseconds`() {
-            // What is tested: the threshold comparison (review finding 4, internal
-            //   analysis) - a 1.5 ms threshold used to truncate to 1 ms and flag a 1 ms exchange.
+            // What is tested: the threshold comparison - a 1.5 ms threshold used to truncate to
+            //   1 ms and flag a 1 ms exchange.
             // Success criteria: 1.0 ms is NOT slow, 1.5 ms IS slow, under a 1.5 ms threshold.
             // Why it matters: truncating both sides inflated WARN logs for every threshold with
             //   sub-millisecond precision.
@@ -385,8 +385,8 @@ class RequestLoggingWebFilterTest {
 
         @Test
         fun `should observe status and header mutations of later commit actions on the deferred error path`() {
-            // What is tested: the commit-action ORDERING of the deferred error path (finding 1 of the
-            //   internal analysis) - Spring runs beforeCommit actions in registration order,
+            // What is tested: the commit-action ORDERING of the deferred error path - Spring runs
+            //   beforeCommit actions in registration order,
             //   so the module's callback must be registered AFTER the chain ran, behind every action a
             //   downstream filter registered (security/session header writers, a status mutation).
             // Success criteria: a downstream filter registers an action that turns the rendered 500 into
@@ -510,8 +510,8 @@ class RequestLoggingWebFilterTest {
 
         @Test
         fun `should match activation on the raw request path exactly as the WebFlux router does`() {
-            // What is tested: twin parity with finding 1 of the servlet module's
-            //   an internal security audit - activation must see the request target the way
+            // What is tested: twin parity with the servlet module's percent-encoding fix -
+            //   activation must see the request target the way
             //   the router does: the raw RequestPath, segments decoded for matching, once.
             // Success criteria: `/%61pi/things` is included (router serves it under /api/**) and logs
             //   the raw path; `/api%2Fthings` is NOT included (the router sees one segment "api/things"
@@ -596,8 +596,7 @@ class RequestLoggingWebFilterTest {
                 }
 
             // Then: it fails fast with the PARSER's exception, and the diagnostic names the malformed
-            //   pattern - a bare non-null check would pass for any unrelated constructor failure
-            //   (review finding 12).
+            //   pattern - a bare non-null check would pass for any unrelated constructor failure.
             assertThat(thrown).isInstanceOf(PatternParseException::class.java)
             assertThat((thrown as PatternParseException).toDetailedString()).contains("/api/{unclosed")
         }
@@ -628,7 +627,7 @@ class RequestLoggingWebFilterTest {
                 .containsExactly("Endpoint http exchange started GET /api/things [endpoint_request_id=generated-42]")
             assertThat(appender.list).hasSize(2)
             assertThat(keyValues(appender.list.first())).doesNotContainKey("endpoint_outcome")
-            // Twin parity (finding 2 of an internal code analysis): the arrival line carries the identity as MDC fields,
+            // Twin parity: the arrival line carries the identity as MDC fields,
             // exactly like the servlet twin's chain-scoped arrival line.
             assertThat(appender.list.first().mdcPropertyMap)
                 .containsEntry(MdcKeys.REQUEST_ID, "generated-42")

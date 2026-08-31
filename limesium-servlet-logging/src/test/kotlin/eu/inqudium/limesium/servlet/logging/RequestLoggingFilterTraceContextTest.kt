@@ -167,8 +167,8 @@ class RequestLoggingFilterTraceContextTest {
 
     @Test
     fun `should not adopt a stale trace context of the destruction thread when none was parsed`() {
-        // What is tested: the emission scope's OWNERSHIP of the trace keys (finding 5 of the
-        //   internal analysis) - an id that was not parsed from the request must be absent
+        // What is tested: the emission scope's OWNERSHIP of the trace keys - an id that was not parsed from
+        //   the request must be absent
         //   from the event even when the pooled destruction thread still carries one from elsewhere.
         // Success criteria: the event has no trace key (a bridge's spanId included) and no trace
         //   suffix; the thread's stale values are back in place after the emission (owned for the

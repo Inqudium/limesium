@@ -37,7 +37,7 @@ internal class Exchange(
 ) {
     /**
      * The lifecycle state - ONE atomic value instead of independent flags, so the legal transitions are
-     * enumerable (finding 4 of an internal architecture review): `OPEN` from wiring;
+     * enumerable: `OPEN` from wiring;
      * `AWAITING_COMMIT` when the chain erred on an uncommitted response and the emission waits for the
      * commit callback; `COMPLETED` exactly once, by whichever of the terminal/commit callbacks wins the
      * transition - gauge-close and emission ride that single transition.

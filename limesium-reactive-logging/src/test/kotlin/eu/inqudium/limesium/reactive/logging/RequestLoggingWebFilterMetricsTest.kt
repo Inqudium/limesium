@@ -198,8 +198,8 @@ class RequestLoggingWebFilterMetricsTest {
 
         @Test
         fun `should keep serving and logging when the host registry already owns an endpoint meter of another type`() {
-            // What is tested: fail-open meter registration (review finding 2, internal
-            //   analysis) - Micrometer rejects an id that exists with a different type.
+            // What is tested: fail-open meter registration - Micrometer rejects an id that exists
+            //   with a different type.
             // Success criteria: the filter constructs against a registry that pre-registered the fail-open
             //   meter as a GAUGE and the body-size meter as a COUNTER; the exchange runs and its event is
             //   emitted; the conflicting meters stay private (the host's meters are untouched).
@@ -266,7 +266,7 @@ class RequestLoggingWebFilterMetricsTest {
         @Test
         fun `should keep logging the exchange when the correlation-source counter throws at wiring`() {
             // What is tested: the isolation of an OPERATIONAL counter from the exchange it observes
-            //   (finding 3 of the internal analysis) - registration succeeds, the increment
+            // - registration succeeds, the increment
             //   throws, and everything else is healthy.
             // Success criteria: the event is emitted as usual; the counter failure is counted
             //   stage=wiring; nothing propagates.
@@ -311,8 +311,8 @@ class RequestLoggingWebFilterMetricsTest {
 
         @Test
         fun `should not report an emitted event as an emission failure when the events counter throws`() {
-            // What is tested: the post-log() increment of the events counter (finding 3 of the
-            //   internal analysis) - the line is already on the logger when it throws.
+            // What is tested: the post-log() increment of the events counter - the line is already on the
+            //   logger when it throws.
             // Success criteria: the event is on the appender, stage=emission stays 0 (the event was NOT
             //   lost) and the counter failure lands on stage=wiring.
             // Why it matters: the fail-open and events meters are the reconciliation signals for
@@ -431,7 +431,7 @@ class RequestLoggingWebFilterMetricsTest {
 
         @Test
         fun `should confine a terminal-callback failure and still emit the event`() {
-            // What is tested: the doFinally guard (finding 1 of an internal code analysis) - bookkeeping there is fallible
+            // What is tested: the doFinally guard - bookkeeping there is fallible
             //   (attribute access, breadcrumb), and an escaping exception would be rethrown into Reactor's
             //   signal propagation.
             // Success criteria: with an attributes map that throws, nothing propagates, wiring=1, and the
@@ -461,7 +461,7 @@ class RequestLoggingWebFilterMetricsTest {
 
         @Test
         fun `should confine a commit-callback failure instead of disturbing the response commit`() {
-            // What is tested: the beforeCommit guard (finding 1 of an internal code analysis) - the callback runs INSIDE the
+            // What is tested: the beforeCommit guard - the callback runs INSIDE the
             //   response-commit chain, where an escaping exception would disturb the commit itself.
             // Success criteria: with a status read that throws at commit time, setComplete() completes
             //   normally, the deferred event is lost but COUNTED as an emission failure.
@@ -489,7 +489,7 @@ class RequestLoggingWebFilterMetricsTest {
         @Test
         fun `should route a synchronous downstream throw into the deferred error path instead of leaking the gauge`() {
             // What is tested: a downstream WebFilter that THROWS while assembling its publisher instead of
-            //   returning Mono.error (review finding 4) - before the fix the
+            //   returning Mono.error - before the fix the
             //   exception bypassed doOnError/doFinally entirely, lost the event, and left the open-exchange
             //   gauge permanently inflated.
             // Success criteria: the throw surfaces as the pipeline's error signal (block() throws it), the
@@ -521,8 +521,8 @@ class RequestLoggingWebFilterMetricsTest {
 
         @Test
         fun `should leave the exchange open when an earlier commit action fails the commit`() {
-            // What is tested: the residual boundary of the late-registered commit callback (finding 1 of
-            //   the internal analysis) - Spring concatenates the actions, so an action
+            // What is tested: the residual boundary of the late-registered commit callback - Spring
+            //   concatenates the actions, so an action
             //   registered by the chain that FAILS stops the sequence before the module's callback runs.
             // Success criteria: the commit attempt fails, no event is emitted, and the exchange stays on
             //   the open-exchanges gauge - the documented never-commits semantics - instead of logging a
@@ -552,10 +552,10 @@ class RequestLoggingWebFilterMetricsTest {
 
         @Test
         fun `should stay fail-open when the commit-callback registration itself throws`() {
-            // What is tested: the registration half of the commit-callback contract (review finding 5,
-            //   internal analysis) - beforeCommit runs against a possibly host-provided response facade,
+            // What is tested: the registration half of the commit-callback contract - beforeCommit runs
+            //   against a possibly host-provided response facade,
             //   and before the fix a throw there failed the request AFTER the gauge was incremented. The
-            //   registration happens at the ERROR signal (finding 1 of the internal analysis),
+            //   registration happens at the ERROR signal,
             //   so an erroring chain is what exercises it.
             // Success criteria: nothing propagates beyond the chain's own error, the failure is counted
             //   as stage wiring, and the exchange STILL completes at the terminal signal instead of
@@ -597,7 +597,7 @@ class RequestLoggingWebFilterMetricsTest {
 
         @Test
         fun `should confine an arrival-line backend failure and count stage arrival`() {
-            // What is tested: the arrival guard's coverage (review finding 7) -
+            // What is tested: the arrival guard's coverage -
             //   the logger-level gate and MDC-scope construction are backend calls and must sit INSIDE the
             //   fail-open guard; before the fix an exception from the level lookup escaped logRequestStart
             //   and failed the request during filter assembly.

@@ -130,7 +130,7 @@ class RequestLoggingFailOpenCounterTest {
 
         @Test
         fun `should count a pre-gate emission failure instead of letting it escape the destruction callback`() {
-            // What is tested: the widened emission guard (finding 2 of an internal code analysis) - the section BEFORE the
+            // What is tested: the widened emission guard - the section BEFORE the
             //   level gate (here: the status read) is fallible too.
             // Success criteria: a response whose status getter throws at destruction time yields no
             //   exception, no event, and emission=1.
@@ -152,7 +152,7 @@ class RequestLoggingFailOpenCounterTest {
 
         @Test
         fun `should re-raise the interrupt flag and count the emission when the emission is interrupted`() {
-            // What is tested: the InterruptedException branch of the emission guard (finding 12 of an internal code analysis) -
+            // What is tested: the InterruptedException branch of the emission guard -
             //   an async appender can block interruptibly, so this path is reachable in production.
             // Success criteria: the event is dropped, emission=1, and the INTERRUPT FLAG is set again on the
             //   thread so a shutdown signal still reaches its addressee.
@@ -178,7 +178,7 @@ class RequestLoggingFailOpenCounterTest {
     inner class `Wiring stage` {
         @Test
         fun `should degrade to a pass-through when the wiring itself fails and still serve the request`() {
-            // What is tested: the fail-open contract for the WIRING (finding 1 of an internal code analysis) - a throwing
+            // What is tested: the fail-open contract for the WIRING - a throwing
             //   host-provided CorrelationIdGenerator must not fail the request.
             // Success criteria: the chain still runs, nothing propagates, the wiring counter reads 1, and no
             //   event is emitted (the exchange was never wired).
@@ -207,8 +207,8 @@ class RequestLoggingFailOpenCounterTest {
 
         @Test
         fun `should keep serving and logging when the host registry already owns an endpoint meter of another type`() {
-            // What is tested: fail-open meter registration (twin parity with the reactive module's finding 2,
-            //   internal analysis) - Micrometer rejects an id that exists with a different type.
+            // What is tested: fail-open meter registration (twin parity with the reactive module) -
+            //   Micrometer rejects an id that exists with a different type.
             // Success criteria: the filter constructs against a registry that pre-registered the fail-open
             //   meter as a GAUGE and the body-size meter as a COUNTER; the exchange runs and its event is
             //   emitted; the host's meters are untouched and the conflicting ones stay private.
@@ -284,7 +284,7 @@ class RequestLoggingFailOpenCounterTest {
         @Test
         fun `should keep logging the exchange when the correlation-source counter throws at wiring`() {
             // What is tested: the isolation of an OPERATIONAL counter from the exchange it observes
-            //   (finding 4 of the internal analysis) - registration succeeds, the increment
+            // - registration succeeds, the increment
             //   throws, everything else is healthy.
             // Success criteria: the event is emitted as usual; the counter failure is counted
             //   stage=wiring; nothing propagates.
@@ -314,8 +314,8 @@ class RequestLoggingFailOpenCounterTest {
 
         @Test
         fun `should not report an emitted event as an emission failure when the events counter throws`() {
-            // What is tested: the post-log() increment of the events counter (finding 4 of the
-            //   internal analysis) - the line is already on the logger when it throws.
+            // What is tested: the post-log() increment of the events counter - the line is already on the
+            //   logger when it throws.
             // Success criteria: the event is on the appender, stage=emission stays 0 (the event was NOT
             //   lost) and the counter failure lands on stage=wiring.
             // Why it matters: the fail-open and events meters are the reconciliation signals for
@@ -343,8 +343,8 @@ class RequestLoggingFailOpenCounterTest {
 
         @Test
         fun `should still serve the request when the fail-open diagnostics themselves throw`() {
-            // What is tested: the secondary guard around the catch handlers' diagnostics (twin parity with
-            //   the reactive module's finding 3) - the wiring fails AND the fail-open counter's increment throws.
+            // What is tested: the secondary guard around the catch handlers' diagnostics (twin parity
+            //   with the reactive module) - the wiring fails AND the fail-open counter's increment throws.
             // Success criteria: the chain runs and nothing propagates out of the filter.
             // Why it matters: a throw escaping a catch handler before the chain fails the request with a 500.
             // Given: a registry whose counters throw on increment, and a filter whose wiring throws
@@ -409,7 +409,7 @@ class RequestLoggingFailOpenCounterTest {
     inner class `Arrival stage` {
         @Test
         fun `should confine an arrival-line backend failure and count stage arrival`() {
-            // What is tested: the arrival guard's coverage (review finding 8) -
+            // What is tested: the arrival guard's coverage -
             //   the logger's level gate is a call into the host's logging backend and must sit INSIDE the
             //   fail-open guard; before the fix an exception from isInfoEnabled escaped logRequestStart and
             //   failed the request before the chain ran.

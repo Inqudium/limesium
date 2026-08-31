@@ -95,15 +95,14 @@ internal class Exchange(
      * Which async callback ENDED the exchange - one value, set through [markTimedOut]/[markErrored],
      * carrying its own precedence (see [AsyncDisposition]). The disposition is the callback that occurred,
      * never inferred from throwable presence: the servlet API permits an `AsyncEvent` WITHOUT a throwable
-     * on `onError`, and `onTimeout` MAY carry one (finding 5 of an internal code analysis).
+     * on `onError`, and `onTimeout` MAY carry one.
      */
     val asyncDisposition: AsyncDisposition
         get() = disposition.get()
 
     // The precedence is an ATOMIC transition, not a volatile check-then-set: the container does not
     // promise that onTimeout and onError run on one thread, and an onError reading NONE, losing the
-    // race to onTimeout and then writing ERRORED would erase the absorbing timeout (finding 2 of
-    // an internal code analysis).
+    // race to onTimeout and then writing ERRORED would erase the absorbing timeout.
     private val disposition = AtomicReference(AsyncDisposition.NONE)
 
     /** TIMED_OUT is absorbing: set unconditionally, whatever was recorded before or concurrently. */
@@ -129,8 +128,7 @@ internal class Exchange(
  * The async disposition of an exchange, as a single value with its precedence built in: [TIMED_OUT]
  * always wins - the container's timeout is what ENDED the exchange, a subsequent `onError` (the
  * container aborting the timed-out cycle) does not reclassify it; [ERRORED] is recorded only from
- * [NONE]. Replaces two independent boolean flags whose precedence lived in the emitter's `when`
- * (finding 2 of an internal architecture review).
+ * [NONE]. Replaces two independent boolean flags whose precedence lived in the emitter's `when`.
  */
 internal enum class AsyncDisposition { NONE, TIMED_OUT, ERRORED }
 
