@@ -160,8 +160,12 @@
                         <arg>-Xjsr305=strict</arg>
                         <!-- Friend access to limesium-common: the shared classes stay `internal`
                              although they live in another module (ADR-0003). The reactor builds
-                             limesium-common first, so the classes directory exists. -->
-                        <arg>-Xfriend-paths=${project.build.outputDirectory},${session.executionRootDirectory}/limesium-common/target/classes,${session.executionRootDirectory}/limesium-common/target/limesium-common-${project.version}.jar</arg>
+                             limesium-common first, so the classes directory exists. Paths are
+                             basedir-relative (not session/execution-root properties): the IDE's
+                             Maven import resolves ${project.basedir} into the Kotlin facet, while
+                             session properties exist only at build time - an unresolved friend
+                             path leaves every shared `internal` red in the editor. -->
+                        <arg>-Xfriend-paths=${project.build.outputDirectory},${project.basedir}/../limesium-common/target/classes,${project.basedir}/../limesium-common/target/limesium-common-${project.version}.jar</arg>
                     </args>
                 </configuration>
                 <executions>
