@@ -20,19 +20,26 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
 /**
- * Finding #2 of PERF_ANALYSIS-2026-08-29T22-31-30 (plan M2): {@code HeaderLogProperties.mask}
- * performs a {@code MessageDigest.getInstance} lookup per value and renders the 8 digest bytes
+ * Finding #2 of PERF_ANALYSIS-2026-08-29T22-31-30 (plan M2), CONFIRMED AND PARTIALLY ADOPTED: at
+ * the time of the recorded runs {@code HeaderLogProperties.mask} rendered the 8 digest bytes
  * through eight {@code String.format("%02x")} calls (plus byte-boxing via {@code take(8)}).
+ * Production has since adopted candidate (a): it renders via {@link HexFormat} and keeps the
+ * per-value {@code MessageDigest.getInstance} lookup, so the baseline below now measures the
+ * ADOPTED implementation and is expected on par with {@code candidateHexFormat}.
  *
- * <p>Baseline: the production {@code mask}. Candidates: (a) same per-call digest lookup, hex via
- * {@link HexFormat} - isolates the rendering cost; (b) additionally a thread-local digest -
- * isolates the {@code getInstance} lookup. All three produce byte-identical output (asserted in
- * setup) - the fingerprint format is a twin contract.
+ * <p>Baseline: the production {@code mask} as currently shipped ({@code HexFormat} rendering).
+ * Candidates: (a) per-call digest lookup, hex via {@link HexFormat} - the adopted shape, kept as
+ * the parity reference; (b) additionally a thread-local digest - isolates the remaining
+ * {@code getInstance} lookup cost, the part deliberately NOT adopted. All three produce
+ * byte-identical output (asserted in setup) - the fingerprint format is a twin contract. The
+ * pre-adoption evidence lives in {@code results/mask.*}; a re-run today is a regression guard for
+ * the rendering path.
  *
  * <p>Inputs rotate through a pre-generated pool so the JIT cannot fold the digest input.
  *
- * <p>Decision rule (fixed before the run): confirmed if the baseline is >= 2x the candidate time
- * or >= 500 B/op above it; retired regardless of ratio if the baseline is < 500 ns/op absolute.
+ * <p>Decision rule of the historical confirmation run (fixed before that run): confirmed if the
+ * baseline is >= 2x the candidate time or >= 500 B/op above it; retired regardless of ratio if
+ * the baseline is < 500 ns/op absolute.
  */
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)

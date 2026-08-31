@@ -15,7 +15,8 @@ import kotlin.Pair;
 /**
  * The CANDIDATE of finding #1 (PERF_ANALYSIS-2026-08-29T22-31-30, plan M3): the semantics of
  * {@code HeaderLogProperties.select} with every configuration-derived structure (lowercased
- * exclude/mask sets, the wildcard flags) computed ONCE at construction instead of per call.
+ * exclude/mask sets, the wildcard flags) computed ONCE at construction instead of per call -
+ * production has since adopted the same precomputation, making this the parity reference.
  * Lives in the benchmark module only - production code is never touched in a verification
  * session. Output equality with the baseline is asserted in the benchmark's setup.
  */

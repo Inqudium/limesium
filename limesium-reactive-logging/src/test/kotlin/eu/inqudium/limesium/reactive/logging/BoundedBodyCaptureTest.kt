@@ -143,24 +143,6 @@ class BoundedBodyCaptureTest {
             assertThat(capture.loggedValue(StandardCharsets.UTF_8)).isEqualTo("a\uFFFDb... [truncated, 4 bytes total]")
         }
     }
-}
-
-/** A publisher that ignores cancellation - the Reactive-Streams-permitted late onNext, made deterministic. */
-private class ManualPublisher : Publisher<DataBuffer> {
-    private lateinit var subscriber: Subscriber<in DataBuffer>
-
-    override fun subscribe(s: Subscriber<in DataBuffer>) {
-        subscriber = s
-        s.onSubscribe(
-            object : Subscription {
-                override fun request(n: Long) = Unit
-
-                override fun cancel() = Unit
-            },
-        )
-    }
-
-    fun emit(buffer: DataBuffer) = subscriber.onNext(buffer)
 
     @Nested
     inner class `Read state` {
@@ -197,4 +179,22 @@ private class ManualPublisher : Publisher<DataBuffer> {
             assertThat(capture.readState).isEqualTo(BodyReadState.PARTIAL)
         }
     }
+}
+
+/** A publisher that ignores cancellation - the Reactive-Streams-permitted late onNext, made deterministic. */
+private class ManualPublisher : Publisher<DataBuffer> {
+    private lateinit var subscriber: Subscriber<in DataBuffer>
+
+    override fun subscribe(s: Subscriber<in DataBuffer>) {
+        subscriber = s
+        s.onSubscribe(
+            object : Subscription {
+                override fun request(n: Long) = Unit
+
+                override fun cancel() = Unit
+            },
+        )
+    }
+
+    fun emit(buffer: DataBuffer) = subscriber.onNext(buffer)
 }

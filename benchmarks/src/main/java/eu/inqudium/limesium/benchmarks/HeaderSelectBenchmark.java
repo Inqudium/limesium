@@ -19,16 +19,22 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
 /**
- * Finding #1 of PERF_ANALYSIS-2026-08-29T22-31-30 (plan M3): {@code HeaderLogProperties.select}
- * rebuilds the lowercased exclude/mask sets and intermediate collections on every call although
- * the configuration is immutable.
+ * Finding #1 of PERF_ANALYSIS-2026-08-29T22-31-30 (plan M3), CONFIRMED AND ADOPTED: at the time
+ * of the recorded runs {@code HeaderLogProperties.select} rebuilt the lowercased exclude/mask sets
+ * and intermediate collections on every call; production has since derived them once at
+ * construction (the "Derived ONCE" block in {@code RequestLoggingProperties}), so the baseline
+ * below now measures the ADOPTED implementation, not the finding.
  *
- * <p>Baseline: the production {@code select} as shipped. Candidate: {@link PrecomputedHeaderSelect}
- * (identical output, config-derived structures precomputed). Masking is left EMPTY in all
- * configurations to keep finding #2's cost out of this measurement.
+ * <p>Baseline: the production {@code select} as currently shipped (precomputation included).
+ * Candidate: {@link PrecomputedHeaderSelect}, the original standalone sketch the adoption was
+ * measured against (identical output). The pre-adoption evidence lives in
+ * {@code results/header-select.*}; a re-run today is a REGRESSION GUARD - baseline and candidate
+ * are expected to be on par, a baseline drifting back above the candidate reopens the finding.
+ * Masking is left EMPTY in all configurations to keep finding #2's cost out of this measurement.
  *
- * <p>Decision rule (fixed before the run): confirmed if the baseline is >= 200 ns/op or
- * >= 500 B/op above the candidate at a realistic configuration; retired otherwise.
+ * <p>Decision rule of the historical confirmation run (fixed before that run): confirmed if the
+ * baseline is >= 200 ns/op or >= 500 B/op above the candidate at a realistic configuration;
+ * retired otherwise.
  */
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)

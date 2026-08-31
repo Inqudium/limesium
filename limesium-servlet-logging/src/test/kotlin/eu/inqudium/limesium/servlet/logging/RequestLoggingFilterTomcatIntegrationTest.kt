@@ -103,6 +103,9 @@ class RequestLoggingFilterTomcatIntegrationTest {
     fun tearDown() {
         logger.detachAppender(appender)
         appender.stop()
+        // The JDK client is AutoCloseable (Java 21+); JUnit creates one instance per test method,
+        // so each client - selector thread, sockets, buffers - must end with its test.
+        http.close()
     }
 
     private fun get(

@@ -1,6 +1,6 @@
 package eu.inqudium.limesium.benchmarks;
 
-import eu.inqudium.limesium.reactive.logging.BodyReadState;
+import eu.inqudium.limesium.common.BodyReadState;
 import eu.inqudium.limesium.reactive.logging.EndpointLoggingMetrics;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -57,7 +57,7 @@ public class BodyMeterBenchmark {
         for (int i = 0; i < registrySize; i++) {
             registry.counter("host.dummy.meter", "idx", Integer.toString(i));
         }
-        metrics = new EndpointLoggingMetrics(registry);
+        metrics = EndpointLoggingMetrics.Companion.forRegistry(registry);
         // Warm the meter the baseline re-resolves, then resolve the candidate's reference ONCE -
         // the same Meter.Id, so both increment the identical counter.
         metrics.requestBodyRead(TEMPLATE, BodyReadState.COMPLETE);
