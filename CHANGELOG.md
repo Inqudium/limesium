@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-08-31
+
 Heads-up: this cycle is **breaking on three axes** - wire behavior (ADR-0002),
 API surface (ADR-0003 package moves, ADR-0004 removal), and the observable
 default id format (ADR-0004). Each break was decided in a numbered ADR under
@@ -151,6 +153,7 @@ default id format (ADR-0004). Each break was decided in a numbered ADR under
 - `limesium-reactive-logging` — auto-configured WebFlux web filter (Reactor and
   coroutines), field- and configuration-identical twin of the servlet module.
 
-[Unreleased]: https://github.com/Inqudium/limesium/compare/1.1.0...HEAD
+[Unreleased]: https://github.com/Inqudium/limesium/compare/2.0.0...HEAD
+[2.0.0]: https://github.com/Inqudium/limesium/releases/tag/2.0.0
 [1.1.0]: https://github.com/Inqudium/limesium/releases/tag/1.1.0
 [1.0.0]: https://github.com/Inqudium/limesium/releases/tag/1.0.0
