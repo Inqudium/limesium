@@ -35,7 +35,7 @@ The servlet module is the reference implementation; its documentation applies he
 
 Everything else — fail-open including the wiring (`stage=wiring` degrades to pass-through), the
 level/outcome decoupling, slow escalation, header sections with `includes`/`excludes`/`masked` and the
-stable masking fingerprint, the arrival line (`log-request-start`), count-only body measuring — behaves
+injectable `HeaderValueMasker` (default: the stable fingerprint), the arrival line (`log-request-start`), count-only body measuring — behaves
 exactly as documented in the servlet twin's README.
 
 ## The shared layer

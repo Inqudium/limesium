@@ -5,6 +5,7 @@ import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
 import eu.inqudium.limesium.common.HeaderLogProperties
+import eu.inqudium.limesium.common.HeaderValueMasker
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
@@ -338,7 +339,46 @@ class RequestLoggingWebFilterBodyAndHeaderTest {
             val headers = keyValues()["endpoint_request_headers"].toString()
             assertThat(headers).contains("Accept:\"text/plain, text/html\"")
             assertThat(headers).doesNotContain("super-secret-token")
-            assertThat(headers).contains("X-Api-Key:\"${HeaderLogProperties.mask("super-secret-token")}\"")
+            assertThat(headers).contains("X-Api-Key:\"${HeaderValueMasker.DEFAULT.mask("super-secret-token")}\"")
+        }
+
+        @Test
+        fun `should render masked values through a host-provided masker`() {
+            // What is tested: the masker is an injected collaborator - a filter built with a host bean
+            //   masks request AND response headers with it.
+            // Success criteria: both selected, masked headers carry the host masker's output, never the
+            //   plaintext and never the built-in fingerprint.
+            // Why it matters: a compliance regime forbidding unkeyed hashes must be satisfiable without
+            //   forking the module.
+            // Given: a keyed stand-in masker on both sections
+            val keyed = HeaderValueMasker { "hmac:${it.length}" }
+            val keyedFilter =
+                RequestLoggingWebFilter(
+                    properties.copy(
+                        requestHeaders = HeaderLogProperties(includes = listOf("X-Api-Key"), masked = listOf("X-Api-Key")),
+                        responseHeaders = HeaderLogProperties(includes = listOf("Set-Cookie"), masked = listOf("Set-Cookie")),
+                    ),
+                    { ticker.get() },
+                    { "generated-42" },
+                    SimpleMeterRegistry(),
+                    keyed,
+                )
+            val exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/api/things").header("X-Api-Key", "super-secret-token"))
+
+            // When: the chain sets a masked response header
+            keyedFilter
+                .filter(
+                    exchange,
+                    WebFilterChain { ex ->
+                        ex.response.statusCode = HttpStatus.OK
+                        ex.response.headers.set("Set-Cookie", "session=1")
+                        Mono.empty()
+                    },
+                ).block()
+
+            // Then
+            assertThat(keyValues()["endpoint_request_headers"].toString()).isEqualTo("[X-Api-Key:\"hmac:18\"]")
+            assertThat(keyValues()["endpoint_response_headers"].toString()).isEqualTo("[Set-Cookie:\"hmac:9\"]")
         }
 
         @Test

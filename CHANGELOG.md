@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Injectable `HeaderValueMasker`: the rendering of masked header values is a
+  `@ConditionalOnMissingBean` bean (`eu.inqudium.limesium.common.HeaderValueMasker`)
+  shared by both twins and both reactive variants - the built-in default is the
+  stable `length:hash` fingerprint, a host pins a keyed or fixed masker instead;
+  the properties decide which values are masked, the bean decides how. Ported
+  from the outbound sibling Legatium, where it was designed in first.
+
+### Changed
+
+- **BREAKING (source):** `HeaderLogProperties.mask(value)` is gone, and
+  `HeaderLogProperties.select(names, valueOf)` takes the masker as its second
+  argument. *Migrate:* call `HeaderValueMasker.DEFAULT.mask(value)`, and pass a
+  `HeaderValueMasker` to `select`. The filter constructors gain an optional
+  trailing `HeaderValueMasker` parameter (the default when omitted) - existing
+  host-built filter beans compile unchanged.
+
 ## [2.0.0] - 2026-08-31
 
 Heads-up: this cycle is **breaking on three axes** - wire behavior (ADR-0002),

@@ -5,7 +5,7 @@ import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
 import eu.inqudium.limesium.common.BodyReadState
-import eu.inqudium.limesium.common.HeaderLogProperties
+import eu.inqudium.limesium.common.HeaderValueMasker
 import eu.inqudium.limesium.common.MdcKeys
 import eu.inqudium.limesium.common.TraceMdcKeys
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
@@ -70,7 +70,7 @@ class TwinContractTest {
         // The expected value is hardcoded, not derived: the first 64 bits of SHA-256 over the UTF-8
         //   bytes are stable across JVMs - and a format change in one twin breaks that module's literal here, forcing coordinated change.
         // Given/When/Then: one fixed input against its literal fingerprint
-        assertThat(HeaderLogProperties.mask("secret-token")).isEqualTo("12:930bbdc51b6aed5c")
+        assertThat(HeaderValueMasker.DEFAULT.mask("secret-token")).isEqualTo("12:930bbdc51b6aed5c")
     }
 
     @Test

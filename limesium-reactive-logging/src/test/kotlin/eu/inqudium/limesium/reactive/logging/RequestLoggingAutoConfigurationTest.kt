@@ -5,6 +5,7 @@ import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
 import eu.inqudium.limesium.common.CorrelationIdGenerator
+import eu.inqudium.limesium.common.HeaderValueMasker
 import eu.inqudium.limesium.common.MdcKeys
 import eu.inqudium.limesium.common.NanoTimeSource
 import io.micrometer.context.ContextRegistry
@@ -61,6 +62,22 @@ class RequestLoggingAutoConfigurationTest {
     }
 
     @Test
+    fun `should let a host HeaderValueMasker back the default masker off`() {
+        // What is tested: the masker is a @ConditionalOnMissingBean bean like the time source and the
+        //   id generator - a host pins its own rendering (a keyed HMAC, a fixed `***`) once.
+        // Success criteria: with a host bean the context holds exactly one HeaderValueMasker, the
+        //   host's, and the module's default backed off.
+        // Why it matters: the properties decide which values are masked; the bean is the host's only
+        //   handle on HOW - it must win over the default in the shipped configuration.
+        // Given/When: a host masker beside the auto-configuration
+        contextRunner.withUserConfiguration(MaskerHostConfig::class.java).run { context ->
+            // Then
+            assertThat(context).hasSingleBean(HeaderValueMasker::class.java)
+            assertThat(context.getBean(HeaderValueMasker::class.java).mask("x")).isEqualTo("***")
+        }
+    }
+
+    @Test
     fun `should register the web filter and the defaults in a reactive web application`() {
         // Given/When: the module's auto-configuration alone, in a reactive web context
         contextRunner.run { context ->
@@ -68,6 +85,7 @@ class RequestLoggingAutoConfigurationTest {
             assertThat(context).hasSingleBean(RequestLoggingWebFilter::class.java)
             assertThat(context).hasSingleBean(NanoTimeSource::class.java)
             assertThat(context).hasSingleBean(CorrelationIdGenerator::class.java)
+            assertThat(context).hasSingleBean(HeaderValueMasker::class.java)
         }
     }
 
@@ -78,6 +96,7 @@ class RequestLoggingAutoConfigurationTest {
             // Then: nothing of this module is in the context
             assertThat(context).doesNotHaveBean(RequestLoggingWebFilter::class.java)
             assertThat(context).doesNotHaveBean(NanoTimeSource::class.java)
+            assertThat(context).doesNotHaveBean(HeaderValueMasker::class.java)
             assertThat(context).doesNotHaveBean(RequestLoggingProperties::class.java)
         }
     }
@@ -316,4 +335,10 @@ private class HostConfig {
         properties: RequestLoggingProperties,
         registry: MeterRegistry,
     ): RequestLoggingWebFilter = RequestLoggingWebFilter(properties, NanoTimeSource.SYSTEM, CorrelationIdGenerator.DEFAULT, registry)
+}
+
+@Configuration(proxyBeanMethods = false)
+private class MaskerHostConfig {
+    @Bean
+    fun hostMasker(): HeaderValueMasker = HeaderValueMasker { "***" }
 }

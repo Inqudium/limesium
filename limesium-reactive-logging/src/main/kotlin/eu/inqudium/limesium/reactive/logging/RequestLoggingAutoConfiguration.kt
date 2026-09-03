@@ -1,6 +1,7 @@
 package eu.inqudium.limesium.reactive.logging
 
 import eu.inqudium.limesium.common.CorrelationIdGenerator
+import eu.inqudium.limesium.common.HeaderValueMasker
 import eu.inqudium.limesium.common.NanoTimeSource
 import io.micrometer.context.ContextRegistry
 import io.micrometer.core.instrument.MeterRegistry
@@ -42,6 +43,11 @@ class RequestLoggingAutoConfiguration {
     @ConditionalOnMissingBean
     fun requestLoggingCorrelationIdGenerator(): CorrelationIdGenerator = CorrelationIdGenerator.DEFAULT
 
+    /** How masked header values render - a host pins a keyed or fixed masker; both variants and both twins take the same bean. */
+    @Bean
+    @ConditionalOnMissingBean
+    fun requestLoggingHeaderValueMasker(): HeaderValueMasker = HeaderValueMasker.DEFAULT
+
     /**
      * The Reactor variant, registered only when NO [EndpointLoggingFilter] exists yet: the coroutine
      * auto-configuration runs BEFORE this one and claims the slot when the coroutine libraries are
@@ -57,13 +63,14 @@ class RequestLoggingAutoConfiguration {
         properties: RequestLoggingProperties,
         nanoTime: NanoTimeSource,
         correlationIds: CorrelationIdGenerator,
+        masker: HeaderValueMasker,
         meterRegistry: ObjectProvider<MeterRegistry>,
     ): RequestLoggingWebFilter {
         check(properties.variant != Variant.COROUTINE) {
             "endpoint-logging.variant=coroutine requires kotlinx-coroutines-reactor and kotlinx-coroutines-slf4j " +
                 "on the classpath; neither a coroutine filter nor those libraries were found"
         }
-        return RequestLoggingWebFilter(properties, nanoTime, correlationIds, meterRegistry.getIfAvailable { SimpleMeterRegistry() })
+        return RequestLoggingWebFilter(properties, nanoTime, correlationIds, meterRegistry.getIfAvailable { SimpleMeterRegistry() }, masker)
     }
 
     /**

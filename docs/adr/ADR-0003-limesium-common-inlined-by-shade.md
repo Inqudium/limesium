@@ -105,3 +105,18 @@ target moved along, as the Traceparent suite did in the original
 extraction. NOTE - source-breaking for hosts that import the class
 (bean-less, but referenced in configuration code): same break class as
 the original ADR-0003 package moves, shipped in the same release.
+
+## Amendment (2026-09-03)
+
+The masking fingerprint - `HeaderLogProperties.mask`, a static companion
+function - became the injectable `HeaderValueMasker` (`fun interface`, with
+the fingerprint as `DEFAULT`), a `@ConditionalOnMissingBean` bean in both
+twins' auto-configurations and handed to `HeaderLogProperties.select` by the
+filters: the properties decide WHICH values are masked, the host may decide
+HOW (a keyed HMAC where an unkeyed hash is not acceptable, a fixed `***`
+where no correlation is wanted). The interface lives in `limesium-common`
+beside `HeaderLogProperties`, as the shared-layer criterion demands, and was
+ported from the outbound sibling Legatium, whose design settled it first.
+Source-breaking for hosts that called `mask` or `select` directly; the
+filter constructors take the masker as an optional trailing parameter, so
+host-built filter beans compile unchanged.

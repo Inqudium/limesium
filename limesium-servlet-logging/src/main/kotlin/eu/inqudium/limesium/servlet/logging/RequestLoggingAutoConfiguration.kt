@@ -1,6 +1,7 @@
 package eu.inqudium.limesium.servlet.logging
 
 import eu.inqudium.limesium.common.CorrelationIdGenerator
+import eu.inqudium.limesium.common.HeaderValueMasker
 import eu.inqudium.limesium.common.NanoTimeSource
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
@@ -21,8 +22,8 @@ import org.springframework.core.Ordered
  * the classpath and every exchange is logged; `endpoint-logging.enabled=false` removes it again.
  *
  * Every bean backs off to a host-provided one: a host may pin [NanoTimeSource] or
- * [CorrelationIdGenerator] (tests do), or define its own [RequestLoggingFilter] bean to take over
- * registration entirely.
+ * [CorrelationIdGenerator] (tests do), replace the [HeaderValueMasker] (a keyed fingerprint for a
+ * compliance regime), or define its own [RequestLoggingFilter] bean to take over registration entirely.
  */
 @AutoConfiguration
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
@@ -36,6 +37,11 @@ class RequestLoggingAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     fun requestLoggingCorrelationIdGenerator(): CorrelationIdGenerator = CorrelationIdGenerator.DEFAULT
+
+    /** How masked header values render - a host pins a keyed or fixed masker; both twins take the same bean. */
+    @Bean
+    @ConditionalOnMissingBean
+    fun requestLoggingHeaderValueMasker(): HeaderValueMasker = HeaderValueMasker.DEFAULT
 
     /**
      * The filter as its own bean, so a host can replace it while keeping the registration wiring below.
@@ -51,8 +57,9 @@ class RequestLoggingAutoConfiguration {
         properties: RequestLoggingProperties,
         nanoTime: NanoTimeSource,
         correlationIds: CorrelationIdGenerator,
+        masker: HeaderValueMasker,
         meterRegistry: ObjectProvider<MeterRegistry>,
-    ): RequestLoggingFilter = RequestLoggingFilter(properties, nanoTime, correlationIds, meterRegistry.getIfAvailable { SimpleMeterRegistry() })
+    ): RequestLoggingFilter = RequestLoggingFilter(properties, nanoTime, correlationIds, meterRegistry.getIfAvailable { SimpleMeterRegistry() }, masker)
 
     /**
      * Runs very early (but not first) in the chain, so the request id is in the MDC before other

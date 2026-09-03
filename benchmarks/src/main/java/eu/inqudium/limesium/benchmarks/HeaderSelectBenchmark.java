@@ -1,6 +1,7 @@
 package eu.inqudium.limesium.benchmarks;
 
 import eu.inqudium.limesium.common.HeaderLogProperties;
+import eu.inqudium.limesium.common.HeaderValueMasker;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -96,7 +97,7 @@ public class HeaderSelectBenchmark {
 
     @Benchmark
     public List<Pair<String, String>> baseline() {
-        return baselineProps.select(availableNames, headers::get);
+        return baselineProps.select(availableNames, HeaderValueMasker.Companion.getDEFAULT(), headers::get);
     }
 
     @Benchmark
