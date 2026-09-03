@@ -134,6 +134,15 @@ endpoint-logging:
   # an explicit note of the total size.
   max-body-bytes: 16384
 
+  # Keys the masking fingerprint. Empty (the default) keeps the unkeyed length:hash fingerprint; any
+  # other value turns it into an HMAC-SHA256 under this key - same shape, same stability under the
+  # same key (so correlation across events, twins and the outbound sibling holds as long as they share
+  # it), but a log reader without the key can no longer confirm a guessed value by hashing it. A
+  # SECRET: supply it like one (environment variable, vault-backed property), never as a literal in a
+  # checked-in file; the properties' toString redacts it. Ignored when a host pins its own
+  # HeaderValueMasker bean.
+  masking-key: ""
+
 logging:
   level:
     # The exchange stream. INFO = every exchange (the default expectation); WARN = only failures,

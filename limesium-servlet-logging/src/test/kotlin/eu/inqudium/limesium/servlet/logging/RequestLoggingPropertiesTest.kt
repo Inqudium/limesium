@@ -47,6 +47,32 @@ class RequestLoggingPropertiesTest {
     }
 
     @Nested
+    inner class `Masking key` {
+        @Test
+        fun `should reject a blank masking key but accept an empty one`() {
+            // What is tested: the binding-time rule - empty means unkeyed, blank is a misconfiguration.
+            // Success criteria: whitespace fails construction naming the property; the empty default binds.
+            // Why it matters: a whitespace key would silently key the fingerprint with a worthless secret.
+            // Given/When/Then
+            assertThat(catchThrowable { RequestLoggingProperties(maskingKey = "  ") })
+                .isInstanceOf(IllegalArgumentException::class.java)
+                .hasMessageContaining("maskingKey")
+            assertThat(RequestLoggingProperties().maskingKey).isEmpty()
+        }
+
+        @Test
+        fun `should redact the masking key in toString`() {
+            // What is tested: the key is a secret - a properties dump (a startup log, a debug endpoint)
+            //   must not print it.
+            // Success criteria: toString carries the redaction marker, never the key.
+            // Why it matters: data-class toString would otherwise leak the secret into every context
+            //   that prints the bean.
+            // Given/When/Then
+            assertThat(RequestLoggingProperties(maskingKey = "pepper").toString()).contains("maskingKey=<redacted>").doesNotContain("pepper")
+        }
+    }
+
+    @Nested
     inner class `Correlation id header` {
         @Test
         fun `should reject a correlation header name outside the HTTP field-name grammar`() {
