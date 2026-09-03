@@ -26,11 +26,13 @@ WebFlux/coroutines web filter. No starter, no forced transitives.
 - **Correlation built in.** The correlation id is adopted from the
   configured header (or generated), echoed on the response, and rides the
   MDC for the whole chain — previous MDC values are restored afterwards.
-- **Passive body capture.** Bodies are captured by a bounded tee as they
-  flow — nothing is buffered, replayed, or withheld from the application;
-  logged header values are masked by default to a stable `length:hash`
-  fingerprint (keyed on request, or whatever a host-provided `HeaderValueMasker`
-  bean renders), plaintext being an explicit allowlist.
+- **Passive body capture, logged by outcome.** Bodies are captured by a
+  bounded tee as they flow — nothing is replayed or withheld from the
+  application — and logged `never`, `on-failure` or `always` per direction;
+  `on-failure` keeps the volume at the lines a body is wanted for. Logged
+  header values are masked by default to a stable `length:hash` fingerprint
+  (keyed on request, or whatever a host-provided `HeaderValueMasker` bean
+  renders), plaintext being an explicit allowlist.
 - **Twin symmetry as an invariant.** Both modules expose the same fields
   and the same `endpoint-logging.*` properties; the shared reference
   configuration is contract-tested against both twins.

@@ -65,8 +65,8 @@ import java.time.Duration
     properties = [
         "endpoint-logging.variant=coroutine",
         "endpoint-logging.logger-name=http-exchange-coroutine-integration-test",
-        "endpoint-logging.log-request-body=true",
-        "endpoint-logging.log-response-body=true",
+        "endpoint-logging.log-request-body=always",
+        "endpoint-logging.log-response-body=always",
         "endpoint-logging.response-headers.includes=X-Late",
         "endpoint-logging.response-headers.unmasked=X-Late",
     ],

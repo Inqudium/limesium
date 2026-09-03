@@ -99,7 +99,7 @@ must exist, every value must be the built-in default.
 | `exclude-path-prefixes` | *(empty)* | Request-URI prefixes that are not logged at all |
 | `slow-request-threshold` | `5s` | At/above this duration the line escalates to WARN and is flagged `slow` |
 | `request-headers.*` / `response-headers.*` | `masked: ["*"]`, the rest empty | Per-direction sections with `includes` (names or `*`), `excludes`, `masked` (default `*`: every logged value is rendered by the `HeaderValueMasker` bean, a stable `length:hash` pseudonym) and `unmasked` (the explicit names allowed in plaintext, no wildcard). Masked by default, so `includes: ["*"]` costs readability, not confidentiality (ADR-0005) |
-| `log-request-body` / `log-response-body` | `false` | Capture bodies as they flow (tee, never a pre-read) |
+| `log-request-body` / `log-response-body` | `never` | `never`, `on-failure` or `always` (ADR-0006). Bodies are captured as they flow (tee, never a pre-read); `on-failure` writes them only when `endpoint_outcome` is not `success` — the volume switch: the request body is teed before the outcome is known and dropped on success |
 | `max-body-bytes` | `16384` | Capture limit per body; beyond it the log truncates (and says so), the exchange is untouched |
 | `masking-key` | *(empty)* | Keys the masking fingerprint (HMAC-SHA256): same shape and stability, guess-proof without the key. A secret — supply it as one; empty keeps the unkeyed fingerprint |
 | `measure-request-body-size` / `measure-response-body-size` | `false` | Count body bytes for the size meters (`endpoint.request/response.body.size`) without logging content |

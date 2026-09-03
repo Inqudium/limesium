@@ -7,6 +7,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.classic.turbo.TurboFilter
 import ch.qos.logback.core.read.ListAppender
 import ch.qos.logback.core.spi.FilterReply
+import eu.inqudium.limesium.common.BodyLogMode
 import eu.inqudium.limesium.common.CorrelationIdGenerator
 import eu.inqudium.limesium.common.HeaderLogProperties
 import eu.inqudium.limesium.common.NanoTimeSource
@@ -221,7 +222,7 @@ class RequestLoggingFailOpenCounterTest {
             Counter.builder(EndpointLoggingMetrics.RESPONSE_BODY_SIZE_METER).tag("uri", "UNKNOWN").register(hostRegistry)
             val conflicting =
                 RequestLoggingFilter(
-                    properties.copy(measureResponseBodySize = true, logResponseBody = true),
+                    properties.copy(measureResponseBodySize = true, logResponseBody = BodyLogMode.ALWAYS),
                     NanoTimeSource { ticker.get() },
                     CorrelationIdGenerator { "generated-42" },
                     hostRegistry,

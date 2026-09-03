@@ -1,5 +1,6 @@
 package eu.inqudium.limesium.reactive.logging
 
+import eu.inqudium.limesium.common.BodyLogMode
 import eu.inqudium.limesium.common.HeaderLogProperties
 import org.springframework.boot.context.properties.ConfigurationProperties
 import java.time.Duration
@@ -80,10 +81,15 @@ data class RequestLoggingProperties(
     val requestHeaders: HeaderLogProperties = HeaderLogProperties(),
     /** Selection and masking of the RESPONSE headers on the exchange line; nothing is logged by default. */
     val responseHeaders: HeaderLogProperties = HeaderLogProperties(),
-    /** Whether the request body (up to [maxBodyBytes]) is captured and logged. */
-    val logRequestBody: Boolean = false,
-    /** Whether the response body (up to [maxBodyBytes]) is captured and logged. */
-    val logResponseBody: Boolean = false,
+    /**
+     * When the request body (up to [maxBodyBytes]) is logged: [BodyLogMode.NEVER] (the default),
+     * [BodyLogMode.ON_FAILURE] - captured on every exchange, written only when the outcome is not
+     * `success` - or [BodyLogMode.ALWAYS]. The mode, not a switch, is what decides the log volume
+     * (ADR-0006).
+     */
+    val logRequestBody: BodyLogMode = BodyLogMode.NEVER,
+    /** As [logRequestBody], for the response body; the outcome is final at emission, so nothing is captured in vain. */
+    val logResponseBody: BodyLogMode = BodyLogMode.NEVER,
     /**
      * Whether the request body SIZE is measured (meter `endpoint.request.body.size`, tagged by the
      * handler pattern). Deliberately independent of [logRequestBody]: a metric must not appear and

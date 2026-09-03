@@ -4,6 +4,7 @@ import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
+import eu.inqudium.limesium.common.BodyLogMode
 import eu.inqudium.limesium.common.HeaderLogProperties
 import eu.inqudium.limesium.common.HeaderValueMasker
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
@@ -12,6 +13,7 @@ import jakarta.servlet.ServletRequestEvent
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.catchThrowable
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
@@ -34,8 +36,8 @@ class RequestLoggingFilterBodyAndHeaderTest {
             loggerName = "http-exchange-body-test",
             requestHeaders = HeaderLogProperties(includes = listOf("Accept"), masked = listOf("X-Api-Key")),
             responseHeaders = HeaderLogProperties(includes = listOf("Content-Type"), unmasked = listOf("Content-Type")),
-            logRequestBody = true,
-            logResponseBody = true,
+            logRequestBody = BodyLogMode.ALWAYS,
+            logResponseBody = BodyLogMode.ALWAYS,
             maxBodyBytes = 8,
         )
     private val filter = RequestLoggingFilter(properties, { ticker.get() }, { "generated-42" }, SimpleMeterRegistry())
@@ -719,6 +721,114 @@ class RequestLoggingFilterBodyAndHeaderTest {
             assertThat(keyValues())
                 .doesNotContainKey("endpoint_request_headers")
                 .doesNotContainKey("endpoint_response_headers")
+        }
+    }
+
+    @Nested
+    inner class `Outcome-gated bodies` {
+        private val onFailure = properties.copy(logRequestBody = BodyLogMode.ON_FAILURE, logResponseBody = BodyLogMode.ON_FAILURE)
+        private val gated = RequestLoggingFilter(onFailure, { ticker.get() }, { "generated-42" }, SimpleMeterRegistry())
+
+        private fun posted(text: String) = MockHttpServletRequest("POST", "/api/things").apply { setContent(text.toByteArray(StandardCharsets.UTF_8)) }
+
+        /** A chain that reads the request body, sets [status] and writes "answer". */
+        private fun answering(status: Int) =
+            FilterChain { req, res ->
+                (req as HttpServletRequest).inputStream.readAllBytes()
+                (res as HttpServletResponse).status = status
+                res.outputStream.write("answer".toByteArray(StandardCharsets.UTF_8))
+            }
+
+        private fun run(
+            filter: RequestLoggingFilter,
+            request: MockHttpServletRequest,
+            response: MockHttpServletResponse,
+            chain: FilterChain,
+        ) {
+            try {
+                filter.doFilterInternal(request, response, chain)
+            } finally {
+                filter.exchangeCompletionListener().requestDestroyed(ServletRequestEvent(request.servletContext, request))
+            }
+        }
+
+        @Test
+        fun `should withhold both bodies from a successful exchange in on-failure mode`() {
+            // What is tested: the volume switch - on-failure tees the request body (the outcome is unknown
+            //   while it is read) and discards both captures at emission when the outcome is success.
+            // Success criteria: the client receives the response body; the line carries neither body.
+            // Why it matters: this is the mode that keeps body logging affordable outside a debug session.
+            // Given/When
+            val response = MockHttpServletResponse()
+            run(gated, posted("sent"), response, answering(200))
+
+            // Then
+            assertThat(response.contentAsString).isEqualTo("answer")
+            assertThat(keyValues())
+                .containsEntry("endpoint_outcome", "success")
+                .doesNotContainKeys("endpoint_request_body", "endpoint_response_body")
+        }
+
+        @Test
+        fun `should log both bodies of a 5xx response in on-failure mode`() {
+            // Given/When: a failure outcome without an exception
+            run(gated, posted("sent"), MockHttpServletResponse(), answering(502))
+
+            // Then
+            assertThat(keyValues())
+                .containsEntry("endpoint_outcome", "failure")
+                .containsEntry("endpoint_request_body", "sent")
+                .containsEntry("endpoint_response_body", "answer")
+        }
+
+        @Test
+        fun `should log the teed request body of an exchange whose handler threw in on-failure mode`() {
+            // Given: a handler that reads the body and then fails
+            val failing =
+                FilterChain { req, _ ->
+                    (req as HttpServletRequest).inputStream.readAllBytes()
+                    throw IllegalStateException("handler broke")
+                }
+
+            // When
+            val thrown = catchThrowable { run(gated, posted("sent"), MockHttpServletResponse(), failing) }
+
+            // Then: the request body that was captured before the outcome was known is on the line
+            assertThat(thrown).isInstanceOf(IllegalStateException::class.java)
+            assertThat(keyValues())
+                .containsEntry("endpoint_outcome", "failure")
+                .containsEntry("endpoint_request_body", "sent")
+                .doesNotContainKey("endpoint_response_body")
+        }
+
+        @Test
+        fun `should treat a 4xx response as success and withhold the bodies in on-failure mode`() {
+            // What is tested: on-failure follows the outcome vocabulary, not the status class - a 4xx is
+            //   a success outcome (the application answered; the client's request was wrong).
+            // Success criteria: outcome success, and neither body on the line.
+            // Why it matters: the gate must be predictable from the documented vocabulary; widening it is a
+            //   change of the vocabulary, not a hidden special case in the body logic.
+            // Given/When: a 404 with a body
+            run(gated, posted("sent"), MockHttpServletResponse(), answering(404))
+
+            // Then
+            assertThat(keyValues())
+                .containsEntry("endpoint_outcome", "success")
+                .doesNotContainKeys("endpoint_request_body", "endpoint_response_body")
+        }
+
+        @Test
+        fun `should still measure the size of a body it withholds`() {
+            // Given: on-failure plus measuring, on an own registry
+            val registry = SimpleMeterRegistry()
+            val measuring = RequestLoggingFilter(onFailure.copy(measureRequestBodySize = true), { ticker.get() }, { "generated-42" }, registry)
+
+            // When: a successful exchange with a 4-byte request body
+            run(measuring, posted("four"), MockHttpServletResponse(), answering(200))
+
+            // Then: the sample is recorded, the field is not
+            assertThat(registry.get(EndpointLoggingMetrics.REQUEST_BODY_SIZE_METER).summary().totalAmount()).isEqualTo(4.0)
+            assertThat(keyValues()).doesNotContainKey("endpoint_request_body")
         }
     }
 }

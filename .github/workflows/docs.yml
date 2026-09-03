@@ -6,6 +6,8 @@ on:
     paths:
       - docs/**
       - mkdocs.yml
+      # The test-evidence page is generated from EVERY module's tests, the shared core included.
+      - limesium-common/**
       - limesium-servlet-logging/**
       - limesium-reactive-logging/**
       - pom.xml

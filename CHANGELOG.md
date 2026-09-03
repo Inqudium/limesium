@@ -17,9 +17,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `endpoint-logging.masking-key` keys the built-in fingerprint (HMAC-SHA256)
   without a bean: same shape and stability, guess-proof without the key. Both
   ported from the outbound sibling Legatium, where they were designed in first.
+- `on-failure` body logging
+  ([ADR-0006](docs/adr/ADR-0006-bodies-logged-by-outcome.md)): `log-request-body`
+  / `log-response-body` are now a mode per direction - `never` (the default),
+  `on-failure` or `always`. `on-failure` writes a body only when
+  `endpoint_outcome` is not `success` - the emitter decides when the outcome is
+  final, the request body is teed before the outcome is known and discarded on
+  success - which keeps body logging affordable outside a debug session. Ported
+  from Legatium.
 
 ### Changed
 
+- **BREAKING (configuration and source,
+  [ADR-0006](docs/adr/ADR-0006-bodies-logged-by-outcome.md)):**
+  `log-request-body` / `log-response-body` take `never` | `on-failure` |
+  `always` instead of `true` / `false`; the former booleans no longer bind, so
+  a leftover `true` fails the context start instead of silently switching
+  bodies off. *Migrate:* `true` becomes `always` (or, better, `on-failure`),
+  `false` becomes `never` or is dropped. In code, the properties' type is
+  `BodyLogMode` instead of `Boolean`.
 - **BREAKING (behaviour,
   [ADR-0005](docs/adr/ADR-0005-headers-masked-by-default.md)):** logged header
   values are masked by default. `masked` now defaults to `["*"]`, and the new

@@ -105,12 +105,19 @@ endpoint-logging:
     unmasked: []
     #  - Content-Type
 
-  # Body capture per direction. The bodies are TEED as they flow - never pre-read, never replayed, so
+  # Body logging per direction - a MODE, not a switch (ADR-0006): `never` (the default), `on-failure`
+  # or `always`. `on-failure` is the volume switch: the body is logged only when `endpoint_outcome` is
+  # not `success` (failure, timeout, cancelled) - orders of magnitude fewer bytes than `always`, on
+  # exactly the lines a body is wanted for. The emitter decides when the outcome is final; the request
+  # body flows before that, so `on-failure` tees it (up to max-body-bytes) like `always` and drops it
+  # on success - the capture is paid, the output is saved. A 4xx response is a `success` outcome (the
+  # application answered) and logs no bodies in `on-failure`.
+  # The bodies are TEED as they flow - never pre-read, never replayed, so
   # streaming and async behaviour are untouched and the log shows exactly the bytes that actually
   # moved (an unread request body is logged as absent). Fields `endpoint_request_body` /
   # `endpoint_response_body` appear only when bytes flowed.
-  log-request-body: false
-  log-response-body: false
+  log-request-body: never
+  log-response-body: never
 
   # Body SIZE measurement per direction (meters `endpoint.request.body.size` /
   # `endpoint.response.body.size`, tagged by the handler pattern). Deliberately independent of the
