@@ -50,6 +50,7 @@ import java.time.Duration
         "endpoint-logging.log-request-body=true",
         "endpoint-logging.log-response-body=true",
         "endpoint-logging.request-headers.includes=Accept",
+        "endpoint-logging.request-headers.unmasked=Accept",
         "endpoint-logging.exclude-path-prefixes=/it/excluded",
     ],
 )

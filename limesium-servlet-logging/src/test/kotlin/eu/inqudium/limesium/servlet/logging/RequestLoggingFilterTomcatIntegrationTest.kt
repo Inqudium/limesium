@@ -69,7 +69,9 @@ import java.util.concurrent.Callable
         "endpoint-logging.log-request-body=true",
         "endpoint-logging.log-response-body=true",
         "endpoint-logging.request-headers.includes=Accept",
+        "endpoint-logging.request-headers.unmasked=Accept",
         "endpoint-logging.response-headers.includes=Content-Type",
+        "endpoint-logging.response-headers.unmasked=Content-Type",
         "endpoint-logging.exclude-path-prefixes=/it/excluded",
         // The tracing jars sit on the test classpath for the tracing integration test; THIS context
         // excludes the bridge explicitly, so the exact-message assertions here stay trace-free. Jetty

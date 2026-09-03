@@ -20,6 +20,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **BREAKING (behaviour,
+  [ADR-0005](docs/adr/ADR-0005-headers-masked-by-default.md)):** logged header
+  values are masked by default. `masked` now defaults to `["*"]`, and the new
+  `unmasked` list per section names the headers that may appear in plaintext
+  (no wildcard) - so `includes: ["*"]` costs readability, not confidentiality.
+  *Migrate:* name the harmless headers in `unmasked`, or set `masked: []` to
+  restore the old rendering knowingly. The fingerprint is documented as what it
+  is - a stable pseudonym, not anonymisation.
 - **BREAKING (source):** `HeaderLogProperties.mask(value)` is gone, and
   `HeaderLogProperties.select(names, valueOf)` takes the masker as its second
   argument. *Migrate:* call `HeaderValueMasker.DEFAULT.mask(value)`, and pass a

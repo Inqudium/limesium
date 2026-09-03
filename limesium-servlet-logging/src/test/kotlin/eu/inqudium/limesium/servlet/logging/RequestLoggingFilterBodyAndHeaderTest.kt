@@ -33,7 +33,7 @@ class RequestLoggingFilterBodyAndHeaderTest {
         RequestLoggingProperties(
             loggerName = "http-exchange-body-test",
             requestHeaders = HeaderLogProperties(includes = listOf("Accept"), masked = listOf("X-Api-Key")),
-            responseHeaders = HeaderLogProperties(includes = listOf("Content-Type")),
+            responseHeaders = HeaderLogProperties(includes = listOf("Content-Type"), unmasked = listOf("Content-Type")),
             logRequestBody = true,
             logResponseBody = true,
             maxBodyBytes = 8,
@@ -531,6 +531,33 @@ class RequestLoggingFilterBodyAndHeaderTest {
         }
 
         @Test
+        fun `should mask every selected header by default so a wildcard include never leaks plaintext`() {
+            // What is tested: ADR-0005 at the filter - the documented debugging move `includes: ["*"]`
+            //   with nothing said about masking.
+            // Success criteria: every logged request header is a fingerprint; the secret appears nowhere.
+            // Why it matters: with masking as a second, empty list the same configuration logged
+            //   everything in plaintext - the unsafe combination was the convenient one.
+            // Given
+            val everything =
+                RequestLoggingFilter(
+                    properties.copy(requestHeaders = HeaderLogProperties(includes = listOf("*"))),
+                    { ticker.get() },
+                    { "generated-42" },
+                    SimpleMeterRegistry(),
+                )
+            val request = MockHttpServletRequest("GET", "/api/things")
+            request.addHeader("Authorization", "Bearer secret-token")
+
+            // When
+            handleWith(everything, request)
+
+            // Then
+            val headers = keyValues()["endpoint_request_headers"].toString()
+            assertThat(headers).contains("Authorization:\"${HeaderValueMasker.DEFAULT.mask("Bearer secret-token")}\"")
+            assertThat(headers).doesNotContain("secret-token")
+        }
+
+        @Test
         fun `should render masked values through a host-provided masker`() {
             // What is tested: the masker is an injected collaborator - a filter built with a host bean
             //   masks request AND response headers with it.
@@ -614,6 +641,8 @@ class RequestLoggingFilterBodyAndHeaderTest {
                         requestHeaders =
                             HeaderLogProperties(
                                 includes = listOf("*"),
+                                // Selection semantics under test, not masking: switched off explicitly (ADR-0005).
+                                masked = emptyList(),
                                 excludes = listOf("cookie"),
                             ),
                     ),

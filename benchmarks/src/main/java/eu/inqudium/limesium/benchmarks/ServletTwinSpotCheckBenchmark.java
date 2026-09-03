@@ -61,6 +61,7 @@ public class ServletTwinSpotCheckBenchmark {
         selectProps = new HeaderLogProperties(
                 availableNames,
                 List.of("Authorization", "Host", "Accept-Encoding", "User-Agent"),
+                List.of(),
                 List.of());
 
         Random random = new Random(42);

@@ -84,7 +84,7 @@ public class HeaderSelectBenchmark {
             }
             default -> throw new IllegalStateException(config);
         }
-        baselineProps = new HeaderLogProperties(includes, excludes, List.of());
+        baselineProps = new HeaderLogProperties(includes, excludes, List.of(), List.of());
         candidate = new PrecomputedHeaderSelect(includes, excludes, List.of());
 
         // Output-equality gate: a candidate with different semantics measures nothing.
