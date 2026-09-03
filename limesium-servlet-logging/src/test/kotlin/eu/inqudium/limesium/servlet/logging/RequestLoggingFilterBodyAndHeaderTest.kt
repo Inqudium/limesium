@@ -802,19 +802,20 @@ class RequestLoggingFilterBodyAndHeaderTest {
         }
 
         @Test
-        fun `should treat a 4xx response as success and withhold the bodies in on-failure mode`() {
-            // What is tested: on-failure follows the outcome vocabulary, not the status class - a 4xx is
-            //   a success outcome (the application answered; the client's request was wrong).
-            // Success criteria: outcome success, and neither body on the line.
-            // Why it matters: the gate must be predictable from the documented vocabulary; widening it is a
-            //   change of the vocabulary, not a hidden special case in the body logic.
+        fun `should log both bodies of a 4xx response although its outcome stays success`() {
+            // What is tested: the gate is wider than the outcome vocabulary by one status class - a 4xx keeps
+            //   its success outcome (the application answered; the client's request was wrong) but is exactly the case a body explains.
+            // Success criteria: outcome success, and BOTH bodies on the line.
+            // Why it matters: a validation error\'s response body is the most wanted body of all; hiding it
+            //   behind the outcome vocabulary would make on-failure useless for client errors.
             // Given/When: a 404 with a body
             run(gated, posted("sent"), MockHttpServletResponse(), answering(404))
 
             // Then
             assertThat(keyValues())
                 .containsEntry("endpoint_outcome", "success")
-                .doesNotContainKeys("endpoint_request_body", "endpoint_response_body")
+                .containsEntry("endpoint_request_body", "sent")
+                .containsEntry("endpoint_response_body", "answer")
         }
 
         @Test

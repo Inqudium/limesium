@@ -223,18 +223,18 @@ internal class ExchangeLogEmitter(
                         ?.joinToString(", ")
                 }
             // Body fields only when the direction's mode admits THIS outcome: `on-failure` captured the
-            // bytes (the outcome is unknown while they flow) and discards them here for a success. A
+            // bytes (the outcome is unknown while they flow) and discards them here for a clean exchange (success outcome, no 4xx). A
             // capture may also exist in count-only mode for the size metrics, and its empty buffer must
             // not surface as a truncated-looking field.
-            val succeeded = outcome == EndpointLoggingMetrics.OUTCOME_SUCCESS
+            val failed = outcome != EndpointLoggingMetrics.OUTCOME_SUCCESS || status in 400..499
             val requestBody =
-                if (properties.logRequestBody.logs(succeeded)) {
+                if (properties.logRequestBody.logs(failed)) {
                     exchange.requestCapture?.loggedValue(exchange.requestWrapper?.bodyCharset ?: StandardCharsets.UTF_8)
                 } else {
                     null
                 }
             val responseBody =
-                if (properties.logResponseBody.logs(succeeded)) {
+                if (properties.logResponseBody.logs(failed)) {
                     exchange.responseCapture?.loggedValue(exchange.responseWrapper?.bodyCharset() ?: StandardCharsets.UTF_8)
                 } else {
                     null

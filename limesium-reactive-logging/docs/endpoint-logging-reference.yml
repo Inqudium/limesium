@@ -120,11 +120,13 @@ endpoint-logging:
 
   # Body logging per direction - a MODE, not a switch (ADR-0006): `never` (the default), `on-failure`
   # or `always`. `on-failure` is the volume switch: the body is logged only when `endpoint_outcome` is
-  # not `success` (failure, timeout, cancelled) - orders of magnitude fewer bytes than `always`, on
+  # not `success` (failure, timeout, cancelled) or the status is a 4xx - orders of magnitude fewer bytes
+  # than `always`, on
   # exactly the lines a body is wanted for. The emitter decides when the outcome is final; the request
   # body flows before that, so `on-failure` tees it (up to max-body-bytes) like `always` and drops it
-  # on success - the capture is paid, the output is saved. A 4xx response is a `success` outcome (the
-  # application answered) and logs no bodies in `on-failure`.
+  # on success - the capture is paid, the output is saved. A 4xx response keeps its `success` outcome
+  # (the application answered) but logs its bodies in `on-failure`: the client's error is exactly what
+  # the body explains.
   # The bodies are TEED as they flow - never pre-read, never replayed, so
   # streaming and backpressure are untouched and the log shows exactly the bytes that actually moved
   # (an unread request body is logged as absent). Fields `endpoint_request_body` /
