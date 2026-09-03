@@ -21,7 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ([ADR-0006](docs/adr/ADR-0006-bodies-logged-by-outcome.md)): `log-request-body`
   / `log-response-body` are now a mode per direction - `never` (the default),
   `on-failure` or `always`. `on-failure` writes a body only when
-  `endpoint_outcome` is not `success` - the emitter decides when the outcome is
+  `endpoint_outcome` is not `success` or the status is a 4xx - the emitter decides
+  when the outcome is
   final, the request body is teed before the outcome is known and discarded on
   success - which keeps body logging affordable outside a debug session. Ported
   from Legatium.
