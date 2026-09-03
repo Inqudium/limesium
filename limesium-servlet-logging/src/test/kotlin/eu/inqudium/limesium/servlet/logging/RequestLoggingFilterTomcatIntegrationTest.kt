@@ -66,8 +66,8 @@ import java.util.concurrent.Callable
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = [
         "endpoint-logging.logger-name=http-exchange-integration-test",
-        "endpoint-logging.log-request-body=true",
-        "endpoint-logging.log-response-body=true",
+        "endpoint-logging.log-request-body=always",
+        "endpoint-logging.log-response-body=always",
         "endpoint-logging.request-headers.includes=Accept",
         "endpoint-logging.request-headers.unmasked=Accept",
         "endpoint-logging.response-headers.includes=Content-Type",

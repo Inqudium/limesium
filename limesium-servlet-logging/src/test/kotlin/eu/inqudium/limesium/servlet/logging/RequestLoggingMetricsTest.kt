@@ -4,6 +4,7 @@ import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
+import eu.inqudium.limesium.common.BodyLogMode
 import eu.inqudium.limesium.common.CorrelationIdGenerator
 import eu.inqudium.limesium.common.NanoTimeSource
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
@@ -320,7 +321,7 @@ class RequestLoggingMetricsTest {
             // Given: a filter that both logs (cap 8) and measures the request body
             val loggingAndMeasuring =
                 RequestLoggingFilter(
-                    properties.copy(logRequestBody = true, maxBodyBytes = 8),
+                    properties.copy(logRequestBody = BodyLogMode.ALWAYS, maxBodyBytes = 8),
                     { ticker.get() },
                     { "generated-42" },
                     meterRegistry,

@@ -1,5 +1,6 @@
 package eu.inqudium.limesium.servlet.logging
 
+import eu.inqudium.limesium.common.BodyLogMode
 import eu.inqudium.limesium.common.CorrelationIdGenerator
 import eu.inqudium.limesium.common.HeaderValueMasker
 import eu.inqudium.limesium.common.NanoTimeSource
@@ -93,7 +94,7 @@ class RequestLoggingAutoConfigurationTest {
         contextRunner
             .withPropertyValues(
                 "endpoint-logging.max-body-bytes=128",
-                "endpoint-logging.log-request-body=true",
+                "endpoint-logging.log-request-body=always",
                 "endpoint-logging.log-request-start=true",
                 "endpoint-logging.exclude-path-prefixes=/actuator/health,/internal",
                 "endpoint-logging.request-headers.includes=*",
@@ -104,7 +105,7 @@ class RequestLoggingAutoConfigurationTest {
                 // Then: the bound properties carry the configured values
                 val properties = context.getBean(RequestLoggingProperties::class.java)
                 assertThat(properties.maxBodyBytes).isEqualTo(128)
-                assertThat(properties.logRequestBody).isTrue()
+                assertThat(properties.logRequestBody).isEqualTo(BodyLogMode.ALWAYS)
                 assertThat(properties.logRequestStart).isTrue()
                 assertThat(properties.excludePathPrefixes).containsExactly("/actuator/health", "/internal")
                 assertThat(properties.requestHeaders.includes).containsExactly("*")

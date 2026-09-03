@@ -56,8 +56,8 @@ import java.time.Duration
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = [
         "endpoint-logging.logger-name=http-exchange-reactor-integration-test",
-        "endpoint-logging.log-request-body=true",
-        "endpoint-logging.log-response-body=true",
+        "endpoint-logging.log-request-body=always",
+        "endpoint-logging.log-response-body=always",
         "endpoint-logging.response-headers.includes=X-Late",
         "endpoint-logging.response-headers.unmasked=X-Late",
         "spring.autoconfigure.exclude=eu.inqudium.limesium.reactive.logging.CoRequestLoggingAutoConfiguration",

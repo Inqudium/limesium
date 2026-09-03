@@ -4,10 +4,12 @@ import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
+import eu.inqudium.limesium.common.BodyLogMode
 import eu.inqudium.limesium.common.HeaderLogProperties
 import eu.inqudium.limesium.common.HeaderValueMasker
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.catchThrowable
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
@@ -41,8 +43,8 @@ class RequestLoggingWebFilterBodyAndHeaderTest {
             loggerName = "http-exchange-reactive-body-test",
             requestHeaders = HeaderLogProperties(includes = listOf("Accept"), masked = listOf("X-Api-Key")),
             responseHeaders = HeaderLogProperties(includes = listOf("Content-Type"), unmasked = listOf("Content-Type")),
-            logRequestBody = true,
-            logResponseBody = true,
+            logRequestBody = BodyLogMode.ALWAYS,
+            logResponseBody = BodyLogMode.ALWAYS,
             maxBodyBytes = 8,
         )
     private val filter =
@@ -427,6 +429,100 @@ class RequestLoggingWebFilterBodyAndHeaderTest {
             // When / Then: the response header rides its field
             filter.filter(exchange, chain).block()
             assertThat(keyValues()["endpoint_response_headers"].toString()).contains("Content-Type:\"application/json\"")
+        }
+    }
+
+    @Nested
+    inner class `Outcome-gated bodies` {
+        private val onFailure = properties.copy(logRequestBody = BodyLogMode.ON_FAILURE, logResponseBody = BodyLogMode.ON_FAILURE)
+        private val gated = RequestLoggingWebFilter(onFailure, { ticker.get() }, { "generated-42" }, SimpleMeterRegistry())
+
+        private fun posted(text: String): MockServerWebExchange = MockServerWebExchange.from(MockServerHttpRequest.post("/api/things").contentType(MediaType.TEXT_PLAIN).body(text))
+
+        /** A chain that consumes the request body, sets [status] and writes "answer". */
+        private fun answering(status: HttpStatus) =
+            WebFilterChain { ex ->
+                ex.response.statusCode = status
+                ex.request.body.then(ex.response.writeWith(Mono.just(DefaultDataBufferFactory.sharedInstance.wrap(bytes("answer")))))
+            }
+
+        @Test
+        fun `should withhold both bodies from a successful exchange in on-failure mode`() {
+            // What is tested: the volume switch - on-failure tees the request body (the outcome is unknown
+            //   while it flows) and discards both captures at emission when the outcome is success.
+            // Success criteria: the client receives the response body; the line carries neither body.
+            // Why it matters: this is the mode that keeps body logging affordable outside a debug session.
+            // Given/When
+            val exchange = posted("sent")
+            gated.filter(exchange, answering(HttpStatus.OK)).block()
+
+            // Then
+            assertThat(exchange.response.bodyAsString.block()).isEqualTo("answer")
+            assertThat(keyValues())
+                .containsEntry("endpoint_outcome", "success")
+                .doesNotContainKeys("endpoint_request_body", "endpoint_response_body")
+        }
+
+        @Test
+        fun `should log both bodies of a 5xx response in on-failure mode`() {
+            // Given/When: a failure outcome without an error signal
+            gated.filter(posted("sent"), answering(HttpStatus.BAD_GATEWAY)).block()
+
+            // Then
+            assertThat(keyValues())
+                .containsEntry("endpoint_outcome", "failure")
+                .containsEntry("endpoint_request_body", "sent")
+                .containsEntry("endpoint_response_body", "answer")
+        }
+
+        @Test
+        fun `should log the teed request body of an exchange whose handler errored in on-failure mode`() {
+            // Given: a handler that consumes the body and then errors
+            val failing = WebFilterChain { ex -> ex.request.body.then(Mono.error<Void>(IllegalStateException("handler broke"))) }
+            val exchange = posted("sent")
+
+            // When: the error passes the filter, then the upstream error handling renders and commits the
+            //   response - the deferred emission point of an error signal (see the core filter tests)
+            val thrown = catchThrowable { gated.filter(exchange, failing).block() }
+            exchange.response.statusCode = HttpStatus.INTERNAL_SERVER_ERROR
+            exchange.response.setComplete().block()
+
+            // Then: the request body that was captured before the outcome was known is on the line
+            assertThat(thrown).isInstanceOf(IllegalStateException::class.java)
+            assertThat(keyValues())
+                .containsEntry("endpoint_outcome", "failure")
+                .containsEntry("endpoint_request_body", "sent")
+                .doesNotContainKey("endpoint_response_body")
+        }
+
+        @Test
+        fun `should treat a 4xx response as success and withhold the bodies in on-failure mode`() {
+            // What is tested: on-failure follows the outcome vocabulary, not the status class - a 4xx is
+            //   a success outcome (the application answered; the client's request was wrong).
+            // Success criteria: outcome success, and neither body on the line.
+            // Why it matters: the gate must be predictable from the documented vocabulary; widening it is a
+            //   change of the vocabulary, not a hidden special case in the body logic.
+            // Given/When: a 404 with a body
+            gated.filter(posted("sent"), answering(HttpStatus.NOT_FOUND)).block()
+
+            // Then
+            assertThat(keyValues())
+                .containsEntry("endpoint_outcome", "success")
+                .doesNotContainKeys("endpoint_request_body", "endpoint_response_body")
+        }
+
+        @Test
+        fun `should still measure the size of a body it withholds`() {
+            // Given: on-failure plus measuring, on an own registry
+            val registry = SimpleMeterRegistry()
+            val measuring = RequestLoggingWebFilter(onFailure.copy(measureRequestBodySize = true), { ticker.get() }, { "generated-42" }, registry)
+
+            // When: a successful exchange with a 4-byte request body
+            measuring.filter(posted("four"), answering(HttpStatus.OK)).block()
+
+            // Then: the sample is recorded, the field is not
+            assertThat(registry.get(EndpointLoggingMetrics.REQUEST_BODY_SIZE_METER).summary().totalAmount()).isEqualTo(4.0)
+            assertThat(keyValues()).doesNotContainKey("endpoint_request_body")
         }
     }
 }

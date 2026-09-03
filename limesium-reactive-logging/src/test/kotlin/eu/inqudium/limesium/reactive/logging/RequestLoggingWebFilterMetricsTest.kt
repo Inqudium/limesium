@@ -7,6 +7,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.classic.turbo.TurboFilter
 import ch.qos.logback.core.read.ListAppender
 import ch.qos.logback.core.spi.FilterReply
+import eu.inqudium.limesium.common.BodyLogMode
 import io.micrometer.core.instrument.Counter
 import io.micrometer.core.instrument.Gauge
 import io.micrometer.core.instrument.Meter
@@ -211,7 +212,7 @@ class RequestLoggingWebFilterMetricsTest {
             Counter.builder(EndpointLoggingMetrics.RESPONSE_BODY_SIZE_METER).tag("uri", "UNKNOWN").register(hostRegistry)
             val conflicting =
                 RequestLoggingWebFilter(
-                    properties.copy(measureResponseBodySize = true, logResponseBody = true),
+                    properties.copy(measureResponseBodySize = true, logResponseBody = BodyLogMode.ALWAYS),
                     { ticker.get() },
                     { "generated-42" },
                     hostRegistry,

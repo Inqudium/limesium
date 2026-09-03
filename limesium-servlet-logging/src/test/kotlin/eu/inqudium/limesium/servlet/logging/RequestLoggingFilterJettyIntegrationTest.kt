@@ -41,8 +41,8 @@ import java.time.Duration
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = [
         "endpoint-logging.logger-name=http-exchange-jetty-integration-test",
-        "endpoint-logging.log-request-body=true",
-        "endpoint-logging.log-response-body=true",
+        "endpoint-logging.log-request-body=always",
+        "endpoint-logging.log-response-body=always",
         // The tracing jars sit on the test classpath for the tracing integration test; THIS context
         // excludes the bridge explicitly, so the exact-message assertions here stay trace-free.
         "spring.autoconfigure.exclude=org.springframework.boot.micrometer.tracing.brave.autoconfigure.BraveAutoConfiguration",
