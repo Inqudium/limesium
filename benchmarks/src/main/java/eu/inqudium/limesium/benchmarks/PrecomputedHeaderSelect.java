@@ -1,6 +1,7 @@
 package eu.inqudium.limesium.benchmarks;
 
 import eu.inqudium.limesium.common.HeaderLogProperties;
+import eu.inqudium.limesium.common.HeaderValueMasker;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -70,7 +71,7 @@ final class PrecomputedHeaderSelect {
                 continue;
             }
             if (maskAll || maskedLower.contains(lower)) {
-                value = HeaderLogProperties.Companion.mask(value);
+                value = HeaderValueMasker.Companion.getDEFAULT().mask(value);
             }
             result.add(new Pair<>(name, value));
         }

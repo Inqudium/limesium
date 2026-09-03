@@ -1,6 +1,7 @@
 package eu.inqudium.limesium.reactive.logging
 
 import eu.inqudium.limesium.common.CorrelationIdGenerator
+import eu.inqudium.limesium.common.HeaderValueMasker
 import eu.inqudium.limesium.common.NanoTimeSource
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
@@ -27,8 +28,8 @@ import org.springframework.web.server.CoWebFilter
  *
  * Ordered BEFORE [RequestLoggingAutoConfiguration]: whichever variant registers first claims the
  * [EndpointLoggingFilter] slot, and the other backs off via `@ConditionalOnMissingBean` - exactly one
- * filter is ever active. The time-source and id-generator defaults still come from the main
- * auto-configuration (bean creation is independent of registration order).
+ * filter is ever active. The time-source, id-generator and header-masker defaults still come from the
+ * main auto-configuration (bean creation is independent of registration order).
  *
  * The classpath-based choice can be overridden explicitly: `endpoint-logging.variant=reactor` makes
  * this configuration back off although the libraries are present (see [NotForcedToReactor]);
@@ -58,6 +59,7 @@ class CoRequestLoggingAutoConfiguration {
         properties: RequestLoggingProperties,
         nanoTime: NanoTimeSource,
         correlationIds: CorrelationIdGenerator,
+        masker: HeaderValueMasker,
         meterRegistry: ObjectProvider<MeterRegistry>,
-    ): CoRequestLoggingWebFilter = CoRequestLoggingWebFilter(properties, nanoTime, correlationIds, meterRegistry.getIfAvailable { SimpleMeterRegistry() })
+    ): CoRequestLoggingWebFilter = CoRequestLoggingWebFilter(properties, nanoTime, correlationIds, meterRegistry.getIfAvailable { SimpleMeterRegistry() }, masker)
 }

@@ -1,5 +1,6 @@
 package eu.inqudium.limesium.reactive.logging
 
+import eu.inqudium.limesium.common.HeaderValueMasker
 import eu.inqudium.limesium.common.MdcKeys
 import eu.inqudium.limesium.common.MdcScope
 import eu.inqudium.limesium.common.NanoTimeSource
@@ -34,6 +35,7 @@ internal class ExchangeLogEmitter(
     private val properties: RequestLoggingProperties,
     private val nanoTime: NanoTimeSource,
     private val metrics: EndpointLoggingMetrics,
+    private val masker: HeaderValueMasker,
 ) {
     private val exchangeLog = LoggerFactory.getLogger(properties.loggerName)
 
@@ -171,7 +173,7 @@ internal class ExchangeLogEmitter(
         MdcScope(exchange.requestId, exchange.method, exchange.path, exchange.traceId, exchange.parentSpanId).use {
             // Multi-value resolution, natively from the reactive HttpHeaders.
             val responseHeaders =
-                properties.responseHeaders.select(exchange.response.headers.headerNames()) { name ->
+                properties.responseHeaders.select(exchange.response.headers.headerNames(), masker) { name ->
                     exchange.response.headers[name]
                         ?.takeIf { it.isNotEmpty() }
                         ?.joinToString(", ")

@@ -14,7 +14,7 @@ Design in brief:
 - Passive bounded **tee** (`BoundedBodyCapture`) — nothing buffered, replayed, or withheld;
   async-safe by construction.
 - SLF4J fluent API with `addKeyValue` — structured encoders pick the fields up directly.
-- Boot auto-configuration + `endpoint-logging.*` properties; the functional beans (filter, time source, id generator) overridable.
+- Boot auto-configuration + `endpoint-logging.*` properties; the functional beans (filter, time source, id generator, header masker) overridable.
 - `endpoint_request_id`, `endpoint_method`, `endpoint_route` in the MDC for the whole chain,
   previous values restored.
 
@@ -98,7 +98,7 @@ must exist, every value must be the built-in default.
 | `include-path-patterns` | *(empty)* | URL patterns (Spring `PathPattern`, e.g. `/api/**`) the filter is active for at all; empty = every endpoint. A request is logged when it matches any include and no exclude — the exclude wins |
 | `exclude-path-prefixes` | *(empty)* | Request-URI prefixes that are not logged at all |
 | `slow-request-threshold` | `5s` | At/above this duration the line escalates to WARN and is flagged `slow` |
-| `request-headers.*` / `response-headers.*` | *(empty)* | Per-direction sections with `includes` (names or `*`), `excludes`, and `masked` — masked values become a stable `length:hash` fingerprint (equal values, equal fingerprint) |
+| `request-headers.*` / `response-headers.*` | *(empty)* | Per-direction sections with `includes` (names or `*`), `excludes`, and `masked` — masked values are rendered by the `HeaderValueMasker` bean, by default a stable `length:hash` fingerprint (equal values, equal fingerprint) |
 | `log-request-body` / `log-response-body` | `false` | Capture bodies as they flow (tee, never a pre-read) |
 | `max-body-bytes` | `16384` | Capture limit per body; beyond it the log truncates (and says so), the exchange is untouched |
 | `measure-request-body-size` / `measure-response-body-size` | `false` | Count body bytes for the size meters (`endpoint.request/response.body.size`) without logging content |
@@ -168,7 +168,8 @@ drift — a change there must be ported consciously and verified in both modules
 
 ## Overriding
 
-Define your own bean to replace a default: `NanoTimeSource`, `CorrelationIdGenerator`, or a complete
+Define your own bean to replace a default: `NanoTimeSource`, `CorrelationIdGenerator`,
+`HeaderValueMasker` (how masked header values render — a keyed HMAC, a fixed `***`), or a complete
 `RequestLoggingFilter`. A custom filter bean takes over the *filter*, not the wiring: the auto-configured
 `FilterRegistrationBean` (order, URL mapping) and the request-destruction listener are still registered
 around it, so the emission point stays intact. Set `endpoint-logging.enabled=false` to remove the

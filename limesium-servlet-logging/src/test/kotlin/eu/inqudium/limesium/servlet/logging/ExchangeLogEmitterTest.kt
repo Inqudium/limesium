@@ -4,6 +4,7 @@ import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
+import eu.inqudium.limesium.common.HeaderValueMasker
 import eu.inqudium.limesium.common.NanoTimeSource
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import jakarta.servlet.AsyncEvent
@@ -36,7 +37,7 @@ class ExchangeLogEmitterTest {
             slowRequestThreshold = Duration.ofMillis(200),
         )
     private val metrics = EndpointLoggingMetrics.forRegistry(meterRegistry)
-    private val emitter = ExchangeLogEmitter(properties, NanoTimeSource { ticker.get() }, metrics)
+    private val emitter = ExchangeLogEmitter(properties, NanoTimeSource { ticker.get() }, metrics, HeaderValueMasker.DEFAULT)
 
     private lateinit var logger: Logger
     private lateinit var appender: ListAppender<ILoggingEvent>

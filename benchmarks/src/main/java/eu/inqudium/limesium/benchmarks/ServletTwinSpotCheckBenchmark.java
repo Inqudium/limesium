@@ -1,6 +1,7 @@
 package eu.inqudium.limesium.benchmarks;
 
 import eu.inqudium.limesium.common.HeaderLogProperties;
+import eu.inqudium.limesium.common.HeaderValueMasker;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -75,11 +76,11 @@ public class ServletTwinSpotCheckBenchmark {
 
     @Benchmark
     public List<Pair<String, String>> servletSelectExplicit8Excl4() {
-        return selectProps.select(availableNames, headers::get);
+        return selectProps.select(availableNames, HeaderValueMasker.Companion.getDEFAULT(), headers::get);
     }
 
     @Benchmark
     public String servletMaskLength64() {
-        return HeaderLogProperties.Companion.mask(maskValues[next++ & (POOL - 1)]);
+        return HeaderValueMasker.Companion.getDEFAULT().mask(maskValues[next++ & (POOL - 1)]);
     }
 }

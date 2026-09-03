@@ -1,5 +1,6 @@
 package eu.inqudium.limesium.servlet.logging
 
+import eu.inqudium.limesium.common.HeaderValueMasker
 import eu.inqudium.limesium.common.MdcKeys
 import eu.inqudium.limesium.common.MdcScope
 import eu.inqudium.limesium.common.NanoTimeSource
@@ -36,6 +37,7 @@ internal class ExchangeLogEmitter(
     private val properties: RequestLoggingProperties,
     private val nanoTime: NanoTimeSource,
     private val metrics: EndpointLoggingMetrics,
+    private val masker: HeaderValueMasker,
 ) {
     private val exchangeLog = LoggerFactory.getLogger(properties.loggerName)
 
@@ -214,7 +216,7 @@ internal class ExchangeLogEmitter(
             // Multi-value resolution, like the request side: a single-value getHeader would silently
             // truncate repeated headers (Set-Cookie being the classic).
             val responseHeaders =
-                properties.responseHeaders.select(exchange.response.headerNames) { name ->
+                properties.responseHeaders.select(exchange.response.headerNames, masker) { name ->
                     exchange.response
                         .getHeaders(name)
                         ?.takeIf { it.isNotEmpty() }

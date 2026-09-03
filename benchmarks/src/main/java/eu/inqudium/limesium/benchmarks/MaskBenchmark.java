@@ -1,6 +1,7 @@
 package eu.inqudium.limesium.benchmarks;
 
 import eu.inqudium.limesium.common.HeaderLogProperties;
+import eu.inqudium.limesium.common.HeaderValueMasker;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -80,7 +81,7 @@ public class MaskBenchmark {
         }
         // Output-equality gate across all three implementations.
         for (int i = 0; i < POOL; i++) {
-            String expected = HeaderLogProperties.Companion.mask(values[i]);
+            String expected = HeaderValueMasker.Companion.getDEFAULT().mask(values[i]);
             if (!expected.equals(maskHexFormat(values[i])) || !expected.equals(maskCachedDigest(values[i]))) {
                 throw new IllegalStateException("candidate output differs for " + values[i]);
             }
@@ -93,7 +94,7 @@ public class MaskBenchmark {
 
     @Benchmark
     public String baseline() {
-        return HeaderLogProperties.Companion.mask(value());
+        return HeaderValueMasker.Companion.getDEFAULT().mask(value());
     }
 
     @Benchmark

@@ -1,6 +1,7 @@
 package eu.inqudium.limesium.reactive.logging
 
 import eu.inqudium.limesium.common.CorrelationIdGenerator
+import eu.inqudium.limesium.common.HeaderValueMasker
 import eu.inqudium.limesium.common.MdcKeys
 import eu.inqudium.limesium.common.MdcScope
 import eu.inqudium.limesium.common.NanoTimeSource
@@ -62,65 +63,69 @@ import reactor.core.publisher.SignalType
  * report totals ACROSS those filters, not per filter. The auto-configuration wires exactly one filter
  * per context, where the distinction never shows.
  */
-class RequestLoggingWebFilter(
-    properties: RequestLoggingProperties,
-    nanoTime: NanoTimeSource,
-    correlationIds: CorrelationIdGenerator,
-    meterRegistry: MeterRegistry,
-) : EndpointLoggingFilter {
-    private val lifecycle = ExchangeLifecycle(properties, nanoTime, correlationIds, meterRegistry)
+class RequestLoggingWebFilter
+    @JvmOverloads
+    constructor(
+        properties: RequestLoggingProperties,
+        nanoTime: NanoTimeSource,
+        correlationIds: CorrelationIdGenerator,
+        meterRegistry: MeterRegistry,
+        /** How masked header values render; the auto-configuration passes the host's bean, [HeaderValueMasker.DEFAULT] otherwise. */
+        masker: HeaderValueMasker = HeaderValueMasker.DEFAULT,
+    ) : EndpointLoggingFilter {
+        private val lifecycle = ExchangeLifecycle(properties, nanoTime, correlationIds, meterRegistry, masker)
 
-    /** Symmetric to the servlet twin's registration order; early, so the correlation echo is set first. */
-    override fun getOrder(): Int = Ordered.HIGHEST_PRECEDENCE + 10
+        /** Symmetric to the servlet twin's registration order; early, so the correlation echo is set first. */
+        override fun getOrder(): Int = Ordered.HIGHEST_PRECEDENCE + 10
 
-    override fun filter(
-        exchange: ServerWebExchange,
-        chain: WebFilterChain,
-    ): Mono<Void> {
-        if (lifecycle.shouldNotFilter(exchange.request.path.pathWithinApplication())) {
-            return chain.filter(exchange)
+        override fun filter(
+            exchange: ServerWebExchange,
+            chain: WebFilterChain,
+        ): Mono<Void> {
+            if (lifecycle.shouldNotFilter(exchange.request.path.pathWithinApplication())) {
+                return chain.filter(exchange)
+            }
+            val wiring = lifecycle.wireOrNull(exchange) ?: return chain.filter(exchange)
+            val ex = wiring.exchange
+            lifecycle.logRequestStartIfEnabled(ex)
+            // Mono.defer: a downstream filter that THROWS while assembling its publisher (instead of
+            // returning Mono.error) must become THIS pipeline's error signal - invoked bare, the exception
+            // would propagate synchronously past doOnError/doFinally, lose the exchange event and leak the
+            // open-exchange gauge.
+            return Mono
+                .defer { chain.filter(wiring.mutatedExchange) }
+                .doOnError { ex.failure = it }
+                .doOnCancel { ex.cancelled = true }
+                .doFinally { signal ->
+                    lifecycle.onTerminal(
+                        exchange,
+                        ex,
+                        when (signal) {
+                            SignalType.ON_ERROR -> TerminalKind.ERROR
+                            SignalType.CANCEL -> TerminalKind.CANCEL
+                            else -> TerminalKind.COMPLETE
+                        },
+                    )
+                }
+                // The exchange identity in the REACTOR CONTEXT, under the same names as the MDC keys: three
+                // cheap immutable puts that only the EndpointMdcContextPropagation accessors read - and only
+                // under automatic propagation. No endpoint-logging.* key exists for this, which keeps the
+                // namespace identical across the twins.
+                .contextWrite { ctx ->
+                    ctx
+                        .put(MdcKeys.REQUEST_ID, ex.requestId)
+                        .put(MdcKeys.REQUEST_METHOD, ex.method)
+                        .put(MdcKeys.ROUTE, ex.path)
+                }
         }
-        val wiring = lifecycle.wireOrNull(exchange) ?: return chain.filter(exchange)
-        val ex = wiring.exchange
-        lifecycle.logRequestStartIfEnabled(ex)
-        // Mono.defer: a downstream filter that THROWS while assembling its publisher (instead of
-        // returning Mono.error) must become THIS pipeline's error signal - invoked bare, the exception
-        // would propagate synchronously past doOnError/doFinally, lose the exchange event and leak the
-        // open-exchange gauge.
-        return Mono
-            .defer { chain.filter(wiring.mutatedExchange) }
-            .doOnError { ex.failure = it }
-            .doOnCancel { ex.cancelled = true }
-            .doFinally { signal ->
-                lifecycle.onTerminal(
-                    exchange,
-                    ex,
-                    when (signal) {
-                        SignalType.ON_ERROR -> TerminalKind.ERROR
-                        SignalType.CANCEL -> TerminalKind.CANCEL
-                        else -> TerminalKind.COMPLETE
-                    },
-                )
-            }
-            // The exchange identity in the REACTOR CONTEXT, under the same names as the MDC keys: three
-            // cheap immutable puts that only the EndpointMdcContextPropagation accessors read - and only
-            // under automatic propagation. No endpoint-logging.* key exists for this, which keeps the
-            // namespace identical across the twins.
-            .contextWrite { ctx ->
-                ctx
-                    .put(MdcKeys.REQUEST_ID, ex.requestId)
-                    .put(MdcKeys.REQUEST_METHOD, ex.method)
-                    .put(MdcKeys.ROUTE, ex.path)
-            }
-    }
 
-    companion object {
-        /**
-         * Request attribute under which WebFlux records the best-matching handler pattern. Mirrors
-         * `org.springframework.web.reactive.HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE` without
-         * depending on spring-webflux - derived the same way, so it matches the value WebFlux sets and
-         * stays null in a non-WebFlux reactive application.
-         */
-        const val BEST_MATCHING_PATTERN_ATTRIBUTE = "org.springframework.web.reactive.HandlerMapping.bestMatchingPattern"
+        companion object {
+            /**
+             * Request attribute under which WebFlux records the best-matching handler pattern. Mirrors
+             * `org.springframework.web.reactive.HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE` without
+             * depending on spring-webflux - derived the same way, so it matches the value WebFlux sets and
+             * stays null in a non-WebFlux reactive application.
+             */
+            const val BEST_MATCHING_PATTERN_ATTRIBUTE = "org.springframework.web.reactive.HandlerMapping.bestMatchingPattern"
+        }
     }
-}

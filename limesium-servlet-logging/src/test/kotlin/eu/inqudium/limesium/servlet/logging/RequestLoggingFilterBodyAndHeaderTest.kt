@@ -5,6 +5,7 @@ import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
 import eu.inqudium.limesium.common.HeaderLogProperties
+import eu.inqudium.limesium.common.HeaderValueMasker
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import jakarta.servlet.FilterChain
 import jakarta.servlet.ServletRequestEvent
@@ -525,8 +526,42 @@ class RequestLoggingFilterBodyAndHeaderTest {
             val headers = keyValues()["endpoint_request_headers"].toString()
             assertThat(headers).doesNotContain("super-secret-token")
             assertThat(headers).contains("Accept:\"text/plain\"")
-            assertThat(headers).contains("X-Api-Key:\"${HeaderLogProperties.mask("super-secret-token")}\"")
+            assertThat(headers).contains("X-Api-Key:\"${HeaderValueMasker.DEFAULT.mask("super-secret-token")}\"")
             assertThat(headers).contains("X-Api-Key:\"18:")
+        }
+
+        @Test
+        fun `should render masked values through a host-provided masker`() {
+            // What is tested: the masker is an injected collaborator - a filter built with a host bean
+            //   masks request AND response headers with it.
+            // Success criteria: both selected, masked headers carry the host masker's output, never the
+            //   plaintext and never the built-in fingerprint.
+            // Why it matters: a compliance regime forbidding unkeyed hashes must be satisfiable without
+            //   forking the module.
+            // Given: a keyed stand-in masker on both sections
+            val keyed = HeaderValueMasker { "hmac:${it.length}" }
+            val keyedFilter =
+                RequestLoggingFilter(
+                    properties.copy(
+                        requestHeaders = HeaderLogProperties(includes = listOf("X-Api-Key"), masked = listOf("X-Api-Key")),
+                        responseHeaders = HeaderLogProperties(includes = listOf("Set-Cookie"), masked = listOf("Set-Cookie")),
+                    ),
+                    { ticker.get() },
+                    { "generated-42" },
+                    SimpleMeterRegistry(),
+                    keyed,
+                )
+            val request = MockHttpServletRequest("GET", "/api/things")
+            request.addHeader("X-Api-Key", "super-secret-token")
+            val response = MockHttpServletResponse()
+
+            // When: the chain sets a masked response header
+            keyedFilter.doFilterInternal(request, response, FilterChain { _, res -> (res as jakarta.servlet.http.HttpServletResponse).setHeader("Set-Cookie", "session=1") })
+            keyedFilter.exchangeCompletionListener().requestDestroyed(ServletRequestEvent(request.servletContext, request))
+
+            // Then
+            assertThat(keyValues()["endpoint_request_headers"].toString()).isEqualTo("[X-Api-Key:\"hmac:18\"]")
+            assertThat(keyValues()["endpoint_response_headers"].toString()).isEqualTo("[Set-Cookie:\"hmac:9\"]")
         }
 
         @Test
@@ -543,8 +578,8 @@ class RequestLoggingFilterBodyAndHeaderTest {
             assertThat("Aa".hashCode()).isEqualTo("BB".hashCode())
 
             // When/Then: the fingerprints differ and carry the widened format
-            assertThat(HeaderLogProperties.mask("Aa")).isNotEqualTo(HeaderLogProperties.mask("BB"))
-            assertThat(HeaderLogProperties.mask("Aa")).matches("2:[0-9a-f]{16}")
+            assertThat(HeaderValueMasker.DEFAULT.mask("Aa")).isNotEqualTo(HeaderValueMasker.DEFAULT.mask("BB"))
+            assertThat(HeaderValueMasker.DEFAULT.mask("Aa")).matches("2:[0-9a-f]{16}")
         }
 
         @Test

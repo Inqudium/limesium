@@ -1,6 +1,7 @@
 package eu.inqudium.limesium.reactive.logging
 
 import eu.inqudium.limesium.common.CorrelationIdGenerator
+import eu.inqudium.limesium.common.HeaderValueMasker
 import eu.inqudium.limesium.common.MdcKeys
 import eu.inqudium.limesium.common.MdcScope
 import eu.inqudium.limesium.common.NanoTimeSource
@@ -56,95 +57,99 @@ import org.springframework.web.server.ServerWebExchange
  * ACROSS all filters on that registry, not per filter (see [RequestLoggingWebFilter] - the behavior
  * is variant- and twin-wide).
  */
-class CoRequestLoggingWebFilter(
-    properties: RequestLoggingProperties,
-    nanoTime: NanoTimeSource,
-    correlationIds: CorrelationIdGenerator,
-    meterRegistry: MeterRegistry,
-) : CoWebFilter(),
-    EndpointLoggingFilter {
-    private val lifecycle = ExchangeLifecycle(properties, nanoTime, correlationIds, meterRegistry)
+class CoRequestLoggingWebFilter
+    @JvmOverloads
+    constructor(
+        properties: RequestLoggingProperties,
+        nanoTime: NanoTimeSource,
+        correlationIds: CorrelationIdGenerator,
+        meterRegistry: MeterRegistry,
+        /** How masked header values render; the auto-configuration passes the host's bean, [HeaderValueMasker.DEFAULT] otherwise. */
+        masker: HeaderValueMasker = HeaderValueMasker.DEFAULT,
+    ) : CoWebFilter(),
+        EndpointLoggingFilter {
+        private val lifecycle = ExchangeLifecycle(properties, nanoTime, correlationIds, meterRegistry, masker)
 
-    /** Symmetric to the servlet twin's registration order; early, so the correlation echo is set first. */
-    override fun getOrder(): Int = Ordered.HIGHEST_PRECEDENCE + 10
+        /** Symmetric to the servlet twin's registration order; early, so the correlation echo is set first. */
+        override fun getOrder(): Int = Ordered.HIGHEST_PRECEDENCE + 10
 
-    override suspend fun filter(
-        exchange: ServerWebExchange,
-        chain: CoWebFilterChain,
-    ) {
-        if (lifecycle.shouldNotFilter(exchange.request.path.pathWithinApplication())) {
-            return chain.filter(exchange)
-        }
-        val wiring = lifecycle.wireOrNull(exchange) ?: return chain.filter(exchange)
-        val ex = wiring.exchange
-        lifecycle.logRequestStartIfEnabled(ex)
-        // ADDITIVE snapshot: MDCContext installs the supplied map as the coroutine's COMPLETE MDC on
-        // every resumption - handing it only the three identity keys would delete every ambient entry
-        // (trace ids, baggage, host keys) inside suspend handlers. So the ambient MDC of the current
-        // thread is preserved and the module-owned keys overlay it, endpoint_* winning on collision -
-        // the same overlay semantics as MdcScope.
-        val handlerMdc = handlerMdcOrNull(ex)
-        try {
-            if (handlerMdc == null) {
-                chain.filter(wiring.mutatedExchange)
-            } else {
-                withContext(handlerMdc) {
-                    chain.filter(wiring.mutatedExchange)
-                }
+        override suspend fun filter(
+            exchange: ServerWebExchange,
+            chain: CoWebFilterChain,
+        ) {
+            if (lifecycle.shouldNotFilter(exchange.request.path.pathWithinApplication())) {
+                return chain.filter(exchange)
             }
-            lifecycle.onTerminal(exchange, ex, TerminalKind.COMPLETE)
-        } catch (e: CancellationException) {
-            // Client disconnect: mark, complete, and RETHROW - consuming a cancellation would break
-            // structured concurrency.
-            ex.cancelled = true
-            lifecycle.onTerminal(exchange, ex, TerminalKind.CANCEL)
-            throw e
-        } catch (e: Throwable) {
-            // Rethrown after the terminal handling - this filter adds visibility only; error semantics
-            // belong to the upstream exception handler (which the deferred emission waits for). Across
-            // the coroutine-to-Reactor bridge kotlinx may recover the stacktrace into a copy whose cause
-            // is this original - see the class KDoc.
-            ex.failure = e
-            lifecycle.onTerminal(exchange, ex, TerminalKind.ERROR)
-            throw e
-        }
-    }
-
-    /**
-     * The [MDCContext] carrying the ambient MDC plus the exchange identity - or null when the ambient
-     * snapshot failed, in which case the chain runs without handler MDC (see the class KDoc). The
-     * snapshot happens OUTSIDE the chain's try/catch: its failure is the filter's, never the handler's.
-     */
-    private fun handlerMdcOrNull(ex: Exchange): MDCContext? {
-        val ambient =
+            val wiring = lifecycle.wireOrNull(exchange) ?: return chain.filter(exchange)
+            val ex = wiring.exchange
+            lifecycle.logRequestStartIfEnabled(ex)
+            // ADDITIVE snapshot: MDCContext installs the supplied map as the coroutine's COMPLETE MDC on
+            // every resumption - handing it only the three identity keys would delete every ambient entry
+            // (trace ids, baggage, host keys) inside suspend handlers. So the ambient MDC of the current
+            // thread is preserved and the module-owned keys overlay it, endpoint_* winning on collision -
+            // the same overlay semantics as MdcScope.
+            val handlerMdc = handlerMdcOrNull(ex)
             try {
-                MDC.getCopyOfContextMap() ?: emptyMap()
-            } catch (e: Exception) {
-                reportQuietly {
-                    lifecycle.metrics.wiringFailure()
-                    internalLog.warn(
-                        "Ambient MDC could not be read for {} {} (requestId={}) - the handler runs without endpoint MDC: {}",
-                        ex.method,
-                        ex.path,
-                        ex.requestId,
-                        e.toString(),
-                    )
+                if (handlerMdc == null) {
+                    chain.filter(wiring.mutatedExchange)
+                } else {
+                    withContext(handlerMdc) {
+                        chain.filter(wiring.mutatedExchange)
+                    }
                 }
-                return null
+                lifecycle.onTerminal(exchange, ex, TerminalKind.COMPLETE)
+            } catch (e: CancellationException) {
+                // Client disconnect: mark, complete, and RETHROW - consuming a cancellation would break
+                // structured concurrency.
+                ex.cancelled = true
+                lifecycle.onTerminal(exchange, ex, TerminalKind.CANCEL)
+                throw e
+            } catch (e: Throwable) {
+                // Rethrown after the terminal handling - this filter adds visibility only; error semantics
+                // belong to the upstream exception handler (which the deferred emission waits for). Across
+                // the coroutine-to-Reactor bridge kotlinx may recover the stacktrace into a copy whose cause
+                // is this original - see the class KDoc.
+                ex.failure = e
+                lifecycle.onTerminal(exchange, ex, TerminalKind.ERROR)
+                throw e
             }
-        return MDCContext(
-            ambient +
-                mapOf(
-                    MdcKeys.REQUEST_ID to ex.requestId,
-                    MdcKeys.REQUEST_METHOD to ex.method,
-                    MdcKeys.ROUTE to ex.path,
-                ),
-        )
-    }
+        }
 
-    companion object {
-        // Named after the reference variant, like ExchangeLifecycle's logger, so the reference
-        // configuration's logger levels keep applying to both variants.
-        private val internalLog = LoggerFactory.getLogger(RequestLoggingWebFilter::class.java)
+        /**
+         * The [MDCContext] carrying the ambient MDC plus the exchange identity - or null when the ambient
+         * snapshot failed, in which case the chain runs without handler MDC (see the class KDoc). The
+         * snapshot happens OUTSIDE the chain's try/catch: its failure is the filter's, never the handler's.
+         */
+        private fun handlerMdcOrNull(ex: Exchange): MDCContext? {
+            val ambient =
+                try {
+                    MDC.getCopyOfContextMap() ?: emptyMap()
+                } catch (e: Exception) {
+                    reportQuietly {
+                        lifecycle.metrics.wiringFailure()
+                        internalLog.warn(
+                            "Ambient MDC could not be read for {} {} (requestId={}) - the handler runs without endpoint MDC: {}",
+                            ex.method,
+                            ex.path,
+                            ex.requestId,
+                            e.toString(),
+                        )
+                    }
+                    return null
+                }
+            return MDCContext(
+                ambient +
+                    mapOf(
+                        MdcKeys.REQUEST_ID to ex.requestId,
+                        MdcKeys.REQUEST_METHOD to ex.method,
+                        MdcKeys.ROUTE to ex.path,
+                    ),
+            )
+        }
+
+        companion object {
+            // Named after the reference variant, like ExchangeLifecycle's logger, so the reference
+            // configuration's logger levels keep applying to both variants.
+            private val internalLog = LoggerFactory.getLogger(RequestLoggingWebFilter::class.java)
+        }
     }
-}

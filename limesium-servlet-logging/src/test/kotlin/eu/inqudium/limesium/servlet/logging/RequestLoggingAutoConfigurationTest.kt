@@ -1,6 +1,7 @@
 package eu.inqudium.limesium.servlet.logging
 
 import eu.inqudium.limesium.common.CorrelationIdGenerator
+import eu.inqudium.limesium.common.HeaderValueMasker
 import eu.inqudium.limesium.common.NanoTimeSource
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
@@ -25,6 +26,22 @@ class RequestLoggingAutoConfigurationTest {
             .withConfiguration(AutoConfigurations.of(RequestLoggingAutoConfiguration::class.java))
 
     @Test
+    fun `should let a host HeaderValueMasker back the default masker off`() {
+        // What is tested: the masker is a @ConditionalOnMissingBean bean like the time source and the
+        //   id generator - a host pins its own rendering (a keyed HMAC, a fixed `***`) once.
+        // Success criteria: with a host bean the context holds exactly one HeaderValueMasker, the
+        //   host's, and the module's default backed off.
+        // Why it matters: the properties decide which values are masked; the bean is the host's only
+        //   handle on HOW - it must win over the default in the shipped configuration.
+        // Given/When: a host masker beside the auto-configuration
+        contextRunner.withUserConfiguration(MaskerHostConfig::class.java).run { context ->
+            // Then
+            assertThat(context).hasSingleBean(HeaderValueMasker::class.java)
+            assertThat(context.getBean(HeaderValueMasker::class.java).mask("x")).isEqualTo("***")
+        }
+    }
+
+    @Test
     fun `should register the filter its completion listener and the defaults in a servlet web application`() {
         // Given/When: the module's auto-configuration alone, in a servlet web context
         contextRunner.run { context ->
@@ -35,6 +52,7 @@ class RequestLoggingAutoConfigurationTest {
             assertThat(context).hasSingleBean(ServletListenerRegistrationBean::class.java)
             assertThat(context).hasSingleBean(NanoTimeSource::class.java)
             assertThat(context).hasSingleBean(CorrelationIdGenerator::class.java)
+            assertThat(context).hasSingleBean(HeaderValueMasker::class.java)
             @Suppress("UNCHECKED_CAST")
             val registration = context.getBean(FilterRegistrationBean::class.java) as FilterRegistrationBean<RequestLoggingFilter>
             assertThat(registration.filter).isSameAs(context.getBean(RequestLoggingFilter::class.java))
@@ -50,6 +68,7 @@ class RequestLoggingAutoConfigurationTest {
             assertThat(context).doesNotHaveBean(ServletListenerRegistrationBean::class.java)
             assertThat(context).doesNotHaveBean(RequestLoggingFilter::class.java)
             assertThat(context).doesNotHaveBean(NanoTimeSource::class.java)
+            assertThat(context).doesNotHaveBean(HeaderValueMasker::class.java)
             assertThat(context).doesNotHaveBean(RequestLoggingProperties::class.java)
         }
     }
@@ -139,4 +158,10 @@ private class PinnedTimeSourceHostConfig {
 private class OwnFilterHostConfig {
     @Bean
     fun hostRequestLoggingFilter(properties: RequestLoggingProperties): RequestLoggingFilter = RequestLoggingFilter(properties, NanoTimeSource.SYSTEM, CorrelationIdGenerator.DEFAULT, SimpleMeterRegistry())
+}
+
+@Configuration(proxyBeanMethods = false)
+private class MaskerHostConfig {
+    @Bean
+    fun hostMasker(): HeaderValueMasker = HeaderValueMasker { "***" }
 }

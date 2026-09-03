@@ -1,6 +1,7 @@
 package eu.inqudium.limesium.reactive.logging
 
 import eu.inqudium.limesium.common.CorrelationIdGenerator
+import eu.inqudium.limesium.common.HeaderValueMasker
 import eu.inqudium.limesium.common.MdcKeys
 import eu.inqudium.limesium.common.NanoTimeSource
 import eu.inqudium.limesium.common.Traceparent
@@ -36,10 +37,11 @@ internal class ExchangeLifecycle(
     private val nanoTime: NanoTimeSource,
     private val correlationIds: CorrelationIdGenerator,
     meterRegistry: MeterRegistry,
+    private val masker: HeaderValueMasker,
 ) {
     /** Shared with the variants for the arrival line and for tests; one instance per filter. */
     val metrics = EndpointLoggingMetrics.forRegistry(meterRegistry)
-    val emitter = ExchangeLogEmitter(properties, nanoTime, metrics)
+    val emitter = ExchangeLogEmitter(properties, nanoTime, metrics, masker)
 
     // Parsed ONCE at construction: an invalid pattern is a configuration error and fails the context
     // start with the parser's message, instead of failing per request.
@@ -326,7 +328,7 @@ internal class ExchangeLifecycle(
                 requestId = requestId,
                 // Multi-value resolution, natively from the reactive HttpHeaders.
                 requestHeaders =
-                    properties.requestHeaders.select(request.headers.headerNames()) { name ->
+                    properties.requestHeaders.select(request.headers.headerNames(), masker) { name ->
                         request.headers[name]?.takeIf { it.isNotEmpty() }?.joinToString(", ")
                     },
                 requestCapture = requestCapture,
