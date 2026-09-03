@@ -106,6 +106,7 @@ class EndpointLoggingReferenceConfigTest {
                 "measure-request-body-size",
                 "measure-response-body-size",
                 "max-body-bytes",
+                "masking-key",
             )
 
         // When: the endpoint-logging.* keys are extracted from both loaded references

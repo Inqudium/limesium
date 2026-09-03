@@ -101,6 +101,7 @@ must exist, every value must be the built-in default.
 | `request-headers.*` / `response-headers.*` | *(empty)* | Per-direction sections with `includes` (names or `*`), `excludes`, and `masked` — masked values are rendered by the `HeaderValueMasker` bean, by default a stable `length:hash` fingerprint (equal values, equal fingerprint) |
 | `log-request-body` / `log-response-body` | `false` | Capture bodies as they flow (tee, never a pre-read) |
 | `max-body-bytes` | `16384` | Capture limit per body; beyond it the log truncates (and says so), the exchange is untouched |
+| `masking-key` | *(empty)* | Keys the masking fingerprint (HMAC-SHA256): same shape and stability, guess-proof without the key. A secret — supply it as one; empty keeps the unkeyed fingerprint |
 | `measure-request-body-size` / `measure-response-body-size` | `false` | Count body bytes for the size meters (`endpoint.request/response.body.size`) without logging content |
 
 Levels carry severity only (`endpoint_outcome` carries the semantic): ERROR when the chain threw (the

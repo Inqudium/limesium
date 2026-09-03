@@ -13,8 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `@ConditionalOnMissingBean` bean (`eu.inqudium.limesium.common.HeaderValueMasker`)
   shared by both twins and both reactive variants - the built-in default is the
   stable `length:hash` fingerprint, a host pins a keyed or fixed masker instead;
-  the properties decide which values are masked, the bean decides how. Ported
-  from the outbound sibling Legatium, where it was designed in first.
+  the properties decide which values are masked, the bean decides how.
+  `endpoint-logging.masking-key` keys the built-in fingerprint (HMAC-SHA256)
+  without a bean: same shape and stability, guess-proof without the key. Both
+  ported from the outbound sibling Legatium, where they were designed in first.
 
 ### Changed
 
