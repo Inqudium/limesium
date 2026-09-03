@@ -18,9 +18,9 @@ Design in brief:
 - `endpoint_request_id`, `endpoint_method`, `endpoint_route` in the MDC for the whole chain,
   previous values restored.
 
-Deliberately **out of scope**: body masking transformers and per-key response sampling. (Header masking
-exists as the `masked` list per header section; an optional arrival line can announce the request
-before the handler runs.)
+Deliberately **out of scope**: body masking transformers and per-key response sampling. (Logged header
+values are masked by default, with `unmasked` as the explicit plaintext allowlist; an optional arrival
+line can announce the request before the handler runs.)
 
 The long-form guide — introduction, architecture, integration into a foreign project, configuration,
 metrics and the stack-specific behaviours — is [`docs/GUIDE.md`](docs/GUIDE.md).
@@ -98,7 +98,7 @@ must exist, every value must be the built-in default.
 | `include-path-patterns` | *(empty)* | URL patterns (Spring `PathPattern`, e.g. `/api/**`) the filter is active for at all; empty = every endpoint. A request is logged when it matches any include and no exclude — the exclude wins |
 | `exclude-path-prefixes` | *(empty)* | Request-URI prefixes that are not logged at all |
 | `slow-request-threshold` | `5s` | At/above this duration the line escalates to WARN and is flagged `slow` |
-| `request-headers.*` / `response-headers.*` | *(empty)* | Per-direction sections with `includes` (names or `*`), `excludes`, and `masked` — masked values are rendered by the `HeaderValueMasker` bean, by default a stable `length:hash` fingerprint (equal values, equal fingerprint) |
+| `request-headers.*` / `response-headers.*` | `masked: ["*"]`, the rest empty | Per-direction sections with `includes` (names or `*`), `excludes`, `masked` (default `*`: every logged value is rendered by the `HeaderValueMasker` bean, a stable `length:hash` pseudonym) and `unmasked` (the explicit names allowed in plaintext, no wildcard). Masked by default, so `includes: ["*"]` costs readability, not confidentiality (ADR-0005) |
 | `log-request-body` / `log-response-body` | `false` | Capture bodies as they flow (tee, never a pre-read) |
 | `max-body-bytes` | `16384` | Capture limit per body; beyond it the log truncates (and says so), the exchange is untouched |
 | `masking-key` | *(empty)* | Keys the masking fingerprint (HMAC-SHA256): same shape and stability, guess-proof without the key. A secret — supply it as one; empty keeps the unkeyed fingerprint |

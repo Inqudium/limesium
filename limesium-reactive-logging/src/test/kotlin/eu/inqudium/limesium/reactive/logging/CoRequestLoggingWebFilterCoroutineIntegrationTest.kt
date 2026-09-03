@@ -68,6 +68,7 @@ import java.time.Duration
         "endpoint-logging.log-request-body=true",
         "endpoint-logging.log-response-body=true",
         "endpoint-logging.response-headers.includes=X-Late",
+        "endpoint-logging.response-headers.unmasked=X-Late",
     ],
 )
 class CoRequestLoggingWebFilterCoroutineIntegrationTest {

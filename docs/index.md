@@ -28,8 +28,9 @@ WebFlux/coroutines web filter. No starter, no forced transitives.
   MDC for the whole chain — previous MDC values are restored afterwards.
 - **Passive body capture.** Bodies are captured by a bounded tee as they
   flow — nothing is buffered, replayed, or withheld from the application;
-  header values can be masked to a stable `length:hash` fingerprint — or to
-  whatever a host-provided `HeaderValueMasker` bean renders.
+  logged header values are masked by default to a stable `length:hash`
+  fingerprint (keyed on request, or whatever a host-provided `HeaderValueMasker`
+  bean renders), plaintext being an explicit allowlist.
 - **Twin symmetry as an invariant.** Both modules expose the same fields
   and the same `endpoint-logging.*` properties; the shared reference
   configuration is contract-tested against both twins.

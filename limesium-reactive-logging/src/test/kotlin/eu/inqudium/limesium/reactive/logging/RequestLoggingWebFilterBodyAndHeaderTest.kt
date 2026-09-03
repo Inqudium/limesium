@@ -40,7 +40,7 @@ class RequestLoggingWebFilterBodyAndHeaderTest {
         RequestLoggingProperties(
             loggerName = "http-exchange-reactive-body-test",
             requestHeaders = HeaderLogProperties(includes = listOf("Accept"), masked = listOf("X-Api-Key")),
-            responseHeaders = HeaderLogProperties(includes = listOf("Content-Type")),
+            responseHeaders = HeaderLogProperties(includes = listOf("Content-Type"), unmasked = listOf("Content-Type")),
             logRequestBody = true,
             logResponseBody = true,
             maxBodyBytes = 8,
@@ -340,6 +340,38 @@ class RequestLoggingWebFilterBodyAndHeaderTest {
             assertThat(headers).contains("Accept:\"text/plain, text/html\"")
             assertThat(headers).doesNotContain("super-secret-token")
             assertThat(headers).contains("X-Api-Key:\"${HeaderValueMasker.DEFAULT.mask("super-secret-token")}\"")
+        }
+
+        @Test
+        fun `should mask every selected header by default so a wildcard include never leaks plaintext`() {
+            // What is tested: ADR-0005 at the filter - `includes: ["*"]` with nothing said about masking.
+            // Success criteria: every logged request header is a fingerprint; the secret appears nowhere.
+            // Why it matters: with masking as a second, empty list the same configuration logged
+            //   everything in plaintext - the unsafe combination was the convenient one.
+            // Given
+            val everything =
+                RequestLoggingWebFilter(
+                    properties.copy(requestHeaders = HeaderLogProperties(includes = listOf("*"))),
+                    { ticker.get() },
+                    { "generated-42" },
+                    SimpleMeterRegistry(),
+                )
+            val exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/api/things").header("Authorization", "Bearer secret-token"))
+
+            // When
+            everything
+                .filter(
+                    exchange,
+                    WebFilterChain { ex ->
+                        ex.response.statusCode = HttpStatus.OK
+                        Mono.empty()
+                    },
+                ).block()
+
+            // Then
+            val headers = keyValues()["endpoint_request_headers"].toString()
+            assertThat(headers).contains("Authorization:\"${HeaderValueMasker.DEFAULT.mask("Bearer secret-token")}\"")
+            assertThat(headers).doesNotContain("secret-token")
         }
 
         @Test

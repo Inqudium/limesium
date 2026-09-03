@@ -34,8 +34,9 @@ The servlet module is the reference implementation; its documentation applies he
 | Body tee | servlet stream/writer wrappers; `reset()`/`resetBuffer()` clears the capture | `DataBuffer` map-tee in request/response decorators (a non-advancing bounded copy out of each buffer; the original flows on untouched — pooled-buffer safe); no reset analog exists: emitted buffers are on their way to the client |
 
 Everything else — fail-open including the wiring (`stage=wiring` degrades to pass-through), the
-level/outcome decoupling, slow escalation, header sections with `includes`/`excludes`/`masked` and the
-injectable `HeaderValueMasker` (default: the stable fingerprint), the arrival line (`log-request-start`), count-only body measuring — behaves
+level/outcome decoupling, slow escalation, header sections with `includes`/`excludes`/`masked`/`unmasked`
+(masked by default, ADR-0005) and the injectable `HeaderValueMasker` (default: the stable fingerprint),
+the arrival line (`log-request-start`), count-only body measuring — behaves
 exactly as documented in the servlet twin's README.
 
 ## The shared layer

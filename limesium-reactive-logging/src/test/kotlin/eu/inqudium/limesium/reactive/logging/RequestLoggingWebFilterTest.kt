@@ -399,7 +399,7 @@ class RequestLoggingWebFilterTest {
             //   BEFORE erroring
             val selecting =
                 RequestLoggingWebFilter(
-                    properties.copy(responseHeaders = HeaderLogProperties(includes = listOf("X-Late"))),
+                    properties.copy(responseHeaders = HeaderLogProperties(includes = listOf("X-Late"), unmasked = listOf("X-Late"))),
                     NanoTimeSource { ticker.get() },
                     CorrelationIdGenerator { "generated-42" },
                     meterRegistry,

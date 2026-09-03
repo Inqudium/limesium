@@ -274,7 +274,7 @@ class CoRequestLoggingWebFilterTest {
         // Given: a filter selecting the late header, and a chain registering the later action, then failing
         val selecting =
             CoRequestLoggingWebFilter(
-                properties.copy(responseHeaders = HeaderLogProperties(includes = listOf("X-Late"))),
+                properties.copy(responseHeaders = HeaderLogProperties(includes = listOf("X-Late"), unmasked = listOf("X-Late"))),
                 NanoTimeSource { ticker.get() },
                 CorrelationIdGenerator { "generated-42" },
                 SimpleMeterRegistry(),
