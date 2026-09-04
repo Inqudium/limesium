@@ -1104,7 +1104,7 @@ Everything not listed here behaves exactly as in `limesium-servlet-logging`.
 | Emission point | `requestDestroyed`, after the error dispatch | terminal signal; on an error with an uncommitted response deferred to the `beforeCommit` callback |
 | Never-completing error rendering | n/a — destruction always fires | exchange stays **open on the gauge** instead of logging a wrong status |
 | Chain-wide MDC | thread-local, for the whole chain | Reactor context + opt-in accessors (Reactor variant) or `MDCContext` (coroutine variant) |
-| Trace context | bridge MDC captured at filter entry (`traceId`/`spanId`) | parsed from `traceparent` (`traceId`/`parentSpanId`) |
+| Trace context | parsed from `traceparent` at filter entry by the shared `Traceparent` (`traceId`/`parentSpanId`, ADR-0002), restored by the emission scope around the destruction callback — a pooled thread without per-request state | the same parsing and the same keys; restored by the emission scope at the terminal signal ([§5.6](#56-trace-correlation)) |
 | Body tee | stream/writer wrappers; `reset()` clears the capture | `DataBuffer` map-tee; no reset analog — emitted buffers are on their way to the client |
 | Variant selection | one filter | `endpoint-logging.variant` (`auto`/`reactor`/`coroutine`) |
 | Handler template attribute | Spring MVC's `BEST_MATCHING_PATTERN_ATTRIBUTE` | WebFlux's `HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE` (mirrored as a constant so the module does not depend on `spring-webflux`; pinned by `HandlerMappingAttributeTest`) |
