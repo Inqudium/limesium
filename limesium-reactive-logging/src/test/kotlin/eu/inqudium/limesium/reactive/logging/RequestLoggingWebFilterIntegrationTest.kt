@@ -46,7 +46,7 @@ import java.time.Duration
     classes = [RequestLoggingWebFilterIntegrationTest.ItApp::class],
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = [
-        "endpoint-logging.logger-name=http-exchange-reactive-integration-test",
+        "endpoint-logging.logger-name=endpoint-http-exchange-reactive-integration-test",
         "endpoint-logging.log-request-body=always",
         "endpoint-logging.log-response-body=always",
         "endpoint-logging.request-headers.includes=Accept",
@@ -67,7 +67,7 @@ class RequestLoggingWebFilterIntegrationTest {
 
     @BeforeEach
     fun setUp() {
-        logger = LoggerFactory.getLogger("http-exchange-reactive-integration-test") as Logger
+        logger = LoggerFactory.getLogger("endpoint-http-exchange-reactive-integration-test") as Logger
         appender = AwaitingAppender().apply { start() }
         logger.addAppender(appender)
         logger.level = Level.INFO

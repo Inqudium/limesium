@@ -33,7 +33,7 @@ class RequestLoggingFilterBodyAndHeaderTest {
     private val ticker = AtomicLong(0)
     private val properties =
         RequestLoggingProperties(
-            loggerName = "http-exchange-body-test",
+            loggerName = "endpoint-http-exchange-body-test",
             requestHeaders = HeaderLogProperties(includes = listOf("Accept"), masked = listOf("X-Api-Key")),
             responseHeaders = HeaderLogProperties(includes = listOf("Content-Type"), unmasked = listOf("Content-Type")),
             logRequestBody = BodyLogMode.ALWAYS,

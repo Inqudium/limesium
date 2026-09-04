@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicLong
  */
 class RequestLoggingFilterTraceContextTest {
     private val ticker = AtomicLong(0)
-    private val properties = RequestLoggingProperties(loggerName = "http-exchange-trace-test")
+    private val properties = RequestLoggingProperties(loggerName = "endpoint-http-exchange-trace-test")
     private val filter =
         RequestLoggingFilter(
             properties,

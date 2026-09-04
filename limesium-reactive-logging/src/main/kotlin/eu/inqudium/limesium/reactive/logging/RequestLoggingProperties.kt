@@ -38,7 +38,7 @@ data class RequestLoggingProperties(
      * Name of the logger the exchange lines are emitted on. The default is a dedicated, stable name,
      * so log routing and level configuration can target exactly these lines.
      */
-    val loggerName: String = "http-exchange",
+    val loggerName: String = "endpoint-http-exchange",
     /**
      * Header the correlation id is read from on TRACELESS exchanges (no conformant `traceparent` -
      * ADR-0002); when absent or blank a new id is generated. Only such an exchange echoes the id back

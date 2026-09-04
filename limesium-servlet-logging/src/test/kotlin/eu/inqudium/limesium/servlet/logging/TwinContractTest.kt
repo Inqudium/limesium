@@ -89,7 +89,7 @@ class TwinContractTest {
         // Why it matters: plain-text appenders and the README's parity promise key on this text; a
         //   divergence in one twin would otherwise ship silently.
         // Given: a pinned filter logging the arrival line, a logger with a list appender
-        val properties = RequestLoggingProperties(loggerName = "http-exchange-twin-message-test", logRequestStart = true)
+        val properties = RequestLoggingProperties(loggerName = "endpoint-http-exchange-twin-message-test", logRequestStart = true)
         val filter = RequestLoggingFilter(properties, { 0L }, { "generated-42" }, SimpleMeterRegistry())
         val logger = LoggerFactory.getLogger(properties.loggerName) as Logger
         val appender = ListAppender<ILoggingEvent>().apply { start() }

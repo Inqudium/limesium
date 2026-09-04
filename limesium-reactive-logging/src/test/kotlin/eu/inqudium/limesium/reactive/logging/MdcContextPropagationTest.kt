@@ -42,7 +42,7 @@ class MdcContextPropagationTest {
                 ),
             ).withBean(NanoTimeSource::class.java, { NanoTimeSource { 0L } })
             .withBean(CorrelationIdGenerator::class.java, { CorrelationIdGenerator { "generated-42" } })
-            .withPropertyValues("endpoint-logging.logger-name=http-exchange-reactive-mdc-test")
+            .withPropertyValues("endpoint-logging.logger-name=endpoint-http-exchange-reactive-mdc-test")
 
     private val accessorRegistry = EndpointAccessorRegistryGuard()
 

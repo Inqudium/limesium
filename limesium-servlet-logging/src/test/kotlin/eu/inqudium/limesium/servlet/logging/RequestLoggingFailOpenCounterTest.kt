@@ -41,7 +41,7 @@ class RequestLoggingFailOpenCounterTest {
     private val meterRegistry = SimpleMeterRegistry()
     private val properties =
         RequestLoggingProperties(
-            loggerName = "http-exchange-failopen-test",
+            loggerName = "endpoint-http-exchange-failopen-test",
             responseHeaders = HeaderLogProperties(includes = listOf("Content-Type")),
         )
     private val filter =
@@ -422,7 +422,7 @@ class RequestLoggingFailOpenCounterTest {
             // Why it matters: the arrival line is OPTIONAL observability; it failing the exchange would
             //   invert the module's central fail-open contract.
             // Given: start-line logging against a backend that throws on the level check for this logger
-            val arrivalLoggerName = "http-exchange-servlet-arrival-boom"
+            val arrivalLoggerName = "endpoint-http-exchange-servlet-arrival-boom"
             val arrivalFilter =
                 RequestLoggingFilter(
                     properties.copy(logRequestStart = true, loggerName = arrivalLoggerName),

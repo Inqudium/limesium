@@ -64,7 +64,7 @@ import java.time.Duration
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = [
         "endpoint-logging.variant=reactor",
-        "endpoint-logging.logger-name=http-exchange-reactive-tracing-integration-test",
+        "endpoint-logging.logger-name=endpoint-http-exchange-reactive-tracing-integration-test",
         "management.tracing.sampling.probability=1.0",
     ],
 )
@@ -78,7 +78,7 @@ class RequestLoggingWebFilterTracingIntegrationTest {
 
     @BeforeEach
     fun setUp() {
-        logger = LoggerFactory.getLogger("http-exchange-reactive-tracing-integration-test") as Logger
+        logger = LoggerFactory.getLogger("endpoint-http-exchange-reactive-tracing-integration-test") as Logger
         appender = AwaitingAppender().apply { start() }
         logger.addAppender(appender)
         logger.level = Level.INFO

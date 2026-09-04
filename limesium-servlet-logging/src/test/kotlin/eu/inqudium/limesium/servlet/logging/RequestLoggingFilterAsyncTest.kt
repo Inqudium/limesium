@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicLong
  */
 class RequestLoggingFilterAsyncTest {
     private val ticker = AtomicLong(0)
-    private val properties = RequestLoggingProperties(loggerName = "http-exchange-async-test")
+    private val properties = RequestLoggingProperties(loggerName = "endpoint-http-exchange-async-test")
     private val meterRegistry = SimpleMeterRegistry()
     private val filter = RequestLoggingFilter(properties, { ticker.get() }, { "generated-42" }, meterRegistry)
 

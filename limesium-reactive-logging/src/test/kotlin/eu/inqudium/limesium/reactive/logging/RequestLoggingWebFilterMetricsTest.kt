@@ -39,7 +39,7 @@ import java.util.concurrent.atomic.AtomicLong
 class RequestLoggingWebFilterMetricsTest {
     private val ticker = AtomicLong(0)
     private val meterRegistry = SimpleMeterRegistry()
-    private val properties = RequestLoggingProperties(loggerName = "http-exchange-reactive-metrics-test")
+    private val properties = RequestLoggingProperties(loggerName = "endpoint-http-exchange-reactive-metrics-test")
     private val filter =
         RequestLoggingWebFilter(properties, { ticker.get() }, { "generated-42" }, meterRegistry)
 
@@ -608,7 +608,7 @@ class RequestLoggingWebFilterMetricsTest {
             // Why it matters: the arrival line is OPTIONAL observability; it failing the exchange would
             //   invert the module's central contract.
             // Given: start-line logging against a backend that throws on the level check for this logger
-            val arrivalLoggerName = "http-exchange-reactive-arrival-boom"
+            val arrivalLoggerName = "endpoint-http-exchange-reactive-arrival-boom"
             val arrivalFilter =
                 RequestLoggingWebFilter(
                     properties.copy(logRequestStart = true, loggerName = arrivalLoggerName),
@@ -667,12 +667,12 @@ class RequestLoggingWebFilterMetricsTest {
             // Given: measuring on, logging gated to ERROR, a chain that writes and carries a pattern
             val measuring =
                 RequestLoggingWebFilter(
-                    properties.copy(measureResponseBodySize = true, loggerName = "http-exchange-reactive-metrics-gated"),
+                    properties.copy(measureResponseBodySize = true, loggerName = "endpoint-http-exchange-reactive-metrics-gated"),
                     { ticker.get() },
                     { "generated-42" },
                     meterRegistry,
                 )
-            val gatedLogger = LoggerFactory.getLogger("http-exchange-reactive-metrics-gated") as Logger
+            val gatedLogger = LoggerFactory.getLogger("endpoint-http-exchange-reactive-metrics-gated") as Logger
             gatedLogger.level = Level.ERROR
             val exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/api/things/9"))
             val chain =

@@ -38,7 +38,7 @@ import kotlin.coroutines.CoroutineContext
  */
 class CoRequestLoggingWebFilterTest {
     private val ticker = AtomicLong(0)
-    private val properties = RequestLoggingProperties(loggerName = "http-exchange-co-test")
+    private val properties = RequestLoggingProperties(loggerName = "endpoint-http-exchange-co-test")
     private val meterRegistry = SimpleMeterRegistry()
     private val filter =
         CoRequestLoggingWebFilter(

@@ -36,7 +36,7 @@ class RequestLoggingFilterTest {
     private val ticker = AtomicLong(0)
     private val properties =
         RequestLoggingProperties(
-            loggerName = "http-exchange-core-test",
+            loggerName = "endpoint-http-exchange-core-test",
             slowRequestThreshold = Duration.ofMillis(200),
         )
     private val filter =

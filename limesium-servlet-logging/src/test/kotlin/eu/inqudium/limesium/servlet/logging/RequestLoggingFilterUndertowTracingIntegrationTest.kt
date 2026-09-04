@@ -33,7 +33,7 @@ import java.time.Duration
     classes = [RequestLoggingFilterTomcatIntegrationTest.ItApp::class, RequestLoggingFilterUndertowIntegrationTest.UndertowFactory::class],
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = [
-        "endpoint-logging.logger-name=http-exchange-undertow-tracing-integration-test",
+        "endpoint-logging.logger-name=endpoint-http-exchange-undertow-tracing-integration-test",
         "management.tracing.sampling.probability=1.0",
     ],
 )
@@ -47,7 +47,7 @@ class RequestLoggingFilterUndertowTracingIntegrationTest {
 
     @BeforeEach
     fun setUp() {
-        logger = LoggerFactory.getLogger("http-exchange-undertow-tracing-integration-test") as Logger
+        logger = LoggerFactory.getLogger("endpoint-http-exchange-undertow-tracing-integration-test") as Logger
         appender = AwaitingAppender().apply { start() }
         logger.addAppender(appender)
         logger.level = Level.INFO

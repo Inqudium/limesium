@@ -41,7 +41,7 @@ class RequestLoggingWebFilterTest {
     private val meterRegistry = SimpleMeterRegistry()
     private val properties =
         RequestLoggingProperties(
-            loggerName = "http-exchange-reactive-core-test",
+            loggerName = "endpoint-http-exchange-reactive-core-test",
             slowRequestThreshold = Duration.ofMillis(200),
         )
     private val filter =

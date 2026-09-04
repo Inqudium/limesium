@@ -29,6 +29,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **BREAKING (default logger name):** the exchange logger's default name is
+  `endpoint-http-exchange` instead of `http-exchange`, so the logger starts with
+  the vocabulary word like every field, MDC key, meter and property of the
+  `endpoint` family - and mirrors the outbound sibling Legatium's
+  `adapter-http-exchange`, so an operator sees both families as two prefixed
+  blocks. *Migrate:* logback/Log4j level rules, appender routing and index
+  queries that name `http-exchange` move to `endpoint-http-exchange`; a host
+  that must keep the old name sets `endpoint-logging.logger-name: http-exchange`
+  and nothing else changes.
 - **BREAKING (configuration and source,
   [ADR-0006](docs/adr/ADR-0006-bodies-logged-by-outcome.md)):**
   `log-request-body` / `log-response-body` take `never` | `on-failure` |

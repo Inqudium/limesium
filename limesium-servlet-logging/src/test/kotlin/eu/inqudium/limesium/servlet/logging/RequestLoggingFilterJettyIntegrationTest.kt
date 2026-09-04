@@ -40,7 +40,7 @@ import java.time.Duration
     classes = [RequestLoggingFilterTomcatIntegrationTest.ItApp::class, RequestLoggingFilterJettyIntegrationTest.JettyFactory::class],
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = [
-        "endpoint-logging.logger-name=http-exchange-jetty-integration-test",
+        "endpoint-logging.logger-name=endpoint-http-exchange-jetty-integration-test",
         "endpoint-logging.log-request-body=always",
         "endpoint-logging.log-response-body=always",
         // The tracing jars sit on the test classpath for the tracing integration test; THIS context
@@ -61,7 +61,7 @@ class RequestLoggingFilterJettyIntegrationTest {
 
     @BeforeEach
     fun setUp() {
-        logger = LoggerFactory.getLogger("http-exchange-jetty-integration-test") as Logger
+        logger = LoggerFactory.getLogger("endpoint-http-exchange-jetty-integration-test") as Logger
         appender = AwaitingAppender().apply { start() }
         logger.addAppender(appender)
         logger.level = Level.INFO

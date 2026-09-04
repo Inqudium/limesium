@@ -172,7 +172,7 @@ a `RequestLoggingWebFilter` owns the slot.
 
 ### The exchange line
 
-On the `http-exchange` logger a completed exchange is one event. In a plain-text appender only the
+On the `endpoint-http-exchange` logger a completed exchange is one event. In a plain-text appender only the
 message shows; it repeats the gist inline for exactly that case:
 
 ```
@@ -186,7 +186,7 @@ fields next to the encoder's own envelope:
 ```json
 {
   "@timestamp": "2026-09-04T13:54:58.534Z",
-  "log": { "level": "INFO", "logger": "http-exchange" },
+  "log": { "level": "INFO", "logger": "endpoint-http-exchange" },
   "process": { "pid": 4711, "thread": { "name": "reactor-http-nio-2" } },
   "service": { "name": "things-service" },
   "message": "Endpoint http exchange GET /api/things/42 -> 200 [endpoint_request_id=4bf92f3577b34da6a3ce929d0e0e4736 traceId=4bf92f3577b34da6a3ce929d0e0e4736 parentSpanId=00f067aa0ba902b7]",

@@ -36,7 +36,7 @@ class RequestLoggingMetricsTest {
     private val meterRegistry = SimpleMeterRegistry()
     private val properties =
         RequestLoggingProperties(
-            loggerName = "http-exchange-metrics-test",
+            loggerName = "endpoint-http-exchange-metrics-test",
             measureRequestBodySize = true,
             measureResponseBodySize = true,
         )

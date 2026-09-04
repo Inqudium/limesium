@@ -65,7 +65,7 @@ import java.util.concurrent.Callable
     classes = [RequestLoggingFilterTomcatIntegrationTest.ItApp::class],
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = [
-        "endpoint-logging.logger-name=http-exchange-integration-test",
+        "endpoint-logging.logger-name=endpoint-http-exchange-integration-test",
         "endpoint-logging.log-request-body=always",
         "endpoint-logging.log-response-body=always",
         "endpoint-logging.request-headers.includes=Accept",
@@ -95,7 +95,7 @@ class RequestLoggingFilterTomcatIntegrationTest {
 
     @BeforeEach
     fun setUp() {
-        logger = LoggerFactory.getLogger("http-exchange-integration-test") as Logger
+        logger = LoggerFactory.getLogger("endpoint-http-exchange-integration-test") as Logger
         appender = AwaitingAppender().apply { start() }
         logger.addAppender(appender)
         logger.level = Level.INFO

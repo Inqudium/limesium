@@ -115,7 +115,7 @@ emission, metrics — can ever fail, delay or alter the request it describes.
 
 ### 1.3 The exchange line
 
-On the logger `http-exchange` (configurable) a completed exchange looks like this in a plain-text
+On the logger `endpoint-http-exchange` (configurable) a completed exchange looks like this in a plain-text
 appender:
 
 ```
@@ -130,7 +130,7 @@ turns into fields:
 {
   "message": "Endpoint http exchange GET /api/things/42 -> 200 [endpoint_request_id=4bf92f3577b34da6a3ce929d0e0e4736 traceId=4bf92f3577b34da6a3ce929d0e0e4736 parentSpanId=00f067aa0ba902b7]",
   "level": "INFO",
-  "logger": "http-exchange",
+  "logger": "endpoint-http-exchange",
   "endpoint_outcome": "success",
   "endpoint_duration_ms": 17,
   "endpoint_request_method": "GET",
@@ -492,7 +492,7 @@ The current release is shown live by the Maven Central badge:
 
 That is all: the auto-configuration registers the filter and the listener ([§3.3](#33-automatic-wiring);
 a container assembled without it: [§3.4](#34-manual-wiring)), every exchange is logged on
-the `http-exchange` logger at INFO, the request id comes from the `traceparent` trace id (traceless
+the `endpoint-http-exchange` logger at INFO, the request id comes from the `traceparent` trace id (traceless
 exchanges read/echo `X-Correlation-Id` instead — ADR-0002), the `endpoint_*` keys are in the MDC for
 the chain, and the six meters are registered in the host's `MeterRegistry` if one exists.
 
@@ -572,7 +572,7 @@ check(registration.filter is RequestLoggingFilter && registration.order == Order
 ```
 
 ```bash
-curl -i -H 'X-Correlation-Id: demo-1' http://localhost:8080/api/things/42   # echo on the response, one http-exchange line
+curl -i -H 'X-Correlation-Id: demo-1' http://localhost:8080/api/things/42   # echo on the response, one endpoint-http-exchange line
 ```
 
 ### 3.4 Manual wiring
@@ -741,7 +741,7 @@ Logback ≥ 1.3 renders the key-value pairs with the `%kvp` conversion word and 
 ```
 
 ```
-13:54:58.534 INFO  [http-nio-8080-exec-3] http-exchange - Endpoint http exchange GET /api/things/42 -> 200 [endpoint_request_id=4bf9… traceId=4bf9… parentSpanId=00f0…] endpoint_outcome=success endpoint_duration_ms=17 endpoint_request_method=GET endpoint_url_path=/api/things/42 endpoint_url_template=/api/things/{id} endpoint_response_status_code=200 endpoint_async=false [endpoint_method=GET, endpoint_request_id=4bf9…, endpoint_route=/api/things/42, traceId=4bf9…, parentSpanId=00f0…]
+13:54:58.534 INFO  [http-nio-8080-exec-3] endpoint-http-exchange - Endpoint http exchange GET /api/things/42 -> 200 [endpoint_request_id=4bf9… traceId=4bf9… parentSpanId=00f0…] endpoint_outcome=success endpoint_duration_ms=17 endpoint_request_method=GET endpoint_url_path=/api/things/42 endpoint_url_template=/api/things/{id} endpoint_response_status_code=200 endpoint_async=false [endpoint_method=GET, endpoint_request_id=4bf9…, endpoint_route=/api/things/42, traceId=4bf9…, parentSpanId=00f0…]
 ```
 
 - `%kvp` quotes values with double quotes by default; `%kvp{NONE}` leaves them bare, `%kvp{SINGLE}` uses
@@ -782,7 +782,7 @@ logging:
     format:
       console: ecs      # or logstash, gelf
   level:
-    http-exchange: INFO
+    endpoint-http-exchange: INFO
     eu.inqudium.limesium.servlet.logging: WARN
 ```
 
@@ -837,7 +837,7 @@ depends on the host's encoder layout; map them where the encoder configuration l
    curl -i -H 'X-Correlation-Id: demo-1' http://localhost:8080/api/things/42
    ```
 
-   Expect `X-Correlation-Id: demo-1` on the response and one `http-exchange` line with
+   Expect `X-Correlation-Id: demo-1` on the response and one `endpoint-http-exchange` line with
    `endpoint_request_id=demo-1`. With a `traceparent` header instead
    (`curl -i -H 'traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01' …`), expect
    **no** `X-Correlation-Id` response header and `endpoint_request_id=4bf92f…` plus
@@ -873,7 +873,7 @@ identical across the stacks (the twin adds one reactive-only key, `variant`, whi
 | Property | Type | Default | Meaning |
 |---|---|---|---|
 | `enabled` | boolean | `true` | Master switch. `false` makes the auto-configuration back off — no filter, no listener, no beans. A context-start decision, not a runtime toggle. |
-| `logger-name` | string | `http-exchange` | Logger of the arrival line and the exchange event. Its level is the runtime volume control ([§4.5](#45-logger-levels)). |
+| `logger-name` | string | `endpoint-http-exchange` | Logger of the arrival line and the exchange event. Its level is the runtime volume control ([§4.5](#45-logger-levels)). |
 | `correlation-id-header` | string (RFC 9110 token) | `X-Correlation-Id` | Header the correlation id is read from on **traceless** exchanges (no conformant `traceparent` — ADR-0002); blank/absent means generated. Only such an exchange gets the echo, set once at filter entry — downstream code that sets the header itself or calls `response.reset()` decides what the client finally sees; event and MDC keep the id resolved at entry. A traced exchange takes its request id from the `traceparent` trace id, ignores this header and echoes nothing. |
 | `include-query-string` | boolean | `true` | Log the query string as its own field `endpoint_url_query` (never part of the path). Disable when query parameters may carry personal data. |
 | `log-request-start` | boolean | `false` | Additionally log an arrival line before the chain runs, at INFO, inside the chain MDC scope. Carries no outcome/status/duration. |
@@ -985,7 +985,7 @@ Severity and semantic are decoupled: the level only decides how loud — and whe
 `endpoint_outcome` carries the disposition ([§5.3](#53-levels-and-outcomes)). The level of the
 `logger-name` logger therefore acts as the runtime volume control:
 
-| `http-exchange` level | Emitted |
+| `endpoint-http-exchange` level | Emitted |
 |---|---|
 | `INFO` | every exchange |
 | `WARN` | failures (5xx), container timeouts, slow exchanges — and thrown chains |
@@ -1023,7 +1023,7 @@ endpoint-logging:
   slow-request-threshold: 2s
 logging:
   level:
-    http-exchange: INFO
+    endpoint-http-exchange: INFO
     eu.inqudium.limesium.servlet.logging: WARN
 ```
 
@@ -1062,7 +1062,7 @@ endpoint-logging:
   measure-response-body-size: true
 logging:
   level:
-    http-exchange: WARN
+    endpoint-http-exchange: WARN
 ```
 
 **API-only scope with a custom correlation header:**
@@ -1168,7 +1168,7 @@ The meters are designed to cover each other's blind spots:
 |---|---|
 | Are exchange events being lost **loudly** (something threw)? | `failopen{stage=emission}` > 0 |
 | Are exchange events being lost **silently** (`requestDestroyed` not firing — nothing throws, so no fail-open count)? | `exchanges.open` baseline grows monotonically instead of returning towards 0 |
-| Is the **log pipeline** (appender, broker, index) losing events? | `sum(endpoint.logging.events)` over a window ≠ count of indexed `http-exchange` documents for the same window |
+| Is the **log pipeline** (appender, broker, index) losing events? | `sum(endpoint.logging.events)` over a window ≠ count of indexed `endpoint-http-exchange` documents for the same window |
 | Did the upstream stop propagating correlation ids? | the `generated` share of `correlation.id` rises |
 | Are async cycles timing out? | `events{outcome="timeout"}` |
 | Is an endpoint ignoring or abandoning the payload it is handed? | the `unread` or `partial` share of `request.body.read{uri=...}` rises — the logged body and the size sample cannot show this, both describe only what was consumed |

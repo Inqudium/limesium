@@ -18,7 +18,7 @@ endpoint-logging:
   # Logger the exchange events are emitted on. The level of
   # THIS logger decides which exchanges are visible: INFO shows every exchange, WARN keeps only
   # failures, timeouts and slow requests, ERROR only thrown chains (see `logging.level` below).
-  logger-name: http-exchange
+  logger-name: endpoint-http-exchange
 
   # Header the correlation id is read from on TRACELESS exchanges only (ADR-0002): a request with a
   # conformant W3C traceparent takes its request id from the traceparent's trace id, ignores this
@@ -152,7 +152,7 @@ logging:
     # container timeouts and slow requests; ERROR = only exchanges whose chain threw. Severity and
     # semantic are decoupled: dashboards key on the `endpoint_outcome` field, the level only decides
     # how loud - and whether - a line is emitted.
-    http-exchange: INFO
+    endpoint-http-exchange: INFO
     # The module's own logger: the immediate WARN breadcrumb when a chain throws (the full ERROR event
     # follows on the exchange logger once the request is destroyed), and errors of the logging itself.
     # Keep at WARN or lower - silencing it hides the breadcrumb.

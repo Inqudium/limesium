@@ -34,7 +34,7 @@ import java.time.Duration
     classes = [RequestLoggingFilterTomcatIntegrationTest.ItApp::class, RequestLoggingFilterJettyIntegrationTest.JettyFactory::class],
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = [
-        "endpoint-logging.logger-name=http-exchange-jetty-tracing-integration-test",
+        "endpoint-logging.logger-name=endpoint-http-exchange-jetty-tracing-integration-test",
         "management.tracing.sampling.probability=1.0",
     ],
 )
@@ -48,7 +48,7 @@ class RequestLoggingFilterJettyTracingIntegrationTest {
 
     @BeforeEach
     fun setUp() {
-        logger = LoggerFactory.getLogger("http-exchange-jetty-tracing-integration-test") as Logger
+        logger = LoggerFactory.getLogger("endpoint-http-exchange-jetty-tracing-integration-test") as Logger
         appender = AwaitingAppender().apply { start() }
         logger.addAppender(appender)
         logger.level = Level.INFO

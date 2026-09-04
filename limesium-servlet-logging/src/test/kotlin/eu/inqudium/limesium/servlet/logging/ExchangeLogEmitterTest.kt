@@ -33,7 +33,7 @@ class ExchangeLogEmitterTest {
     private val meterRegistry = SimpleMeterRegistry()
     private val properties =
         RequestLoggingProperties(
-            loggerName = "http-exchange-emitter-test",
+            loggerName = "endpoint-http-exchange-emitter-test",
             slowRequestThreshold = Duration.ofMillis(200),
         )
     private val metrics = EndpointLoggingMetrics.forRegistry(meterRegistry)

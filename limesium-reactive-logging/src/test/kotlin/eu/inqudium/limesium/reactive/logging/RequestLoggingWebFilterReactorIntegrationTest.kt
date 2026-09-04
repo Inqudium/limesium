@@ -55,7 +55,7 @@ import java.time.Duration
     classes = [RequestLoggingWebFilterReactorIntegrationTest.ItApp::class],
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = [
-        "endpoint-logging.logger-name=http-exchange-reactor-integration-test",
+        "endpoint-logging.logger-name=endpoint-http-exchange-reactor-integration-test",
         "endpoint-logging.log-request-body=always",
         "endpoint-logging.log-response-body=always",
         "endpoint-logging.response-headers.includes=X-Late",
@@ -76,7 +76,7 @@ class RequestLoggingWebFilterReactorIntegrationTest {
 
     @BeforeEach
     fun setUp() {
-        logger = LoggerFactory.getLogger("http-exchange-reactor-integration-test") as Logger
+        logger = LoggerFactory.getLogger("endpoint-http-exchange-reactor-integration-test") as Logger
         appender = AwaitingAppender().apply { start() }
         logger.addAppender(appender)
         logger.level = Level.INFO

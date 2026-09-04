@@ -64,7 +64,7 @@ import java.time.Duration
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = [
         "endpoint-logging.variant=coroutine",
-        "endpoint-logging.logger-name=http-exchange-coroutine-integration-test",
+        "endpoint-logging.logger-name=endpoint-http-exchange-coroutine-integration-test",
         "endpoint-logging.log-request-body=always",
         "endpoint-logging.log-response-body=always",
         "endpoint-logging.response-headers.includes=X-Late",
@@ -86,7 +86,7 @@ class CoRequestLoggingWebFilterCoroutineIntegrationTest {
 
     @BeforeEach
     fun setUp() {
-        exchangeLogger = LoggerFactory.getLogger("http-exchange-coroutine-integration-test") as Logger
+        exchangeLogger = LoggerFactory.getLogger("endpoint-http-exchange-coroutine-integration-test") as Logger
         exchangeAppender = AwaitingAppender().apply { start() }
         exchangeLogger.addAppender(exchangeAppender)
         exchangeLogger.level = Level.INFO

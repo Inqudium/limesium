@@ -41,7 +41,7 @@ import java.time.Duration
     classes = [RequestLoggingFilterTomcatIntegrationTest.ItApp::class, RequestLoggingFilterUndertowIntegrationTest.UndertowFactory::class],
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = [
-        "endpoint-logging.logger-name=http-exchange-undertow-integration-test",
+        "endpoint-logging.logger-name=endpoint-http-exchange-undertow-integration-test",
         "endpoint-logging.log-request-body=always",
         "endpoint-logging.log-response-body=always",
         // The tracing jars sit on the test classpath for the tracing integration tests; THIS context
@@ -62,7 +62,7 @@ class RequestLoggingFilterUndertowIntegrationTest {
 
     @BeforeEach
     fun setUp() {
-        logger = LoggerFactory.getLogger("http-exchange-undertow-integration-test") as Logger
+        logger = LoggerFactory.getLogger("endpoint-http-exchange-undertow-integration-test") as Logger
         appender = AwaitingAppender().apply { start() }
         logger.addAppender(appender)
         logger.level = Level.INFO
