@@ -39,6 +39,15 @@ fictional periodic table as **Inqudium** (the `eu.inqudium` group it is publishe
 under): an element-style name for one well-defined capability, here the element of the
 observed boundary.
 
+The frontier has two directions, and Limesium watches one of them. Its sibling
+[**Legatium**](https://github.com/Inqudium/legatium) — named after the *legatus*, the envoy a
+service sends to a foreign party — logs the *outbound* crossings: the `RestClient`, `RestTemplate`
+and `WebClient` calls the service makes to others, with the same design (one structured line per
+exchange, fail-open, identical across two paradigm twins). Limesium's fields carry the `endpoint_`
+prefix and Legatium's the `adapter_` prefix, so a log document may hold both — a client line emitted
+while a request is being served inherits the server line's identity from the MDC — and no field ever
+means two things.
+
 Two paradigm twins with identical fields and identical configuration:
 
 | Module | Stack | Root package |
@@ -72,6 +81,10 @@ guides, Elasticsearch mapping, generated [test evidence](https://inqudium.github
   component template for the `endpoint_*` fields.
 - [Decision records](docs/adr/) — why the trace id is the request id, why the shared code is
   inlined, why the default id counts instead of rolling dice.
+- [**Legatium**](https://github.com/Inqudium/legatium) — the sibling project for the *outbound*
+  side: one structured `adapter_*` line per call the service makes, on the logger
+  `adapter-http-exchange`, built to the same design. Run both and a log document holds the
+  server line and the client lines of the calls it made, joined by the shared request id.
 
 ### Quick start
 
