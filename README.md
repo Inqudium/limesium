@@ -84,7 +84,9 @@ guides, Elasticsearch mapping, generated [test evidence](https://inqudium.github
 - [**Legatium**](https://github.com/Inqudium/legatium) — the sibling project for the *outbound*
   side: one structured `adapter_*` line per call the service makes, on the logger
   `adapter-http-exchange`, built to the same design. Run both and a log document holds the
-  server line and the client lines of the calls it made, joined by the shared request id.
+  server line and the client lines of the calls it made, joined by the shared request id - and
+  because both mask header values with the same stable fingerprint (the same `masking-key` on
+  both sides keeps it so), a masked token reads identically on the inbound and the outbound line.
 
 ### Quick start
 
