@@ -1,177 +1,268 @@
 # limesium-servlet-logging
 
-Auto-configured servlet filter for Spring Boot applications (embedded Tomcat 11+ or Jetty 12.1+) that
-logs **one structured line per HTTP exchange** and carries the exchange identity in the MDC while the
-request is handled.
-
-Design in brief:
-
-- One final `RequestLoggingFilter`; sync and async share a single, exactly-once emission path.
-- Injectable `NanoTimeSource` — deterministic tests, no sleeps.
-- Identity per ADR-0002: a conformant `traceparent`'s trace id **is** the request id (no echo, the
-  wire stays untouched); only traceless exchanges adopt/echo `X-Correlation-Id` via the injectable
-  `CorrelationIdGenerator`.
-- Passive bounded **tee** (`BoundedBodyCapture`) — nothing buffered, replayed, or withheld;
-  async-safe by construction.
-- SLF4J fluent API with `addKeyValue` — structured encoders pick the fields up directly.
-- Boot auto-configuration + `endpoint-logging.*` properties; the functional beans (filter, time source, id generator, header masker) overridable.
-- `endpoint_request_id`, `endpoint_method`, `endpoint_route` in the MDC for the whole chain,
-  previous values restored.
-
-Deliberately **out of scope**: body masking transformers and per-key response sampling. (Logged header
-values are masked by default, with `unmasked` as the explicit plaintext allowlist; an optional arrival
-line can announce the request before the handler runs.)
+The **servlet twin of [`limesium-reactive-logging`](../limesium-reactive-logging/README.md)** and the
+**reference implementation** of Limesium: an auto-configured servlet filter for Spring Boot applications
+on embedded Tomcat 11+ or Jetty 12.1+ that logs one structured `endpoint_*` line per inbound HTTP
+exchange — the record of a foreign party crossing the service's own frontier — and carries the exchange
+identity in the MDC while the request is handled. Message format, field family, `endpoint-logging.*`
+configuration and meters are **identical** in both twins: a dashboard, alert, or index mapping must not
+care which stack produced an event.
 
 The long-form guide — introduction, architecture, integration into a foreign project, configuration,
-metrics and the stack-specific behaviours — is [`docs/GUIDE.md`](docs/GUIDE.md).
+metrics and the stack-specific behaviours — is [`docs/GUIDE.md`](docs/GUIDE.md); what the module does
+and deliberately does not do (no body masking transformers, no per-key response sampling) is its
+[§1.1](docs/GUIDE.md#11-what-the-module-does) and [§1.2](docs/GUIDE.md#12-what-the-module-deliberately-does-not-do).
 
-## Usage
+This module is the reference implementation; the documentation shared by both twins is bound to the
+code it inlines:
 
-Add the module to a servlet-stack Spring Boot application — the filter registers itself:
+- **Configuration:** the complete commented reference for both twins is the repository-shared
+  [`/docs/endpoint-logging-reference.yml`](../docs/endpoint-logging-reference.yml) — bound by
+  `EndpointLoggingReferenceConfigTest` against this module's properties class (the reactive twin binds
+  the same file plus its one `variant` key against its own), so the namespace cannot drift from the
+  code, and the twins cannot drift from each other by construction. The properties are explained in
+  the guide's [§4](docs/GUIDE.md#4-configuration).
+- **Index mapping:** the one component template for both stacks is the repository-shared
+  [`/docs/elk/`](../docs/elk/README.md) — bound by `EndpointLogFieldTest` against this module's field
+  enum. The field table is the guide's [§5.1](docs/GUIDE.md#51-log-fields).
+- **Metrics:** the same six meters (`endpoint.logging.failopen`, `endpoint.logging.events`,
+  `endpoint.logging.exchanges.open`, `endpoint.logging.correlation.id`, `endpoint.request/response.body.size`,
+  `endpoint.request.body.read`), consumed from the host's `MeterRegistry`, never exported. The meter
+  table is the guide's [§5.4](docs/GUIDE.md#54-meters).
 
-**Container support** (documented per engine in [`docs/CONTAINERS.md`](docs/CONTAINERS.md)):
-Tomcat 11+ and Jetty 12.1+, each pinned by its own integration suite (capture
-boundaries + tracing). Undertow — and therefore WildFly, whose servlet engine it is — is
-**unsupported** on this stack: Spring Framework 7's baseline is Jakarta Servlet 6.1 (with no
-runtime-compatibility statement downwards), which Undertow (2.3.x) does not implement, and Spring
-Boot 4 removed the Undertow starter accordingly. That is a platform boundary, not a module
-limitation — the module's own servlet-API surface is Servlet 3.1-level (listener-based emission: 2.4,
-async lifecycle: 3.0, non-blocking-I/O tee hooks: 3.1) with one dormant 6.1-specific piece (the
-`sendRedirect` overloads the response tee overrides for the 6.1 buffer-clearing redirect variants),
-and a bytecode scan of the servlet-MVC path (spring-web/-webmvc/Boot servlet layer) found no hard
-Servlet 6.1 invocation either. An unsupported-territory integration suite
-(`RequestLoggingFilterUndertowIntegrationTest`, on a hand-rolled embedded-Undertow factory) pins that
-empirically: the module runs, the capture boundaries hold, with two pinned engine deviations —
-Undertow hands the wrappers to zero-argument `startAsync()` (the raw-async body IS captured there,
-unlike Tomcat/Jetty), and its default error rendering rebuilds the response, dropping the correlation
-echo from error responses (the id stays on the log event). None of that is a guarantee from Spring —
-every patch release may adopt 6.1 API, and the suite is the tripwire for exactly that; the boundary
-lifts properly when Undertow ships Servlet 6.1.
+## Deliberate stack differences
 
-```xml
-<dependency>
-    <groupId>eu.inqudium</groupId>
-    <artifactId>limesium-servlet-logging</artifactId>
-</dependency>
-```
-
-Example line (on the `http-exchange` logger):
-
-```
-Endpoint http exchange GET /api/things -> 200 [endpoint_request_id=0f7c...]
-```
-
-plus the structured `endpoint_*` key-values: the wire names are a contract with
-the log index, each field owns its JSON shape (`EndpointLogFields.kt`), a badly typed value drops that
-field with a warning but never the event, and the request id rides the MDC (plus the message suffix
-for plain-text appenders) rather than a key-value. The index-side mapping ships as a component template
-in [`/docs/elk/`](../docs/elk/README.md), kept in lockstep with the enum by `EndpointLogFieldTest`.
-
-| Field | Shape | When |
+| Concern | This module | Reactive twin |
 |---|---|---|
-| `endpoint_outcome` | keyword | always — `success` / `failure` / `timeout`; decoupled from the level |
-| `endpoint_duration_ms` | long | always |
-| `endpoint_request_method` | keyword | always |
-| `endpoint_response_status_code` | short | always |
-| `endpoint_url_path` | keyword | always — expanded path, high cardinality |
-| `endpoint_url_template` | keyword | when Spring MVC recorded a handler pattern — the aggregation half |
-| `endpoint_url_query` | keyword | when the request carried one and query logging is on |
-| `endpoint_async` | boolean | always |
-| `endpoint_slow` | boolean | only when the slow threshold was reached |
-| `endpoint_request_headers` / `endpoint_response_headers` | keyword, display-only | when selected headers are present |
-| `endpoint_request_body` / `endpoint_response_body` | keyword, display-only | when body capture is on and bytes actually flowed |
+| Disposition vocabulary | `success` / `failure` / **`timeout`** — the container's async timeout | `success` / `failure` / **`cancelled`** — a client disconnect, the reactive reality; there is no container async timeout |
+| `endpoint_async` | emitted, always | never emitted — everything is asynchronous there |
+| `endpoint_response_status_code` | always present | absent for a never-committed cancellation |
+| Emission point | **request destruction** (`ServletRequestListener.requestDestroyed`) — after the container's error dispatch and, for `suspend` controllers, `DeferredResult` and `Callable`, after async completion; so a crashed exchange logs the rendered `500`, not the pre-dispatch `200`, and `endpoint_duration_ms` is **request occupancy** including error rendering, not bare chain time. A burst of terminal events still yields exactly one line | the terminal signal; an error on an uncommitted response is deferred to the commit callback, a commit that never happens leaves the exchange open on the gauge |
+| Chain-wide MDC | thread-local for the **whole chain** — `endpoint_request_id`, `endpoint_method`, `endpoint_route`, previous values restored — plus the Spring MVC async worker thread | Reactor context under the same keys, opt-in `ThreadLocalAccessor`s with `context-propagation`, or `MDCContext` in the coroutine variant |
+| Body tee | stream/reader and stream/writer wrappers; `reset()`, `resetBuffer()` and `sendError` clear the capture, container error rendering bypasses it | `DataBuffer` map-tee; no reset analog, emitted buffers are on their way to the client |
+| Body capture concurrency | single writer, late reader; a volatile total as the happens-before edge | lock-guarded, frozen at emission |
+| Variant selection | one filter | `endpoint-logging.variant`: Reactor or coroutine |
+| Handler template attribute | Spring MVC's `HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE`, pinned by `HandlerMappingAttributeTest` | WebFlux's |
 
-## Configuration (`endpoint-logging.*`)
+Everything else — fail-open including the wiring (`stage=wiring` degrades to pass-through), the
+level/outcome decoupling, slow escalation, header sections with `includes`/`excludes`/`masked`/`unmasked`
+(masked by default, ADR-0005) and the injectable `HeaderValueMasker` (default: the stable fingerprint),
+the arrival line (`log-request-start`), count-only body measuring, path activation, the identity contract
+of ADR-0002 (a conformant `traceparent`'s trace id **is** the request id, the wire stays untouched; only
+a traceless exchange adopts or generates an `X-Correlation-Id` and echoes it back) — is the one contract
+both twins ship, documented here and in this module's guide.
 
-A complete, commented reference configuration with every property at its default lives in
-[`/docs/endpoint-logging-reference.yml`](../docs/endpoint-logging-reference.yml) — copy the block and change
-only what you need. `EndpointLoggingReferenceConfigTest` keeps it in lockstep with the code: every key
-must exist, every value must be the built-in default.
+## The shared layer
 
-| Property | Default | Meaning |
-|---|---|---|
-| `enabled` | `true` | `false` removes the filter (auto-configuration backs off entirely) |
-| `logger-name` | `http-exchange` | Logger of the exchange lines (dedicated name, so routing/levels can target exactly these lines) |
-| `correlation-id-header` | `X-Correlation-Id` | Header the id is read from and echoed to on traceless exchanges (ADR-0002) |
-| `include-query-string` | `true` | Append the query string to the logged path |
-| `log-request-start` | `false` | Additionally log an arrival line before the chain runs — it carries no outcome/status/duration, so outcome-keyed dashboards still count one line per exchange |
-| `include-path-patterns` | *(empty)* | URL patterns (Spring `PathPattern`, e.g. `/api/**`) the filter is active for at all; empty = every endpoint. A request is logged when it matches any include and no exclude — the exclude wins |
-| `exclude-path-prefixes` | *(empty)* | Request-URI prefixes that are not logged at all |
-| `slow-request-threshold` | `5s` | At/above this duration the line escalates to WARN and is flagged `slow` |
-| `request-headers.*` / `response-headers.*` | `masked: ["*"]`, the rest empty | Per-direction sections with `includes` (names or `*`), `excludes`, `masked` (default `*`: every logged value is rendered by the `HeaderValueMasker` bean, a stable `length:hash` pseudonym) and `unmasked` (the explicit names allowed in plaintext, no wildcard). Masked by default, so `includes: ["*"]` costs readability, not confidentiality (ADR-0005) |
-| `log-request-body` / `log-response-body` | `never` | `never`, `on-failure` or `always` (ADR-0006). Bodies are captured as they flow (tee, never a pre-read); `on-failure` writes them only when `endpoint_outcome` is not `success` or the status is a 4xx — the volume switch: the request body is teed before the outcome is known and dropped on success |
-| `max-body-bytes` | `16384` | Capture limit per body; beyond it the log truncates (and says so), the exchange is untouched |
-| `masking-key` | *(empty)* | Keys the masking fingerprint (HMAC-SHA256): same shape and stability, guess-proof without the key. A secret — supply it as one; empty keeps the unkeyed fingerprint |
-| `measure-request-body-size` / `measure-response-body-size` | `false` | Count body bytes for the size meters (`endpoint.request/response.body.size`) without logging content |
-
-Levels carry severity only (`endpoint_outcome` carries the semantic): ERROR when the chain threw (the
-exception is rethrown unchanged) or the async lifecycle reported an error, WARN for a 5xx, a container timeout, or a slow-but-successful exchange,
-INFO otherwise.
-
-## Emission point
-
-The event is emitted at **request destruction** (`ServletRequestListener.requestDestroyed`, registered by
-the auto-configuration) — after the container's error dispatch and, for async exchanges (`suspend`
-controllers, `DeferredResult`, `Callable`), after completion. So the logged status is the one the client
-actually received (a crashed exchange logs the rendered `500`, not the pre-dispatch `200`), and
-`endpoint_duration_ms` measures until processing truly ended — request occupancy including error
-rendering, not bare chain time. A burst of terminal events still yields exactly one line.
-
-When the chain throws, a short WARN breadcrumb is additionally logged immediately (on the module's own
-logger, not the exchange logger — its one-event-per-exchange contract holds), so the failure is visible
-the moment it happens while the full ERROR event follows at request destruction.
-
-**Trace integration:** the incoming W3C `traceparent` header is parsed at filter entry (strict W3C
-validation, lockstep with the reactive twin) and restored around the emission — the destruction
-callback's thread carries no per-request state — so the exchange event stays joinable with its trace:
-as MDC fields for structured encoders (`traceId`, and the caller's span as `parentSpanId`, never as
-the local `spanId`), and inline in the message (`… [endpoint_request_id=… traceId=… parentSpanId=…]`)
-for plain-text appenders. Without a conformant header, nothing is decorated and the request id is the
-accepted or generated correlation id (ADR-0002).
-
-## Metrics
-
-Six meters, all fed from the host's `MeterRegistry` when one exists (actuator); without one a private
-registry absorbs the values and the module works unchanged. Rates, latencies and status distributions are
-deliberately left to Boot's own `http.server.requests` and to the structured log fields.
-
-| Meter | Type | Tags | Meaning |
-|---|---|---|---|
-| `endpoint.logging.failopen` | counter | `stage` = `emission` \| `arrival` \| `wiring` | Logging failures the fail-open path swallowed: `emission` = an exchange event was **lost**, `arrival` = a start line was lost, `wiring` = wiring or bookkeeping around the chain failed - a pre-chain wiring failure degrades the filter to an unlogged pass-through, a post-chain one usually still emits the event. A lost log line cannot reliably report itself through the same pipeline — this counter is the independent channel. |
-| `endpoint.logging.events` | counter | `outcome` | Exchange events actually **emitted** (after the level gate; arrival lines excluded). The reconciliation ground truth: compare its sum against the count of indexed events — any difference is loss in the log pipeline itself (appender overflow, broker loss, index rejection). |
-| `endpoint.request.body.size` / `endpoint.response.body.size` | distribution summary (bytes) | `uri` (handler pattern, `UNKNOWN` without one) | Bytes that **actually flowed**, opt-in via `measure-request-body-size` / `measure-response-body-size` and independent of body logging and log level. Exact beyond `max-body-bytes` (the tee counts past the capture cap); zero-byte bodies record no sample. |
-| `endpoint.request.body.read` | counter | `uri` (handler pattern), `state` = `unread` \| `partial` \| `complete` | How far the application **consumed** the request body, opt-in via `measure-request-body-size`. The tee mirrors consumption, not transmission, so neither the logged body nor the size sample can tell a body the client sent but the application ignored from one that was never sent — this counter can. `partial` = consumption started but the end of the stream was never observed (an early-exiting parser, an exception mid-read). |
-| `endpoint.logging.exchanges.open` | gauge | — | Exchanges between filter entry and request destruction. Hovers near the active-request count in health; a **monotonically growing baseline** means `requestDestroyed` is not firing and events are lost silently — the one failure mode neither the fail-open counter (nothing throws) nor the events counter (no baseline) can see. |
-| `endpoint.logging.correlation.id` | counter | `source` = `trace` \| `header` \| `generated` | Origin of each exchange's request id (ADR-0002). A rising `generated` share means the upstream (gateway, sidecar) stopped propagating traceparent or the correlation header. |
-
-## The reactive twin and the shared layer
-
-[`limesium-reactive-logging`](../limesium-reactive-logging/README.md) is the WebFlux twin of this module:
-identical message format, field family, `endpoint-logging.*` configuration and meters, so that a
-dashboard or index mapping never cares which stack produced an event. This module is the **reference
-implementation** — the configuration reference (`/docs/endpoint-logging-reference.yml`) and the ELK
-component template (`/docs/elk/`) live in the repository-shared `/docs` and are bound by both
-modules' lockstep tests.
-
-The **byte-identical** part of the shared layer (the `traceparent` parser with its fuzz target, the
-injectable time/id interfaces, `reportQuietly`, the MDC keys and scope) lives in the internal
+The **byte-identical** part of the twins' shared layer (the `traceparent` parser with its fuzz target,
+the injectable time/id interfaces, `reportQuietly`, the MDC keys and scope) lives in the internal
 `limesium-common` module and is **inlined into this jar** by the Maven Shade plugin
 ([ADR-0003](../docs/adr/ADR-0003-limesium-common-inlined-by-shade.md)): consumers add exactly one
 artifact, the published POM carries no extra dependency, and `limesium-common` itself is never
 published.
 
 Everything whose twin copies genuinely differ (field enum and metrics with their per-stack outcome
-vocabulary, emitters, exchanges, properties, body capture) stays **deliberately duplicated**, per the
-original architecture-review decision: one twin per host, standalone jars, contract-level code that
-changes rarely. For that remainder every change is still a conscious port in *both* directions; the
-pins in `TwinContractTest` and the cross-module tests catch *named* contract drift, not behavioural
-drift — a change there must be ported consciously and verified in both modules.
+vocabulary, emitters, exchanges, properties, body capture with its own concurrency design) stays
+**deliberately duplicated**, per the original architecture-review decision: one twin per host,
+standalone jars, contract-level code that changes rarely. For that remainder every change is a
+conscious port in both directions; the pins in `TwinContractTest` / `EndpointLogFieldTest` /
+`EndpointLoggingReferenceConfigTest` catch *named* contract drift (meter names, field names,
+configuration keys, message text) — not behavioural drift inside near-identical code.
 
-## Overriding
+## Usage
 
-Define your own bean to replace a default: `NanoTimeSource`, `CorrelationIdGenerator`,
-`HeaderValueMasker` (how masked header values render — a keyed HMAC, a fixed `***`), or a complete
-`RequestLoggingFilter`. A custom filter bean takes over the *filter*, not the wiring: the auto-configured
-`FilterRegistrationBean` (order, URL mapping) and the request-destruction listener are still registered
-around it, so the emission point stays intact. Set `endpoint-logging.enabled=false` to remove the
-registration entirely.
+The host must be a **Spring Boot 4.x servlet web application** on Java 21 — embedded Tomcat 11+ or
+Jetty 12.1+, which supply the Jakarta Servlet API the module declares as `provided` — with an SLF4J 2.x
+binding. Spring MVC is optional (without it there is no `endpoint_url_template`, no async pass and no
+worker-thread MDC). Undertow, and therefore WildFly, is unsupported on this stack: see
+[container support](#container-support). The full list with the reasons is the guide's
+[prerequisites table](docs/GUIDE.md#31-prerequisites); how the `endpoint_*` fields become visible in the
+log output is [§3.5](docs/GUIDE.md#35-logging-backend-and-structured-output).
+
+```xml
+<dependency>
+    <groupId>eu.inqudium</groupId>
+    <artifactId>limesium-servlet-logging</artifactId>
+    <version><!-- current release: see the badge below --></version>
+</dependency>
+```
+
+[![Maven Central](https://img.shields.io/maven-central/v/eu.inqudium/limesium-servlet-logging.svg?label=Maven%20Central)](https://central.sonatype.com/artifact/eu.inqudium/limesium-servlet-logging)
+— there is no BOM; the version is declared on the dependency itself. An application may carry both
+twins: each auto-configures for its own web application type only, so the matching one activates and
+the other stays inert; keep them at the same version, both jars inline the same shared classes.
+`endpoint-logging.enabled=false` removes the module again without touching the classpath.
+
+### Automatic wiring
+
+The long form is the guide's [§2.2](docs/GUIDE.md#22-auto-configuration-and-registration) and
+[§3.3](docs/GUIDE.md#33-filter-order-and-other-filters).
+
+In a servlet web application (`@ConditionalOnWebApplication(type = SERVLET)`) the auto-configuration
+registers the filter bean **and** the two registrations that make it work: a `FilterRegistrationBean`
+that puts the filter into the container's chain at `Ordered.HIGHEST_PRECEDENCE + 10` for every request,
+and a `ServletListenerRegistrationBean` for the filter's completion listener — the **emission point**,
+fired by the container at request destruction. Both go through Boot's `ServletContextInitializer`
+mechanism, so an embedded container and a WAR on an external Tomcat or Jetty are wired alike.
+
+There is nothing to inject and nothing to build: every request the container dispatches passes the
+filter, and path activation (`include-path-patterns`, `exclude-path-prefixes`) is evaluated inside it,
+not through the registration's URL mapping, so the semantics are byte-identical with the reactive twin.
+Referencing the filter bean from the registration keeps Boot from also auto-registering the bare
+`Filter` bean.
+
+```kotlin
+@RestController
+class ThingsController(private val things: Things) {
+    private val log = LoggerFactory.getLogger(javaClass)
+
+    @GetMapping("/api/things/{id}")
+    fun thing(@PathVariable id: Long): Thing {
+        log.info("loading thing")        // carries endpoint_request_id, endpoint_method, endpoint_route
+        return things.load(id)
+    }
+}
+```
+
+The order is early but not first: Boot's `ServerHttpObservationFilter` at `HIGHEST_PRECEDENCE + 1`
+wraps this filter, so the exchange event stays within the server span's timing, and everything ordered
+after `+ 10` — Spring Security, the application's own filters, the `DispatcherServlet` — runs inside
+the chain-wide MDC scope and sees `endpoint_request_id`
+([§6.9](docs/GUIDE.md#69-the--10-order-is-load-bearing)).
+
+### Manual wiring
+
+The long form of the beans and the constructor is the guide's [§3.4](docs/GUIDE.md#34-overriding-beans).
+
+The filter bean `RequestLoggingFilter` exists in every enabled servlet context; only its *registration*
+depends on Boot's servlet auto-configuration. Register it yourself when that auto-configuration is not
+in charge:
+
+- **Spring MVC without Boot's servlet auto-configuration** — an application bootstrapped without Boot,
+  or with the auto-configuration excluded. No `FilterRegistrationBean` runs, so neither the filter nor
+  the completion listener reaches the container.
+- **A different order or mapping** — the auto-configured registration is fixed at
+  `HIGHEST_PRECEDENCE + 10` for every path. A host that must place the filter elsewhere switches the
+  auto-configuration off (`endpoint-logging.enabled=false`) and registers by hand — mindful that
+  [§6.9](docs/GUIDE.md#69-the--10-order-is-load-bearing) explains why the `+ 10` is load-bearing.
+- **Outside a Spring context** — a bare embedded container in an integration test, a servlet
+  application without Spring. The filter is constructed directly; every default is public.
+
+In each case register **both** pieces: the filter for every dispatcher type (as Boot does for an
+`OncePerRequestFilter`, so the async and error dispatches pass it too), and the completion listener from
+`exchangeCompletionListener()` — without the listener no exchange is ever emitted, and the open-exchanges
+gauge grows with every request:
+
+```kotlin
+class EndpointLoggingInitializer : WebApplicationInitializer {
+    override fun onStartup(servletContext: ServletContext) {
+        val filter = RequestLoggingFilter(
+            RequestLoggingProperties(),            // every default; or a copy(...) with the fields to change
+            NanoTimeSource.SYSTEM,
+            CorrelationIdGenerator.DEFAULT,
+            SimpleMeterRegistry(),                 // or the registry the surrounding code owns
+        )
+        servletContext.addFilter("requestLoggingFilter", filter)
+            .addMappingForUrlPatterns(EnumSet.allOf(DispatcherType::class.java), false, "/*")
+        servletContext.addListener(filter.exchangeCompletionListener())
+    }
+}
+```
+
+Reuse one filter per `MeterRegistry` rather than constructing several: the meters are identified by
+name, so all filters on one registry share one metrics owner and the `endpoint.logging.exchanges.open`
+gauge reports the total across them ([§6.10](docs/GUIDE.md#610-one-metrics-instance-per-registry)).
+Replacing the filter itself (a host-defined `RequestLoggingFilter` bean) is a different thing: the
+automatic wiring still registers the replacement and its listener around it, so the emission point stays
+intact ([§3.4](docs/GUIDE.md#34-overriding-beans)) — as it does for the other overridable beans,
+`NanoTimeSource`, `CorrelationIdGenerator` and `HeaderValueMasker` (how masked header values render — a
+keyed HMAC, a fixed `***`).
+
+### The exchange line
+
+On the `http-exchange` logger a completed exchange is one event. In a plain-text appender only the
+message shows; it repeats the gist inline for exactly that case:
+
+```
+Endpoint http exchange GET /api/things/42 -> 200 [endpoint_request_id=4bf92f3577b34da6a3ce929d0e0e4736 traceId=4bf92f3577b34da6a3ce929d0e0e4736 parentSpanId=00f067aa0ba902b7]
+```
+
+With Spring Boot's structured logging (`logging.structured.format.console=ecs`) the same event is one
+JSON document: the `endpoint_*` key-values and the MDC-carried identity become flat, typed top-level
+fields next to the encoder's own envelope:
+
+```json
+{
+  "@timestamp": "2026-09-04T13:54:58.534Z",
+  "log": { "level": "INFO", "logger": "http-exchange" },
+  "process": { "pid": 4711, "thread": { "name": "http-nio-8080-exec-3" } },
+  "service": { "name": "things-service" },
+  "message": "Endpoint http exchange GET /api/things/42 -> 200 [endpoint_request_id=4bf92f3577b34da6a3ce929d0e0e4736 traceId=4bf92f3577b34da6a3ce929d0e0e4736 parentSpanId=00f067aa0ba902b7]",
+  "endpoint_request_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+  "endpoint_method": "GET",
+  "endpoint_route": "/api/things/42",
+  "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+  "parentSpanId": "00f067aa0ba902b7",
+  "endpoint_outcome": "success",
+  "endpoint_duration_ms": 17,
+  "endpoint_request_method": "GET",
+  "endpoint_response_status_code": 200,
+  "endpoint_url_path": "/api/things/42",
+  "endpoint_url_template": "/api/things/{id}",
+  "endpoint_async": false,
+  "ecs": { "version": "8.11" }
+}
+```
+
+The trace keys and the trace suffix in the message appear only on a traced exchange — the caller's span
+as `parentSpanId`, never as the local `spanId`; a traceless exchange carries the request id alone and has
+echoed it to the client as `X-Correlation-Id`. When the chain throws, a short WARN breadcrumb goes to the
+module's own logger the moment it happens, and the ERROR event with the rendered status follows at
+request destruction. Optional fields (`endpoint_url_query`, `endpoint_slow`, the header and body
+sections) are present only when they apply. Which encoder produces which shape — and why the default
+console pattern shows none of the fields — is the guide's
+[§3.5](docs/GUIDE.md#35-logging-backend-and-structured-output); the field family itself is documented
+once, in the guide's [§5.1](docs/GUIDE.md#51-log-fields), and mapped by the component template in
+[`/docs/elk/`](../docs/elk/README.md).
+
+## Configuration (`endpoint-logging.*`)
+
+Every property lives under the `endpoint-logging.*` namespace, identical in both twins by construction
+(the reactive twin adds its one `variant` key). The complete, commented reference with every key at its
+default is the repository-shared
+[`/docs/endpoint-logging-reference.yml`](../docs/endpoint-logging-reference.yml) — copy the block and
+change only what you need; `EndpointLoggingReferenceConfigTest` fails the build on any drift between
+that file and the properties class. The properties are explained in the guide's
+[§4](docs/GUIDE.md#4-configuration): the property reference, header sections, body logging and
+measuring, path activation, logger levels, validation at startup, and example configurations.
+`endpoint-logging.enabled=false` removes the module without touching the classpath.
+
+## Metrics
+
+The module's meters exist for one reason: a log line that was lost cannot report its own loss through
+the same pipeline. Six meters, consumed from the host's `MeterRegistry` when one exists (actuator) and
+never exported, form that independent channel — they answer whether exchange events are being lost
+loudly (a fail-open counter by stage), lost silently (an open-exchange gauge whose baseline must return
+towards zero when `requestDestroyed` stops firing), or lost downstream (an events counter to reconcile
+against the index), where each exchange's identity came from (trace, header, or generated — a rising
+`generated` share means the gateway or sidecar stopped propagating), and — opt-in — how large the bodies
+were and how far the application actually read the request body. Rates, latencies and status
+distributions are deliberately left to Boot's own `http.server.requests` and to the structured log
+fields.
+
+Every meter with its type, tags and meaning is the guide's [§5.4](docs/GUIDE.md#54-meters); how to read
+them together, with a suggested alert set, is [§5.5](docs/GUIDE.md#55-reading-the-meters-together). The
+names are identical in both twins and pinned by `TwinContractTest`; the `outcome` tag of the events
+counter carries this stack's `timeout`.
+
+## Container support
+
+Tomcat 11+ and Jetty 12.1+ are supported, each pinned by its own integration suite (capture boundaries
+and tracing) and documented per engine in [`docs/CONTAINERS.md`](docs/CONTAINERS.md). **Undertow — and
+therefore WildFly, whose servlet engine it is — is unsupported on this stack.** That is a platform
+boundary, not a module limitation: Spring Framework 7's baseline is Jakarta Servlet 6.1, which Undertow
+2.3.x does not implement, and Spring Boot 4 removed the Undertow starter accordingly; the module's own
+servlet-API surface is Servlet 3.1-level. An unsupported-territory integration suite on a hand-rolled
+embedded-Undertow factory pins the empirical state — the module runs and the capture boundaries hold,
+with two pinned engine deviations — and is the tripwire for a Spring patch release adopting 6.1 API.
+The boundary lifts properly when Undertow ships Servlet 6.1.
