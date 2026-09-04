@@ -77,7 +77,7 @@ binding. Spring MVC is optional (without it there is no `endpoint_url_template`,
 worker-thread MDC). Undertow, and therefore WildFly, is unsupported on this stack: see
 [container support](#container-support). The full list with the reasons is the guide's
 [prerequisites table](docs/GUIDE.md#31-prerequisites); how the `endpoint_*` fields become visible in the
-log output is [§3.5](docs/GUIDE.md#35-logging-backend-and-structured-output).
+log output is [§3.7](docs/GUIDE.md#37-logging-backend-and-structured-output).
 
 ```xml
 <dependency>
@@ -95,8 +95,7 @@ the other stays inert; keep them at the same version, both jars inline the same 
 
 ### Automatic wiring
 
-The long form is the guide's [§2.2](docs/GUIDE.md#22-auto-configuration-and-registration) and
-[§3.3](docs/GUIDE.md#33-filter-order-and-other-filters).
+The long form is the guide's [§3.3](docs/GUIDE.md#33-automatic-wiring).
 
 In a servlet web application (`@ConditionalOnWebApplication(type = SERVLET)`) the auto-configuration
 registers the filter bean **and** the two registrations that make it work: a `FilterRegistrationBean`
@@ -132,7 +131,8 @@ the chain-wide MDC scope and sees `endpoint_request_id`
 
 ### Manual wiring
 
-The long form of the beans and the constructor is the guide's [§3.4](docs/GUIDE.md#34-overriding-beans).
+The long form — including the Boot-context variant with the auto-configuration switched off — is the
+guide's [§3.4](docs/GUIDE.md#34-manual-wiring).
 
 The filter bean `RequestLoggingFilter` exists in every enabled servlet context; only its *registration*
 depends on Boot's servlet auto-configuration. Register it yourself when that auto-configuration is not
@@ -174,7 +174,7 @@ name, so all filters on one registry share one metrics owner and the `endpoint.l
 gauge reports the total across them ([§6.10](docs/GUIDE.md#610-one-metrics-instance-per-registry)).
 Replacing the filter itself (a host-defined `RequestLoggingFilter` bean) is a different thing: the
 automatic wiring still registers the replacement and its listener around it, so the emission point stays
-intact ([§3.4](docs/GUIDE.md#34-overriding-beans)) — as it does for the other overridable beans,
+intact ([§3.6](docs/GUIDE.md#36-overriding-beans)) — as it does for the other overridable beans,
 `NanoTimeSource`, `CorrelationIdGenerator` and `HeaderValueMasker` (how masked header values render — a
 keyed HMAC, a fixed `***`).
 
@@ -221,7 +221,7 @@ module's own logger the moment it happens, and the ERROR event with the rendered
 request destruction. Optional fields (`endpoint_url_query`, `endpoint_slow`, the header and body
 sections) are present only when they apply. Which encoder produces which shape — and why the default
 console pattern shows none of the fields — is the guide's
-[§3.5](docs/GUIDE.md#35-logging-backend-and-structured-output); the field family itself is documented
+[§3.7](docs/GUIDE.md#37-logging-backend-and-structured-output); the field family itself is documented
 once, in the guide's [§5.1](docs/GUIDE.md#51-log-fields), and mapped by the component template in
 [`/docs/elk/`](../docs/elk/README.md).
 

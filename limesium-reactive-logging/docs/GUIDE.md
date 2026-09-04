@@ -28,12 +28,14 @@ code under `src/main/kotlin/eu/inqudium/limesium/reactive/logging/`; when the tw
 3. [Using it in a foreign project](#3-using-it-in-a-foreign-project)
    1. [Prerequisites](#31-prerequisites)
    2. [Adding the dependency](#32-adding-the-dependency)
-   3. [Choosing the filter variant](#33-choosing-the-filter-variant)
-   4. [Enabling handler-side MDC](#34-enabling-handler-side-mdc)
-   5. [Overriding beans](#35-overriding-beans)
-   6. [Logging backend and structured output](#36-logging-backend-and-structured-output)
-   7. [Index mapping (ELK)](#37-index-mapping-elk)
-   8. [Verifying the integration](#38-verifying-the-integration)
+   3. [Automatic wiring](#33-automatic-wiring)
+   4. [Manual wiring](#34-manual-wiring)
+   5. [Choosing the filter variant](#35-choosing-the-filter-variant)
+   6. [Enabling handler-side MDC](#36-enabling-handler-side-mdc)
+   7. [Overriding beans](#37-overriding-beans)
+   8. [Logging backend and structured output](#38-logging-backend-and-structured-output)
+   9. [Index mapping (ELK)](#39-index-mapping-elk)
+   10. [Verifying the integration](#310-verifying-the-integration)
 4. [Configuration](#4-configuration)
    1. [Property reference](#41-property-reference)
    2. [Header sections](#42-header-sections)
@@ -476,7 +478,8 @@ backend, no YAML, no Netty are forced onto the host.
 The current release is shown live by the Maven Central badge:
 [![Maven Central](https://img.shields.io/maven-central/v/eu.inqudium/limesium-reactive-logging.svg?label=Maven%20Central)](https://central.sonatype.com/artifact/eu.inqudium/limesium-reactive-logging)
 
-That is all: the auto-configuration registers the filter, every exchange is logged on the
+That is all: the auto-configuration registers the filter ([§3.3](#33-automatic-wiring); a handler
+assembled without it: [§3.4](#34-manual-wiring)), every exchange is logged on the
 `http-exchange` logger at INFO, the request id comes from the `traceparent` trace id (traceless
 exchanges read/echo `X-Correlation-Id` instead — ADR-0002), and the
 six meters are registered in the host's `MeterRegistry` if one exists.
@@ -488,7 +491,155 @@ endpoint-logging:
   enabled: false
 ```
 
-### 3.3 Choosing the filter variant
+### 3.3 Automatic wiring
+
+On this stack the wiring **is** the bean. Both auto-configurations are listed in the auto-configuration
+imports resource and conditional on a **reactive** web application (`@ConditionalOnWebApplication(type =
+REACTIVE)` — in a servlet application the module is inert, and the servlet twin takes over) and on
+`endpoint-logging.enabled` (default `true`; `false` removes the filter and the defaults together). They
+register exactly **one `EndpointLoggingFilter` bean** — a `WebFilter` that is also `Ordered` — and
+nothing else is needed:
+
+1. Boot's WebFlux auto-configuration builds the application's `HttpHandler` through
+   `WebHttpHandlerBuilder.applicationContext(context)`, which **collects every `WebFilter` bean** from
+   the context.
+2. The builder sorts them by their `Ordered` contract; this filter says
+   `Ordered.HIGHEST_PRECEDENCE + 10`, early enough that the traceless correlation echo is set before
+   anything else runs and everything after it sees the exchange identity.
+3. Which class fills the slot is decided by **bean-slot claiming** ([§2.2](#22-auto-configuration-and-variant-selection)):
+   with `kotlinx-coroutines-reactor` **and** `kotlinx-coroutines-slf4j` on the classpath the coroutine
+   auto-configuration runs first and registers `CoRequestLoggingWebFilter`; otherwise the Reactor
+   auto-configuration registers `RequestLoggingWebFilter`. `endpoint-logging.variant` overrides the
+   classpath ([§3.5](#35-choosing-the-filter-variant)).
+
+Consequently there is nothing for the host to inject and nothing to build: every exchange the server
+hands to the `WebHandler` passes the filter — annotated controllers, router functions, static
+resources, the error rendering — and **path activation** (`include-path-patterns`,
+`exclude-path-prefixes`) is evaluated inside the filter, byte-identical with the servlet twin
+([§4.4](#44-path-activation)).
+
+```kotlin
+@RestController
+class ThingsController(private val things: Things) {
+    private val log = LoggerFactory.getLogger(javaClass)
+
+    @GetMapping("/api/things/{id}")
+    suspend fun thing(@PathVariable id: Long): Thing {
+        log.info("loading thing")        // coroutine variant: carries endpoint_request_id, endpoint_method, endpoint_route
+        return things.load(id)
+    }
+}
+```
+
+Handler-side MDC — the line above carrying the identity — is native in the coroutine variant and an
+opt-in for the Reactor variant: with `io.micrometer:context-propagation` on the classpath the Reactor
+auto-configuration registers the `endpoint_*` `ThreadLocalAccessor`s and validates
+`spring.reactor.context-propagation=auto` at startup, **only while a `RequestLoggingWebFilter` owns the
+slot** ([§3.6](#36-enabling-handler-side-mdc)). That initializer is part of the automatic wiring: it is
+not reachable from a filter wired by hand.
+
+Covered by the automatic wiring:
+
+- every exchange of the application's `HttpHandler`, whatever ends it;
+- a host-defined bean of **either** variant: it satisfies the missing-bean condition, both
+  auto-configurations back off, and WebFlux collects the host's bean like any other
+  ([§3.7](#37-overriding-beans)).
+
+**Not** covered — for these, [§3.4](#34-manual-wiring) applies:
+
+- an `HttpHandler` assembled without Boot's WebFlux auto-configuration (`WebHttpHandlerBuilder` or
+  `RouterFunctions.toHttpHandler(...)` called by the host);
+- a router function or server outside a Spring context.
+
+All of it is pinned by `RequestLoggingAutoConfigurationTest`: the registration in a reactive context,
+the back-off when disabled, the variant selection in both directions, the host-bean back-off, the
+accessor registration and its startup warning. The wiring is fail-open like everything else: a failure
+while wiring one exchange degrades it to a pass-through with a `stage=wiring` count
+([§2.7](#27-fail-open-contract)).
+
+To confirm the attachment at runtime — in a test or a startup check — ask the context for its
+`WebFilter` beans; exactly one `EndpointLoggingFilter` must be among them:
+
+```kotlin
+val filters = context.getBeansOfType(WebFilter::class.java).values
+check(filters.count { it is EndpointLoggingFilter } == 1)
+```
+
+### 3.4 Manual wiring
+
+The filter bean exists in every enabled reactive context; only its **pickup** depends on WebFlux
+collecting `WebFilter` beans from a Boot application context. Add it yourself when the `HttpHandler` is
+assembled without that context scan:
+
+| Situation | Why the automatic wiring does not reach it |
+|---|---|
+| WebFlux assembled **without Boot's auto-configuration** — an `HttpHandler` the host builds through `WebHttpHandlerBuilder.webHandler(...)` or `RouterFunctions.toHttpHandler(router, strategies)` | those take exactly the filters they are given; a bean in the context is not consulted |
+| A router function or server **outside a Spring context** — `WebTestClient.bindToRouterFunction(...)` in a test, a library's own server | there is no context to hold the bean, so the filter is constructed directly |
+| A Boot context with the auto-configuration switched off (`endpoint-logging.enabled=false`) that still wants the filter | the host defines the bean itself; WebFlux collects it regardless of who defined it — and the host binds the properties class, because `@EnableConfigurationProperties` lives on the auto-configuration that is now gone |
+
+There is **no "different order" case**: the order is a property of the filter itself (`getOrder()` on
+both variants), not of a registration, so it cannot be changed by wiring differently.
+
+The mechanics are one call: construct the variant of choice — `RequestLoggingWebFilter`, or
+`CoRequestLoggingWebFilter` when the two coroutine libraries are present — and hand it to whatever
+assembles the handler. The constructor takes the bound properties, the time source, the id generator
+and a `MeterRegistry`, plus an optional trailing `HeaderValueMasker` (the built-in fingerprint when
+omitted); every default is public:
+
+```kotlin
+val filter = RequestLoggingWebFilter(
+    RequestLoggingProperties(),            // every default; or a copy(...) with the fields to change
+    NanoTimeSource.SYSTEM,
+    CorrelationIdGenerator.DEFAULT,
+    SimpleMeterRegistry(),                 // or the registry the surrounding code owns
+)
+
+// a hand-assembled handler
+val httpHandler = RouterFunctions.toHttpHandler(
+    router,
+    HandlerStrategies.builder().webFilter(filter).build(),
+)
+
+// a router function under test
+val client = WebTestClient.bindToRouterFunction(router).webFilter<WebTestClient.RouterFunctionSpec>(filter).build()
+```
+
+Inside a Boot context with the auto-configuration switched off, the same construction is a bean:
+
+```kotlin
+@Configuration(proxyBeanMethods = false)
+@EnableConfigurationProperties(RequestLoggingProperties::class)
+class EndpointLoggingConfiguration {
+    @Bean
+    fun requestLoggingWebFilter(properties: RequestLoggingProperties, registry: MeterRegistry): RequestLoggingWebFilter =
+        RequestLoggingWebFilter(properties, NanoTimeSource.SYSTEM, CorrelationIdGenerator.DEFAULT, registry)
+}
+```
+
+Rules for manual wiring:
+
+- **One filter per `MeterRegistry`.** The meters are identified by name, so all filters on one registry
+  share one metrics owner and the `endpoint.logging.exchanges.open` gauge reports the total across them
+  ([§6.7](#67-one-metrics-instance-per-registry)). A second instance buys nothing.
+- **The variant is the host's choice by class.** There is no `endpoint-logging.variant` evaluation
+  outside the auto-configuration; `CoRequestLoggingWebFilter` needs `kotlinx-coroutines-reactor` and
+  `kotlinx-coroutines-slf4j` on the classpath ([§3.5](#35-choosing-the-filter-variant)).
+- **Handler-side MDC comes with the coroutine variant only.** The context-propagation accessors of the
+  Reactor variant are installed by the auto-configuration's initializer, which a hand-wired filter
+  does not have; a Reactor filter wired by hand carries the identity in the Reactor context, the
+  emission-scope MDC and the message inline ([§2.6](#26-mdc-and-the-reactor-context)).
+- **Activation is not the host's business.** Path activation is evaluated inside the filter
+  ([§4.4](#44-path-activation)), so a manually added filter applies the same rules as an automatically
+  collected one; there is no need to add it selectively.
+- **Ordering is the host's business.** Only the context scan sorts by `Ordered`; filters handed to
+  `WebHttpHandlerBuilder.filter(...)` or `HandlerStrategies.Builder.webFilter(...)` run in the order
+  added — put this one first, so the correlation echo is set before anything else runs.
+
+Everything else is unchanged by the way the filter was added: emission point, outcomes, meters, header
+sections, body capture and the fail-open contract behave exactly as under the automatic wiring — the
+filter does not know how it got onto the chain.
+
+### 3.5 Choosing the filter variant
 
 | Host | Recommended | How |
 |---|---|---|
@@ -516,9 +667,9 @@ endpoint-logging:
 
 Logging, configuration and metrics are identical across the variants by construction — both delegate
 to the same `ExchangeLifecycle`. The only observable difference is how handler-side MDC is achieved
-([§3.4](#34-enabling-handler-side-mdc)).
+([§3.6](#36-enabling-handler-side-mdc)).
 
-### 3.4 Enabling handler-side MDC
+### 3.6 Enabling handler-side MDC
 
 Goal: every log line written **inside** a handler carries `endpoint_request_id`, `endpoint_method` and
 `endpoint_route`.
@@ -552,7 +703,7 @@ A host that calls `Hooks.enableAutomaticContextPropagation()` itself can ignore 
 `auto` applies to the whole application — it also restores any other registered `ThreadLocalAccessor`
 (tracing, baggage) around every operator, with the corresponding per-operator cost.
 
-### 3.5 Overriding beans
+### 3.7 Overriding beans
 
 Every default is `@ConditionalOnMissingBean`:
 
@@ -594,7 +745,7 @@ fun requestLoggingWebFilter(
 
 Keep in mind the one-instance-per-registry limitation of the gauge ([§6.7](#67-one-metrics-instance-per-registry)).
 
-### 3.6 Logging backend and structured output
+### 3.8 Logging backend and structured output
 
 The module emits through SLF4J's fluent API. Every exchange event carries its data in **two places**, and
 an encoder treats them differently:
@@ -675,7 +826,7 @@ type assertion in `EndpointLogField` guarantees on the producing side:
 {"@timestamp":"2026-08-23T13:54:58.534Z","log.level":"INFO","message":"Endpoint http exchange GET /api/things/42 -> 200 [endpoint_request_id=0f7c…]","endpoint_outcome":"success","endpoint_duration_ms":17,"endpoint_request_method":"GET","endpoint_url_path":"/api/things/42","endpoint_url_template":"/api/things/{id}","endpoint_response_status_code":200,"endpoint_request_id":"0f7c…","endpoint_method":"GET","endpoint_route":"/api/things/42","ecs.version":"8.11"}
 ```
 
-This is the shape the component template in [§3.7](#37-index-mapping-elk) is written for. The same encoder is
+This is the shape the component template in [§3.9](#39-index-mapping-elk) is written for. The same encoder is
 available in XML as `<encoder class="org.springframework.boot.logging.logback.StructuredLogEncoder"><format>ecs</format></encoder>`,
 and `logging.structured.json.include` / `exclude` / `rename` control the field selection (e.g. to drop
 `endpoint_route`, which duplicates `endpoint_url_path`). Where MDC entries land in the document — flat,
@@ -694,7 +845,7 @@ A fourth option, `logstash-logback-encoder`'s `LogstashEncoder`, also renders th
 Whatever the option, keep the `eu.inqudium.limesium.reactive.logging` logger at WARN or lower: it carries the
 WARN breadcrumb on a thrown chain and the module's own failure reports.
 
-### 3.7 Index mapping (ELK)
+### 3.9 Index mapping (ELK)
 
 The thirteen `endpoint_*` fields have a ready-made Elasticsearch component template in the servlet
 repository-shared [`/docs/elk/`](../../docs/elk/README.md). Compose it into the data-stream
@@ -704,7 +855,7 @@ dynamically and become searchable, which the payload fields' `index: false` deli
 The MDC-carried keys are intentionally not in that template: where they land in the document depends on
 the host's encoder layout; map them where the encoder configuration lives.
 
-### 3.8 Verifying the integration
+### 3.10 Verifying the integration
 
 1. Start the application and call any endpoint:
 

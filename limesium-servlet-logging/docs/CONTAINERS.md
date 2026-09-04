@@ -155,7 +155,7 @@ tested; the server is not.
   well; `requestDestroyed` is Servlet-spec (2.4). The open-exchanges gauge is the liveness signal if a
   container's destruction behavior surprises.
 - **Filter order** stays at `HIGHEST_PRECEDENCE + 10` on every engine
-  ([§3.3](GUIDE.md#33-filter-order-and-other-filters), [§6.9](GUIDE.md#69-the--10-order-is-load-bearing)).
+  ([§3.5](GUIDE.md#35-filter-order-and-other-filters), [§6.9](GUIDE.md#69-the--10-order-is-load-bearing)).
 - **Path activation** matches the path WITHIN the application on every engine — a configured context
   path is stripped before matching ([§4.4](GUIDE.md#44-path-activation)).
 - The generated [test-evidence page](https://inqudium.github.io/limesium/tests/test-evidence/) lists

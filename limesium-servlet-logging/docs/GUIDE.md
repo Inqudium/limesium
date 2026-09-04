@@ -31,11 +31,13 @@ code under `src/main/kotlin/eu/inqudium/limesium/servlet/logging/`; when the two
 3. [Using it in a foreign project](#3-using-it-in-a-foreign-project)
    1. [Prerequisites](#31-prerequisites)
    2. [Adding the dependency](#32-adding-the-dependency)
-   3. [Filter order and other filters](#33-filter-order-and-other-filters)
-   4. [Overriding beans](#34-overriding-beans)
-   5. [Logging backend and structured output](#35-logging-backend-and-structured-output)
-   6. [Index mapping (ELK)](#36-index-mapping-elk)
-   7. [Verifying the integration](#37-verifying-the-integration)
+   3. [Automatic wiring](#33-automatic-wiring)
+   4. [Manual wiring](#34-manual-wiring)
+   5. [Filter order and other filters](#35-filter-order-and-other-filters)
+   6. [Overriding beans](#36-overriding-beans)
+   7. [Logging backend and structured output](#37-logging-backend-and-structured-output)
+   8. [Index mapping (ELK)](#38-index-mapping-elk)
+   9. [Verifying the integration](#39-verifying-the-integration)
 4. [Configuration](#4-configuration)
    1. [Property reference](#41-property-reference)
    2. [Header sections](#42-header-sections)
@@ -238,8 +240,9 @@ registers:
 | `ServletListenerRegistrationBean<ServletRequestListener>` | always | `filter.exchangeCompletionListener()` — the emission point |
 
 Because the filter is its own bean, a host can replace it while keeping the registration and the
-listener ([§3.4](#34-overriding-beans)). The servlet API is a `provided` dependency; the host's Tomcat
-supplies it.
+listener ([§3.6](#36-overriding-beans)); how the registrations work and when the host registers by hand
+is [§3.3](#33-automatic-wiring) and [§3.4](#34-manual-wiring). The servlet API is a `provided`
+dependency; the host's Tomcat supplies it.
 
 ### 2.3 Lifecycle of one exchange
 
@@ -487,7 +490,8 @@ YAML, no container are forced onto the host.
 The current release is shown live by the Maven Central badge:
 [![Maven Central](https://img.shields.io/maven-central/v/eu.inqudium/limesium-servlet-logging.svg?label=Maven%20Central)](https://central.sonatype.com/artifact/eu.inqudium/limesium-servlet-logging)
 
-That is all: the auto-configuration registers the filter and the listener, every exchange is logged on
+That is all: the auto-configuration registers the filter and the listener ([§3.3](#33-automatic-wiring);
+a container assembled without it: [§3.4](#34-manual-wiring)), every exchange is logged on
 the `http-exchange` logger at INFO, the request id comes from the `traceparent` trace id (traceless
 exchanges read/echo `X-Correlation-Id` instead — ADR-0002), the `endpoint_*` keys are in the MDC for
 the chain, and the six meters are registered in the host's `MeterRegistry` if one exists.
@@ -499,7 +503,157 @@ endpoint-logging:
   enabled: false
 ```
 
-### 3.3 Filter order and other filters
+### 3.3 Automatic wiring
+
+The shipped activation is not the filter bean but the two **registrations** the auto-configuration
+places around it. `RequestLoggingAutoConfiguration` is listed in the auto-configuration imports resource
+and is conditional on two things: a **servlet** web application (`@ConditionalOnWebApplication(type =
+SERVLET)` — in a reactive application the module is inert, and the reactive twin takes over) and
+`endpoint-logging.enabled` (default `true`; `false` removes filter, registrations and defaults
+together). Both are pinned by `RequestLoggingAutoConfigurationTest`.
+
+| Registration | What it does | Why it is needed |
+|---|---|---|
+| `FilterRegistrationBean<RequestLoggingFilter>` | puts the filter into the container's chain at `Ordered.HIGHEST_PRECEDENCE + 10`, mapped to `/*`; Boot registers a `OncePerRequestFilter` for **every dispatcher type**, so the async and error dispatches pass it too (the filter handles the async dispatch itself — `shouldNotFilterAsyncDispatch` is `false` — and a request it never saw is ignored downstream) | the filter must see the request before anything logs and before the response can be committed ([§3.5](#35-filter-order-and-other-filters)) |
+| `ServletListenerRegistrationBean<ServletRequestListener>` | registers `filter.exchangeCompletionListener()` on the servlet context | the **emission point**: the container fires `requestDestroyed` after the error dispatch and after async completion, and only then is the status final ([§2.4](#24-emission-point-request-destruction)) |
+
+Both registrations go through Boot's `ServletContextInitializer` mechanism, which Boot executes on an
+embedded container and — through its WAR support — on an external Tomcat or Jetty alike
+([CONTAINERS.md §6](CONTAINERS.md#6-deployment-notes)). Referencing the filter **bean** from the
+registration keeps Boot from also auto-registering the bare `Filter` bean it would otherwise pick up
+on its own, at its own default order and without the listener.
+
+Consequently there is nothing for the host to inject and nothing to build: every request the container
+dispatches passes the filter, and **path activation** (`include-path-patterns`,
+`exclude-path-prefixes`) is evaluated inside the filter's `shouldNotFilter`, not through the
+registration's URL mapping — so its semantics are byte-identical with the reactive twin
+([§4.4](#44-path-activation)). Everything ordered after `+ 10` — Spring Security, the application's own
+filters, the `DispatcherServlet` and the handler — runs inside the chain-wide MDC scope and sees
+`endpoint_request_id`, `endpoint_method` and `endpoint_route` on its own log lines:
+
+```kotlin
+@RestController
+class ThingsController(private val things: Things) {
+    private val log = LoggerFactory.getLogger(javaClass)
+
+    @GetMapping("/api/things/{id}")
+    fun thing(@PathVariable id: Long): Thing {
+        log.info("loading thing")        // carries endpoint_request_id, endpoint_method, endpoint_route
+        return things.load(id)
+    }
+}
+```
+
+Covered by the automatic wiring:
+
+- every request the container dispatches to the application, whatever handler ends it — a controller,
+  a router function, a static resource, an error page;
+- the async paths — `DeferredResult`, `Callable`, `suspend` controllers — through the async dispatch
+  and the completion listener ([§2.5](#25-async-exchanges));
+- a host-defined `RequestLoggingFilter` bean: the auto-configured registration and listener wrap the
+  **host's** filter instead of creating a second one ([§3.6](#36-overriding-beans); pinned by the
+  auto-configuration test).
+
+**Not** covered — for these, [§3.4](#34-manual-wiring) applies:
+
+- a servlet application whose container is assembled without Boot's servlet auto-configuration;
+- a container outside a Spring context.
+
+The wiring itself is fail-open like everything else: a failure while wiring one exchange degrades that
+request to a pass-through with a `stage=wiring` count ([§2.8](#28-fail-open-contract)); the
+registrations cannot fail in a way that breaks the container.
+
+To confirm the attachment at runtime — in a test or a startup check — the registration bean carries the
+order, and the first request tells the rest:
+
+```kotlin
+val registration = context.getBean(FilterRegistrationBean::class.java)
+check(registration.filter is RequestLoggingFilter && registration.order == Ordered.HIGHEST_PRECEDENCE + 10)
+```
+
+```bash
+curl -i -H 'X-Correlation-Id: demo-1' http://localhost:8080/api/things/42   # echo on the response, one http-exchange line
+```
+
+### 3.4 Manual wiring
+
+The filter bean `RequestLoggingFilter` exists in every enabled servlet context; only its
+**registration** — the filter in the chain and the completion listener on the servlet context —
+depends on Boot's servlet auto-configuration. Register both yourself when that auto-configuration is
+not in charge:
+
+| Situation | Why the automatic wiring does not reach it |
+|---|---|
+| Spring MVC bootstrapped **without Boot**, or with Boot's servlet auto-configuration excluded | no `ServletContextInitializer` runs, so neither `FilterRegistrationBean` nor `ServletListenerRegistrationBean` reaches the container; a bare `RequestLoggingFilter` bean would be picked up by Boot as a plain `Filter` — at Boot's default order and **without the listener**, so nothing is ever emitted |
+| A different order or URL mapping | the auto-configured registration is fixed at `HIGHEST_PRECEDENCE + 10` for `/*`; the host that must place the filter elsewhere switches the auto-configuration off (`endpoint-logging.enabled=false`) and registers by hand — mindful that [§6.9](#69-the--10-order-is-load-bearing) explains why the `+ 10` is load-bearing |
+| A container outside a Spring context | a bare embedded Tomcat or Jetty in an integration test, a servlet application without Spring: there is no context to hold the bean, so the filter is constructed directly (below) |
+
+The mechanics are two registrations on the same `ServletContext`: the filter for **every dispatcher
+type** (as Boot does for a `OncePerRequestFilter`, so the async and error dispatches pass it too),
+mapped to `/*` and ordered before the application's own filters, and the completion listener from
+`exchangeCompletionListener()`. Without the listener no exchange is ever emitted, and the
+`endpoint.logging.exchanges.open` gauge grows with every request — the liveness signal doing its job:
+
+```kotlin
+class EndpointLoggingInitializer : WebApplicationInitializer {
+    override fun onStartup(servletContext: ServletContext) {
+        val filter = RequestLoggingFilter(
+            RequestLoggingProperties(),            // every default; or a copy(...) with the fields to change
+            NanoTimeSource.SYSTEM,
+            CorrelationIdGenerator.DEFAULT,
+            SimpleMeterRegistry(),                 // or the registry the surrounding code owns
+        )
+        servletContext.addFilter("requestLoggingFilter", filter)
+            .addMappingForUrlPatterns(EnumSet.allOf(DispatcherType::class.java), false, "/*")
+        servletContext.addListener(filter.exchangeCompletionListener())
+    }
+}
+```
+
+Inside a Boot context with the auto-configuration switched off, the same two registrations are beans —
+and the properties class must be bound by the host, because `@EnableConfigurationProperties` lives on
+the auto-configuration that is now gone:
+
+```kotlin
+@Configuration(proxyBeanMethods = false)
+@EnableConfigurationProperties(RequestLoggingProperties::class)
+class EndpointLoggingConfiguration {
+    @Bean
+    fun requestLoggingFilter(properties: RequestLoggingProperties, registry: MeterRegistry): RequestLoggingFilter =
+        RequestLoggingFilter(properties, NanoTimeSource.SYSTEM, CorrelationIdGenerator.DEFAULT, registry)
+
+    @Bean
+    fun requestLoggingFilterRegistration(filter: RequestLoggingFilter): FilterRegistrationBean<RequestLoggingFilter> =
+        FilterRegistrationBean(filter).apply { order = Ordered.HIGHEST_PRECEDENCE + 10 }
+
+    @Bean
+    fun requestLoggingExchangeCompletionListener(filter: RequestLoggingFilter): ServletListenerRegistrationBean<ServletRequestListener> =
+        ServletListenerRegistrationBean(filter.exchangeCompletionListener())
+}
+```
+
+Rules for manual wiring:
+
+- **Register both pieces.** The filter without the listener wires every exchange and completes none;
+  the listener without the filter finds no exchange attribute and is a no-op.
+- **One filter per `MeterRegistry`.** The meters are identified by name, so all filters on one registry
+  share one metrics owner and the gauge reports the total across them
+  ([§6.10](#610-one-metrics-instance-per-registry)). A second instance buys nothing.
+- **Activation is not the host's business.** Path activation is evaluated inside the filter
+  ([§4.4](#44-path-activation)), so a manually registered filter applies the same rules as an
+  automatically registered one; there is no need to map it selectively.
+- **Ordering is the host's business.** The automatic wiring guarantees the early position; a manual
+  registration lands where the host puts it. Keep it early — inside Boot's observation filter, before
+  everything that logs — and read [§6.9](#69-the--10-order-is-load-bearing) before moving it.
+- **The overridable beans stay overridable.** A manual wiring passes `NanoTimeSource`,
+  `CorrelationIdGenerator` and, as the optional trailing argument, `HeaderValueMasker` explicitly; the
+  constructor is [§3.6](#36-overriding-beans).
+
+Everything else is unchanged by the way the filter was registered: emission point, outcomes, meters,
+the chain-wide MDC, header sections, body capture and the fail-open contract behave exactly as under
+the automatic wiring — the filter does not know how it got into the chain.
+
+### 3.5 Filter order and other filters
 
 The filter is registered at `Ordered.HIGHEST_PRECEDENCE + 10`. The chain runs in ascending order, so:
 
@@ -513,10 +667,10 @@ The filter is registered at `Ordered.HIGHEST_PRECEDENCE + 10`. The chain runs in
   commit it (a traced exchange writes no header at all — ADR-0002).
 
 Path activation is evaluated **in the filter** (`shouldNotFilter`), not via the registration's URL
-patterns, so its semantics are byte-identical with the reactive twin. If the host needs a different
-order, define its own `FilterRegistrationBean<RequestLoggingFilter>`.
+patterns, so its semantics are byte-identical with the reactive twin. A host that needs a different
+order registers by hand ([§3.4](#34-manual-wiring)).
 
-### 3.4 Overriding beans
+### 3.6 Overriding beans
 
 Every default is `@ConditionalOnMissingBean`:
 
@@ -559,7 +713,7 @@ fun requestLoggingFilter(
 Keep in mind the one-instance-per-registry limitation of the gauge
 ([§6.10](#610-one-metrics-instance-per-registry)).
 
-### 3.5 Logging backend and structured output
+### 3.7 Logging backend and structured output
 
 The module emits through SLF4J's fluent API. Every exchange event carries its data in **two places**, and
 an encoder treats them differently:
@@ -640,7 +794,7 @@ type assertion in `EndpointLogField` guarantees on the producing side:
 {"@timestamp":"2026-08-23T13:54:58.534Z","log.level":"INFO","message":"Endpoint http exchange GET /api/things/42 -> 200 [endpoint_request_id=0f7c…]","endpoint_outcome":"success","endpoint_duration_ms":17,"endpoint_request_method":"GET","endpoint_url_path":"/api/things/42","endpoint_url_template":"/api/things/{id}","endpoint_response_status_code":200,"endpoint_request_id":"0f7c…","endpoint_method":"GET","endpoint_route":"/api/things/42","ecs.version":"8.11"}
 ```
 
-This is the shape the component template in [§3.6](#36-index-mapping-elk) is written for. The same encoder is
+This is the shape the component template in [§3.8](#38-index-mapping-elk) is written for. The same encoder is
 available in XML as `<encoder class="org.springframework.boot.logging.logback.StructuredLogEncoder"><format>ecs</format></encoder>`,
 and `logging.structured.json.include` / `exclude` / `rename` control the field selection (e.g. to drop
 `endpoint_route`, which duplicates `endpoint_url_path`). Where MDC entries land in the document — flat,
@@ -659,7 +813,7 @@ A fourth option, `logstash-logback-encoder`'s `LogstashEncoder`, also renders th
 Whatever the option, keep the `eu.inqudium.limesium.servlet.logging` logger at WARN or lower: it carries the
 WARN breadcrumb on a thrown chain and the module's own failure reports.
 
-### 3.6 Index mapping (ELK)
+### 3.8 Index mapping (ELK)
 
 The thirteen `endpoint_*` fields have a ready-made Elasticsearch component template in
 [`/docs/elk/`](../../docs/elk/README.md):
@@ -675,7 +829,7 @@ field would be mapped dynamically and become searchable, which the payload field
 deliberately prevents. The MDC-carried keys are intentionally not in the template: where they land
 depends on the host's encoder layout; map them where the encoder configuration lives.
 
-### 3.7 Verifying the integration
+### 3.9 Verifying the integration
 
 1. Start the application and call any endpoint:
 

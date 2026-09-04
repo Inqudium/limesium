@@ -72,7 +72,7 @@ Two optional libraries change the wiring rather than the output: `kotlinx-corout
 `kotlinx-coroutines-slf4j` select the coroutine filter variant, and `io.micrometer:context-propagation`
 enables handler-side MDC for the Reactor variant. The full list with the reasons is the guide's
 [prerequisites table](docs/GUIDE.md#31-prerequisites); how the `endpoint_*` fields become visible in the
-log output is [§3.6](docs/GUIDE.md#36-logging-backend-and-structured-output).
+log output is [§3.8](docs/GUIDE.md#38-logging-backend-and-structured-output).
 
 ```xml
 <dependency>
@@ -90,8 +90,7 @@ the other stays inert; keep them at the same version, both jars inline the same 
 
 ### Automatic wiring
 
-The long form is the guide's [§2.2](docs/GUIDE.md#22-auto-configuration-and-variant-selection),
-[§3.3](docs/GUIDE.md#33-choosing-the-filter-variant) and [§3.4](docs/GUIDE.md#34-enabling-handler-side-mdc).
+The long form is the guide's [§3.3](docs/GUIDE.md#33-automatic-wiring).
 
 In a reactive web application (`@ConditionalOnWebApplication(type = REACTIVE)`) the auto-configuration
 registers exactly **one `EndpointLoggingFilter` bean**, and that is the whole wiring: WebFlux collects
@@ -132,7 +131,8 @@ identity rides the Reactor context, the emission-scope MDC and the message inlin
 
 ### Manual wiring
 
-The long form of the beans and the constructors is the guide's [§3.5](docs/GUIDE.md#35-overriding-beans).
+The long form — including the Boot-context variant with the auto-configuration switched off and the
+rules for a hand-wired filter — is the guide's [§3.4](docs/GUIDE.md#34-manual-wiring).
 
 The filter bean exists in every enabled reactive context; only its *pickup* depends on WebFlux
 collecting `WebFilter` beans from a Boot application context. Add it yourself when the HTTP handler is
@@ -165,7 +165,7 @@ name, so all filters on one registry share one metrics owner and the `endpoint.l
 gauge reports the total across them ([§6.7](docs/GUIDE.md#67-one-metrics-instance-per-registry)).
 Replacing the filter inside a Boot context is a different thing: a host-defined bean of **either**
 variant satisfies the missing-bean condition, both auto-configurations back off, and WebFlux picks the
-host's bean up like any other ([§3.5](docs/GUIDE.md#35-overriding-beans)) — as it does for the other
+host's bean up like any other ([§3.7](docs/GUIDE.md#37-overriding-beans)) — as it does for the other
 overridable beans, `NanoTimeSource`, `CorrelationIdGenerator` and `HeaderValueMasker` (how masked header
 values render — a keyed HMAC, a fixed `***`). The context-propagation accessors are installed only while
 a `RequestLoggingWebFilter` owns the slot.
@@ -212,7 +212,7 @@ with `-> -` and no status field when the response was never committed. There is 
 field on this stack. Optional fields (`endpoint_url_query`, `endpoint_slow`, the header and body
 sections) are present only when they apply. Which encoder produces which shape — and why the default
 console pattern shows none of the fields — is the guide's
-[§3.6](docs/GUIDE.md#36-logging-backend-and-structured-output); the field family itself is documented
+[§3.8](docs/GUIDE.md#38-logging-backend-and-structured-output); the field family itself is documented
 once, in the guide's [§5.1](docs/GUIDE.md#51-log-fields), and mapped by the component template in
 [`/docs/elk/`](../docs/elk/README.md).
 
