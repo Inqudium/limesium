@@ -70,6 +70,8 @@ guides, Elasticsearch mapping, generated [test evidence](https://inqudium.github
   every `endpoint-logging.*` key with its default, contract-tested against both twins.
 - [Elasticsearch mapping](docs/elk/README.md) — the ready-made
   component template for the `endpoint_*` fields.
+- [Decision records](docs/adr/) — why the trace id is the request id, why the shared code is
+  inlined, why the default id counts instead of rolling dice.
 
 ### Quick start
 
