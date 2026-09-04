@@ -66,12 +66,27 @@ guides, Elasticsearch mapping, generated [test evidence](https://inqudium.github
   documented individually: destruction models, error paths, pinned per-engine deviations.
 - [Reactive guide](limesium-reactive-logging/docs/GUIDE.md) — the twin's guide, including
   the deliberate stack differences and the coroutine variant.
-- [Module READMEs](limesium-servlet-logging/README.md) ([reactive](limesium-reactive-logging/README.md)) —
-  summary, field family, property table.
 - [Configuration reference](docs/endpoint-logging-reference.yml) —
   every `endpoint-logging.*` key with its default, contract-tested against both twins.
 - [Elasticsearch mapping](docs/elk/README.md) — the ready-made
   component template for the `endpoint_*` fields.
+
+### Quick start
+
+Pick the module for the host's stack and follow the **Usage** section of its README — prerequisites,
+the dependency with the current version, how the filter is wired automatically, when and how to wire
+it by hand, and what one logged exchange looks like as text and as JSON:
+
+- **Servlet** (Spring MVC on Tomcat or Jetty):
+  [`limesium-servlet-logging` → Usage](limesium-servlet-logging/README.md#usage) —
+  [automatic wiring](limesium-servlet-logging/README.md#automatic-wiring),
+  [manual wiring](limesium-servlet-logging/README.md#manual-wiring).
+- **Reactive** (Spring WebFlux, Reactor or coroutines):
+  [`limesium-reactive-logging` → Usage](limesium-reactive-logging/README.md#usage) —
+  [automatic wiring](limesium-reactive-logging/README.md#automatic-wiring),
+  [manual wiring](limesium-reactive-logging/README.md#manual-wiring).
+
+An application may carry both jars; each activates for its own web application type only.
 
 ## Build
 
