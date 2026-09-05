@@ -36,7 +36,8 @@ import java.nio.charset.Charset
  * The final body of an error dispatch (Boot's error page after `sendError` or an unhandled exception) is
  * written through the ORIGINAL response: `OncePerRequestFilter` skips the ERROR dispatch, so those bytes
  * bypass this tee and `endpoint_response_body` stays absent for container-rendered error responses -
- * a documented capture boundary, pinned by integration test.
+ * a documented capture boundary, pinned by `RequestLoggingFilterTomcatIntegrationTest` and
+ * `RequestLoggingFilterJettyIntegrationTest`.
  *
  * ## Writer fidelity
  *

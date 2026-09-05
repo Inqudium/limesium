@@ -35,7 +35,7 @@ import java.nio.charset.StandardCharsets
  * `startAsync(currentRequest, currentResponse)` and keeps the wrappers; the Servlet-specified
  * zero-argument `startAsync()` initializes its context with the ORIGINAL request/response, so bytes a
  * raw async cycle reads/writes flow beside the tee and are logged as absent - a documented contract
- * boundary, pinned by integration test.
+ * boundary, pinned by `RequestLoggingFilterTomcatIntegrationTest` and `RequestLoggingFilterJettyIntegrationTest`.
  */
 internal class CapturingRequestWrapper(
     request: HttpServletRequest,

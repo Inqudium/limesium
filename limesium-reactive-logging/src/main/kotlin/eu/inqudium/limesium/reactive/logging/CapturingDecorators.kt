@@ -89,7 +89,7 @@ internal class CapturingRequestDecorator(
  * bypass this tee. The exchange event still carries the rendered status (the commit callback observes
  * the shared delegate), but `endpoint_response_body` and the response-size sample stay absent for
  * globally rendered error responses; locally handled controller/advice responses traverse the tee
- * normally. Documented as a capture boundary and pinned by the error-path integration test.
+ * normally. Documented as a capture boundary and pinned by `RequestLoggingWebFilterIntegrationTest`.
  */
 internal class CapturingResponseDecorator(
     delegate: ServerHttpResponse,
