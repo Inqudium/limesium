@@ -53,6 +53,11 @@ internal class Exchange(
      * the cycle ended before any destruction; `COMPLETED` exactly once, by whichever of the destruction
      * listener and the marker's `onComplete` backstop wins the transition. Every transition is a CAS, so
      * a destruction racing an `onComplete` on another thread resolves without a re-check protocol.
+     *
+     * Why the skip exists: emitting at Jetty's first, per-dispatch destruction logged the PRE-completion
+     * status - `-> 200` for an exchange whose client received a 500 - and removed the request attribute
+     * the async-dispatch pass depends on; `RequestLoggingFilterJettyIntegrationTest` pins it
+     * (2026-08-30). Per-container timing: `docs/CONTAINERS.md`.
      */
     private val completion = AtomicReference(CompletionState.OPEN)
 
@@ -112,9 +117,9 @@ internal class Exchange(
     /**
      * The container's `onComplete`. Returns true when THIS call must complete the exchange: a
      * destruction already came and went while the cycle was running (per-dispatch container, raw
-     * `complete()` without a further dispatch - found by the Jetty capture-boundary integration test,
-     * 2026-08-30). Otherwise records the ended cycle and leaves completion to the destruction still to
-     * come, exactly as Tomcat's single late destruction expects.
+     * `complete()` without a further dispatch - see [CompletionState]). Otherwise records the ended
+     * cycle and leaves completion to the destruction still to come, exactly as Tomcat's single late
+     * destruction expects.
      */
     fun onAsyncCompleted(): Boolean {
         while (true) {
@@ -184,12 +189,12 @@ internal enum class CompletionState { OPEN, ASYNC_ARMED, DESTROYED_DURING_ASYNC,
 internal enum class AsyncDisposition { NONE, TIMED_OUT, ERRORED }
 
 /**
- * MARKS the async outcome on the exchange - and, in ONE case, completes it: emission normally happens
- * at request destruction (Tomcat orders that after these events; the volatile fields make the marks
- * visible there), but a container that destroys per DISPATCH has already fired - and been skipped -
- * during a raw async cycle that ends via `complete()` without a further dispatch. [onComplete] is the
- * backstop for exactly that case: it invokes [onSettled] (the filter's exactly-once completion) only
- * when [Exchange.onAsyncCompleted] says no destruction is coming any more. The Servlet spec
+ * MARKS the async outcome on the exchange - and, in ONE case, completes it: when a per-dispatch
+ * destruction was already skipped and the cycle ends via raw `complete()` without a further dispatch
+ * ([CompletionState.DESTROYED_DURING_ASYNC]; emission otherwise happens at request destruction, and the
+ * volatile fields make the marks visible there). [onComplete] is the backstop for exactly that case: it
+ * invokes [onSettled] (the filter's exactly-once completion) only when [Exchange.onAsyncCompleted] says
+ * no destruction is coming any more. The Servlet spec
  * guarantees onComplete fires at the end of EVERY async cycle - after onError/onTimeout handling and
  * after the error dispatch - so the state it completes with is final. On a re-entrant `startAsync` the
  * container does NOT carry listeners over, so [onStartAsync] re-registers this one.

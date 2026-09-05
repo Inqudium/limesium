@@ -86,12 +86,10 @@ import org.springframework.web.util.pattern.PathPatternParser
  * response's final status.
  * Consequence: [EndpointLogField.DURATION_MS] measures until processing truly ended - request occupancy,
  * not bare chain time. The async lifecycle normally only MARKS the exchange (see [AsyncOutcomeMarker]).
- * Containers differ in WHEN destruction fires: Tomcat once, after async completion; Jetty at the end of
- * every DISPATCH. A destruction observed while async is still running is therefore skipped (flagged on
- * the exchange), the destruction after the final dispatch completes as usual, and an async cycle that
- * ends WITHOUT a further dispatch (raw `complete()`) is completed by the marker's onComplete backstop -
- * all behind one atomic lifecycle ([Exchange.completionState]); see the completion listener and
- * [AsyncOutcomeMarker] for the choreography (pinned by the Jetty capture-boundary integration test).
+ * Containers differ in WHEN destruction fires (Tomcat once, late; Jetty at the end of every dispatch);
+ * which destruction ends the exchange is decided atomically by the exchange's [CompletionState] - the
+ * model, the failure mode it prevents and the pinning test are documented there, the per-container
+ * timing in `docs/CONTAINERS.md`.
  *
  * When the chain throws, a short WARN breadcrumb is additionally logged in the `finally` on the module's
  * OWN logger, so the failure is visible the moment it happens although the full ERROR event follows only
@@ -529,17 +527,11 @@ class RequestLoggingFilter
             override fun requestDestroyed(event: ServletRequestEvent) {
                 val request = event.servletRequest
                 val exchange = request.getAttribute(EXCHANGE_ATTRIBUTE) as? Exchange ?: return
-                // A destruction WHILE an armed async cycle is still running is not the end of the exchange:
-                // Tomcat fires requestDestroyed once, after async completion, but Jetty fires it at the end
-                // of EVERY dispatch - including the initial one that merely STARTED async. Emitting there
-                // logged the pre-completion status (200 for an exchange whose client later received a 500)
-                // and removed the attribute the async-dispatch pass depends on (found by the Jetty
-                // capture-boundary integration test, 2026-08-30). The lifecycle decides atomically
-                // (Exchange.onDestroyed): a skipped destruction leaves exchange, attribute and gauge
-                // untouched, and the spec-guaranteed onComplete either lets a later destruction complete
-                // or completes through the marker's backstop (a raw complete() with no further dispatch).
-                // An exchange whose marker could NOT be armed (fail-open) never defers - completing with
-                // possibly pre-completion state beats losing the event.
+                // A destruction may fire BEFORE the exchange is over (Jetty destroys per dispatch); the
+                // lifecycle decides atomically (Exchange.onDestroyed, see CompletionState for the model and the
+                // 200-instead-of-500 failure mode it prevents). A skipped destruction leaves exchange, attribute
+                // and gauge untouched for the later destruction or the marker's backstop; an exchange whose
+                // marker could NOT be armed (fail-open) never defers.
                 if (!exchange.onDestroyed()) {
                     return
                 }
