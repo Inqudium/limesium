@@ -20,99 +20,47 @@ import java.time.Duration
  * Body values are logged verbatim. Header values are verbatim too unless a header is listed in its
  * section's [HeaderLogProperties.masked] - then the `HeaderValueMasker` bean's rendering replaces the
  * value (by default a stable short fingerprint).
+ *
+ * Every property's semantics, rules and default are documented ONCE, in the repository-shared reference
+ * configuration `/docs/endpoint-logging-reference.yml` (the normative source, bound against this class by
+ * `EndpointLoggingReferenceConfigTest`); the KDoc here names the key only - architecture review of
+ * 2026-09-05, finding 2.
  */
 @ConfigurationProperties("endpoint-logging")
 data class RequestLoggingProperties(
-    /** Master switch; `false` removes the filter from the chain entirely (auto-configuration backs off). */
+    /** Master switch; `false` backs the auto-configuration off entirely - `enabled`. */
     val enabled: Boolean = true,
-    /**
-     * Which filter variant this module registers - a REACTIVE-ONLY key (the servlet twin has nothing to
-     * select). [Variant.AUTO] (default) keeps the classpath-based choice: the coroutine variant when
-     * `kotlinx-coroutines-reactor` and `kotlinx-coroutines-slf4j` are present, the Reactor variant
-     * otherwise. [Variant.REACTOR] forces the Reactor variant even with the coroutine libraries present
-     * (e.g. pulled in transitively by a Reactor-only host); [Variant.COROUTINE] requires them and fails
-     * the context start when they are missing, instead of silently falling back.
-     */
+    /** Which filter variant this module registers - the ONE reactive-only key, `variant` in this module's own reference file. */
     val variant: Variant = Variant.AUTO,
-    /**
-     * Name of the logger the exchange lines are emitted on. The default is a dedicated, stable name,
-     * so log routing and level configuration can target exactly these lines.
-     */
+    /** Logger the exchange lines are emitted on - `logger-name`. */
     val loggerName: String = "endpoint-http-exchange",
-    /**
-     * Header the correlation id is read from on TRACELESS exchanges (no conformant `traceparent` -
-     * ADR-0002); when absent, blank, longer than 128 characters or carrying characters outside visible
-     * ASCII (`CorrelationHeaderValue`) a new id is generated. Only such an exchange echoes the id back
-     * on the response under the same header name; a traced exchange takes its request id from the
-     * `traceparent` trace id, ignores this header, and echoes nothing - the wire stays untouched.
-     */
+    /** Header the correlation id is read from on traceless exchanges (ADR-0002; a value outside `CorrelationHeaderValue` counts as absent) - `correlation-id-header`. */
     val correlationIdHeader: String = "X-Correlation-Id",
-    /** Whether the request's query string is appended to the logged path. */
+    /** Whether the query string is logged as its own field - `include-query-string`. */
     val includeQueryString: Boolean = true,
-    /**
-     * Optionally logs a first line the moment the request ARRIVES, before the chain runs - so
-     * long-running or never-completing exchanges are visible while still in flight. The completion event
-     * remains the single line carrying `endpoint_outcome`, so outcome-keyed dashboards are unaffected by
-     * enabling this.
-     */
+    /** Whether a first line is logged the moment the request arrives - `log-request-start`. */
     val logRequestStart: Boolean = false,
-    /**
-     * URL patterns (Spring `PathPattern` syntax, e.g. `/api/{*path}`; a trailing double-asterisk wildcard
-     * is supported as well) that determine for which endpoints the filter is active AT ALL. Empty (the default) means every endpoint. A request is
-     * logged when it matches ANY include pattern and NO exclude prefix - an exclude always wins,
-     * mirroring the header sections' rule. Patterns match the path WITHIN the application (a
-     * configured context/base path is stripped first, as in Spring's own handler mapping). Invalid patterns fail the context start (parsed once at
-     * filter construction).
-     */
+    /** `PathPattern`s deciding where the filter is active at all; invalid patterns fail the context start - `include-path-patterns`. */
     val includePathPatterns: List<String> = emptyList(),
-    /**
-     * Request-URI prefixes that are not logged at all (the filter does not even run for them). Typical
-     * value: `/actuator/health`. Prefix match against the DECODED path within the application
-     * (percent-encoding resolved, path parameters dropped, context/base path stripped - the
-     * representation the router matches), subtracted from the include set.
-     */
+    /** Decoded-path prefixes the filter does not run for; an exclude always wins - `exclude-path-prefixes`. */
     val excludePathPrefixes: List<String> = emptyList(),
-    /**
-     * At or above this duration the exchange line escalates from INFO to WARN. Compared at full
-     * precision; the logged `endpoint_duration_ms` has millisecond resolution, so the threshold must be
-     * at least one millisecond - a sub-millisecond value would flag exchanges whose logged duration is 0.
-     */
+    /** At or above this duration the line escalates from INFO to WARN; at least one millisecond - `slow-request-threshold`. */
     val slowRequestThreshold: Duration = Duration.ofSeconds(5),
-    /** Selection and masking of the REQUEST headers on the exchange line; nothing is logged by default. */
+    /** Selection and masking of the REQUEST headers on the exchange line - `request-headers.*`. */
     val requestHeaders: HeaderLogProperties = HeaderLogProperties(),
-    /** Selection and masking of the RESPONSE headers on the exchange line; nothing is logged by default. */
+    /** Selection and masking of the RESPONSE headers on the exchange line - `response-headers.*`. */
     val responseHeaders: HeaderLogProperties = HeaderLogProperties(),
-    /**
-     * When the request body (up to [maxBodyBytes]) is logged: [BodyLogMode.NEVER] (the default),
-     * [BodyLogMode.ON_FAILURE] - captured on every exchange, written only when the outcome is not
-     * `success` or the status is a 4xx - or [BodyLogMode.ALWAYS]. The mode, not a switch, is what
-     * decides the log volume (ADR-0006).
-     */
+    /** When the request body is logged, as a [BodyLogMode] (ADR-0006) - `log-request-body`. */
     val logRequestBody: BodyLogMode = BodyLogMode.NEVER,
-    /** As [logRequestBody], for the response body; the outcome is final at emission, so nothing is captured in vain. */
+    /** As [logRequestBody], for the response body - `log-response-body`. */
     val logResponseBody: BodyLogMode = BodyLogMode.NEVER,
-    /**
-     * Whether the request body SIZE is measured (meter `endpoint.request.body.size`, tagged by the
-     * handler pattern). Deliberately independent of [logRequestBody]: a metric must not appear and
-     * disappear with a logging flag. Measure-only installs a count-only tee - nothing is buffered.
-     * Recorded at emission (see the emission point on `RequestLoggingWebFilter`), and only for bodies
-     * that actually flowed (zero bytes record no sample).
-     */
+    /** Whether the request body size and read state are measured, independent of logging - `measure-request-body-size`. */
     val measureRequestBodySize: Boolean = false,
-    /** As [measureRequestBodySize], for the response (`endpoint.response.body.size`). */
+    /** As [measureRequestBodySize], for the response - `measure-response-body-size`. */
     val measureResponseBodySize: Boolean = false,
-    /**
-     * Capture limit per body. The limit bounds MEMORY, not the exchange: bytes beyond it still flow to the
-     * application respectively the client unchanged, only the log line is truncated (and says so).
-     */
+    /** Capture limit per body in bytes; bounds memory, never the exchange - `max-body-bytes`. */
     val maxBodyBytes: Int = 16384,
-    /**
-     * Keys the masking fingerprint: empty (the default) keeps the unkeyed `length:hash` fingerprint,
-     * any other value turns it into an HMAC-SHA256 under this key - same shape, same stability under
-     * the same key, but guess-proof for a log reader without the key. A SECRET: supply it like one
-     * (an environment variable, a vault-backed property), never as a checked-in literal; the
-     * properties' `toString` redacts it. Ignored when a host pins its own `HeaderValueMasker` bean.
-     */
+    /** Keys the masking fingerprint (HMAC-SHA256); a secret, redacted by `toString` - `masking-key`. */
     val maskingKey: String = "",
 ) {
     init {

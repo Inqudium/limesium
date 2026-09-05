@@ -422,12 +422,9 @@ class RequestLoggingFilter
             request: HttpServletRequest,
             response: HttpServletResponse,
         ): Exchange {
-            // The exchange identity, resolved per ADR-0002: a conformant traceparent's trace id IS the
-            // request id (the caller's X-Correlation-Id is ignored on such exchanges - the distributed
-            // identity outranks the private one); only a traceless exchange accepts the correlation header
-            // or generates a fresh id, and only a traceless exchange gets the echo - a traced exchange
-            // passes through observationally untouched. A header value outside the acceptance rule
-            // (CorrelationHeaderValue: 1-128 visible-ASCII characters) counts as absent.
+            // The exchange identity per ADR-0002 (trace id, else an acceptable correlation header, else
+            // generated; the echo only on a traceless exchange) - the rule is documented there and on
+            // CorrelationHeaderValue, not repeated here.
             val trace = Traceparent.parse(request.getHeader(Traceparent.HEADER))
             val headerCorrelationId =
                 if (trace == null) {

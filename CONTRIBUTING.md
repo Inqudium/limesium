@@ -83,6 +83,13 @@ the UI with a written reason.
   Run `mvn ktlint:format` to auto-format before committing.
 - Match the surrounding code's comment density and naming; comments should state
   constraints the code can't express, not narrate the code.
+- **One normative source per contract statement** (architecture review of
+  2026-09-05, finding 2): property semantics live in
+  `docs/endpoint-logging-reference.yml` (the reactive module's own file carries
+  only `variant`), shared behaviour in the common guide, per-stack behaviour in
+  the module guide, decisions in the ADRs. Everywhere else - READMEs, KDoc, the
+  other guides, code comments - name the key or link the section; do not restate
+  the rule. A rule that exists twice drifts twice.
 
 ### Tests
 

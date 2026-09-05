@@ -610,10 +610,13 @@ Keep in mind the one-instance-per-registry limitation of the gauge
 The namespace, every property with its default, the header sections, the body modes, the logger levels,
 the startup validation and the example configurations are the
 [common guide's §4](../../docs/GUIDE.md#4-configuration) — identical on both stacks by construction. The
-complete reference for THIS module is [`docs/endpoint-logging-reference.yml`](endpoint-logging-reference.yml)
-(the shared namespace plus `variant`); `EndpointLoggingReferenceConfigTest` binds it — and the servlet
-twin's reference — against `RequestLoggingProperties` and pins the key parity, so neither file can drift
-from the code or from its twin. This section lists what the reactive stack adds to the meaning of
+complete reference for both twins is the repository-shared
+[`/docs/endpoint-logging-reference.yml`](../../docs/endpoint-logging-reference.yml) — the one place the
+property semantics are documented; this module's
+[`docs/endpoint-logging-reference.yml`](endpoint-logging-reference.yml) carries exactly the `variant`
+key. `EndpointLoggingReferenceConfigTest` binds the shared reference against `RequestLoggingProperties`
+and pins that the own file documents nothing else, so neither file can drift from the code or from its
+twin. This section lists what the reactive stack adds to the meaning of
 individual properties.
 
 ### 4.1 Property notes
@@ -869,7 +872,7 @@ limesium-reactive-logging/
 ├── docs/
 │   ├── GUIDE.md                              this document
 │   ├── activity-diagram.svg                  UML activity diagram of one exchange
-│   └── endpoint-logging-reference.yml        complete commented configuration reference (namespace + variant)
+│   └── endpoint-logging-reference.yml        the one reactive-only key (`variant`); the namespace is /docs/endpoint-logging-reference.yml
 └── src/
     ├── main/kotlin/eu/inqudium/limesium/reactive/logging/
     │   ├── RequestLoggingAutoConfiguration.kt     Reactor variant, defaults, MDC accessors
@@ -918,8 +921,9 @@ embedded servers, not of deployment targets like the servlet twin's.
 - [`README.md`](../README.md) — module summary, the twin-difference table, the duplication decision.
 - [`limesium-servlet-logging/docs/GUIDE.md`](../../limesium-servlet-logging/docs/GUIDE.md) — the
   reference implementation's guide: what the servlet stack decides.
-- [`docs/endpoint-logging-reference.yml`](endpoint-logging-reference.yml) — this module's complete
-  commented configuration reference (the shared namespace plus `variant`), bound together with the
-  servlet twin's file by `EndpointLoggingReferenceConfigTest`.
+- [`docs/endpoint-logging-reference.yml`](endpoint-logging-reference.yml) — this module's one
+  reactive-only key (`variant`); the complete commented reference is the repository-shared
+  [`/docs/endpoint-logging-reference.yml`](../../docs/endpoint-logging-reference.yml), both pinned by
+  `EndpointLoggingReferenceConfigTest`.
 - [`/docs/elk/README.md`](../../docs/elk/README.md) —
   the Elasticsearch component template for the `endpoint_*` fields.

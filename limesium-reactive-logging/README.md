@@ -17,12 +17,14 @@ summary.
 
 The servlet module is the reference implementation; its documentation applies here too:
 
-- **Configuration:** the complete commented reference for THIS module is
-  [`docs/endpoint-logging-reference.yml`](docs/endpoint-logging-reference.yml) (the shared
-  namespace plus the one reactive-only `variant` key) — this module's
-  `EndpointLoggingReferenceConfigTest` **binds both files against this module's properties class** and
-  pins the key parity, so neither reference can drift from the code or from its twin. The properties
-  are explained in the common guide's [§4](../docs/GUIDE.md#4-configuration).
+- **Configuration:** the complete commented reference for both twins is the repository-shared
+  [`/docs/endpoint-logging-reference.yml`](../docs/endpoint-logging-reference.yml) — the ONE place the
+  property semantics are documented; this module's
+  [`docs/endpoint-logging-reference.yml`](docs/endpoint-logging-reference.yml) carries exactly the one
+  reactive-only `variant` key. This module's `EndpointLoggingReferenceConfigTest` binds the shared file
+  against this module's properties class and pins that the own file documents nothing else, so neither
+  reference can drift from the code or from its twin. The properties are explained in the common
+  guide's [§4](../docs/GUIDE.md#4-configuration).
 - **Index mapping:** the one component template for both stacks is the repository-shared
   [`/docs/elk/`](../docs/elk/README.md) — `EndpointLogFieldTest` in `limesium-common` locks the one
   field enum both twins inline against that template. The field table is the common guide's
@@ -230,9 +232,12 @@ once, in the common guide's [§5.1](../docs/GUIDE.md#51-log-fields), and mapped 
 
 Every property lives under the `endpoint-logging.*` namespace, identical to the servlet twin's by
 construction plus this module's one `variant` key. The complete, commented reference with every key at
-its default is this module's [`docs/endpoint-logging-reference.yml`](docs/endpoint-logging-reference.yml)
-— copy the block and change only what you need; `EndpointLoggingReferenceConfigTest` binds it and the
-repository-shared reference against the properties class and fails the build on any drift. The
+its default is the repository-shared
+[`/docs/endpoint-logging-reference.yml`](../docs/endpoint-logging-reference.yml); this module's
+[`docs/endpoint-logging-reference.yml`](docs/endpoint-logging-reference.yml) adds the `variant` key —
+copy the shared block, add the key if the classpath should not decide, and change only what you need;
+`EndpointLoggingReferenceConfigTest` binds the shared reference against the properties class and fails
+the build on any drift. The
 properties are explained in the common guide's [§4](../docs/GUIDE.md#4-configuration): the property
 reference, header sections, body logging and measuring, path activation, logger levels, validation at
 startup, and example configurations; what the reactive stack adds to individual properties — `variant`
