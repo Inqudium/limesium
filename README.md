@@ -95,6 +95,16 @@ guides, Elasticsearch mapping, generated [test evidence](https://inqudium.github
 
 ### Quick start
 
+Each Limesium release is built and tested against one Spring Boot line, one Kotlin line and one Java
+target; the table is the history of those lines, newest first. The Java column is the bytecode target the
+artifacts run on - the build itself needs JDK 24+.
+
+| Limesium | Spring Boot | Kotlin | Java |
+|---|---|---|---|
+| 2.0.0 | 4.1.x | 2.4.x | 21 |
+| 1.1.0 | 4.1.x | 2.4.x | 21 |
+| 1.0.0 | 4.1.x | 2.4.x | 21 |
+
 Pick the module for the host's stack and follow the **Usage** section of its README — prerequisites,
 the dependency with the current version, how the filter is wired automatically, when and how to wire
 it by hand, and what one logged exchange looks like as text and as JSON:
