@@ -2,6 +2,7 @@ package eu.inqudium.limesium.reactive.logging
 
 import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
+import eu.inqudium.limesium.common.AwaitingAppender
 import eu.inqudium.limesium.common.MdcKeys
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterAll

@@ -2,6 +2,7 @@ package eu.inqudium.limesium.servlet.logging
 
 import eu.inqudium.limesium.common.EndpointLoggingMetrics
 import eu.inqudium.limesium.common.MdcKeys
+import eu.inqudium.limesium.common.installMdcAdapter
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.catchThrowable

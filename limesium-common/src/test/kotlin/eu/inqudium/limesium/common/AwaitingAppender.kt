@@ -1,10 +1,12 @@
-package eu.inqudium.limesium.reactive.logging
+package eu.inqudium.limesium.common
 
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.AppenderBase
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
+
+// Shared by the twins through limesium-common's test-jar (architecture review of 2026-09-05, finding 3).
 
 /**
  * Captures events from container threads and lets integration tests await their arrival event-driven: one
@@ -17,7 +19,7 @@ import java.util.concurrent.TimeUnit
  * negative wait on the semaphore, not a synchronization sleep - it never delays a test whose events are
  * already complete by more than [SETTLE_MILLIS].
  */
-internal class AwaitingAppender : AppenderBase<ILoggingEvent>() {
+class AwaitingAppender : AppenderBase<ILoggingEvent>() {
     val events = CopyOnWriteArrayList<ILoggingEvent>()
     private val arrivals = Semaphore(0)
 
