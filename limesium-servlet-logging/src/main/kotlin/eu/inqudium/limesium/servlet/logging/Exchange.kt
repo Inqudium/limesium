@@ -184,7 +184,7 @@ internal enum class CompletionState { OPEN, ASYNC_ARMED, DESTROYED_DURING_ASYNC,
  * The async disposition of an exchange, as a single value with its precedence built in: [TIMED_OUT]
  * always wins - the container's timeout is what ENDED the exchange, a subsequent `onError` (the
  * container aborting the timed-out cycle) does not reclassify it; [ERRORED] is recorded only from
- * [NONE]. Replaces two independent boolean flags whose precedence lived in the emitter's `when`.
+ * [NONE].
  */
 internal enum class AsyncDisposition { NONE, TIMED_OUT, ERRORED }
 

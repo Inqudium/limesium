@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * those of an undecorated exchange (the reactive counterpart of the servlet module's tee streams: a
  * passive copy, never a pre-read or replay). Transient allocation is bounded by
  * [RequestLoggingProperties.maxBodyBytes], not by the buffer size, and count-only captures (limit 0)
- * copy nothing at all - previously every buffer was cloned in full regardless of the cap.
+ * copy nothing at all.
  */
 private fun tee(
     capture: BoundedBodyCapture,
