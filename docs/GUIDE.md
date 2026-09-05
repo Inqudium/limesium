@@ -212,7 +212,7 @@ name and contract whose code genuinely differs:
 | `Traceparent` | Strict W3C `traceparent` parsing to `(traceId, parentSpanId)` ([§5.6](#56-trace-correlation)) | byte-identical |
 | `MdcKeys` / `TraceMdcKeys` / `MdcScope` | The MDC key names; the scope that puts identity (and, for the emission, the trace keys) into the MDC and restores the previous values on close | byte-identical |
 | `NanoTimeSource` / `CorrelationIdGenerator` / `HeaderValueMasker` | Injectable time, id and header masking ([§2.5](#25-injectable-collaborators)) | byte-identical |
-| `reportQuietly` | Guards the diagnostics channel (counter + internal log) of every catch block | byte-identical |
+| `reportQuietly` / `reportFailOpen` | `reportQuietly` guards the diagnostics channel (counter + internal log) of every catch block; `reportFailOpen` is the one report every catch shares - the stage counter plus one line on the module's own logger, inside that guard | byte-identical |
 
 The per-stack component overviews — the filter classes, the async and variant machinery, the capture
 wrappers and decorators — are §2.1 of the
@@ -278,7 +278,8 @@ by **stage**, and reported on the module's own logger:
 | emission | `logExchange` — everything after the exactly-once gate | the exchange event is **lost** | `failopen{stage=emission}` |
 | registration | `EndpointLoggingMetrics.registerOrFallback` | the conflicting meter lives in a private registry, warned once per name ([§5.4](#54-meters)) | — |
 
-Every catch block reports through `reportQuietly`, which swallows a failure of the diagnostics channel
+Every catch block reports through `reportFailOpen` - the stage counter plus one line on the module's own
+logger - inside `reportQuietly`, which swallows a failure of the diagnostics channel
 itself (a throwing `Counter`, a throwing appender that also covers the internal logger) — there is
 nothing left to report to. `InterruptedException` is caught separately and the interrupt flag is
 restored before the failure is recorded.

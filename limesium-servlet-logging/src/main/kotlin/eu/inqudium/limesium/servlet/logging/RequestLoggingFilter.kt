@@ -11,6 +11,7 @@ import eu.inqudium.limesium.common.NanoTimeSource
 import eu.inqudium.limesium.common.Traceparent
 import eu.inqudium.limesium.common.addKeyValue
 import eu.inqudium.limesium.common.addKeyValueIfPresent
+import eu.inqudium.limesium.common.reportFailOpen
 import eu.inqudium.limesium.common.reportQuietly
 import eu.inqudium.limesium.common.setCauseIfPresent
 import io.micrometer.core.instrument.MeterRegistry
@@ -20,6 +21,7 @@ import jakarta.servlet.ServletRequestListener
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.slf4j.LoggerFactory
+import org.slf4j.event.Level
 import org.springframework.http.server.PathContainer
 import org.springframework.http.server.RequestPath
 import org.springframework.web.context.request.async.WebAsyncUtils
@@ -188,16 +190,16 @@ class RequestLoggingFilter
                 try {
                     wireExchange(request, response)
                 } catch (e: Exception) {
-                    reportQuietly {
-                        metrics.wiringFailure()
-                        internalLog.error(
-                            "Request logging could not be wired for {} {} - continuing without logging: {}",
-                            request.method,
-                            request.requestURI,
-                            e.toString(),
-                            e,
-                        )
-                    }
+                    reportFailOpen(
+                        metrics::wiringFailure,
+                        internalLog,
+                        Level.ERROR,
+                        e,
+                        "Request logging could not be wired for {} {} - continuing without logging: {}",
+                        request.method,
+                        request.requestURI,
+                        e.toString(),
+                    )
                     null
                 }
             if (exchange == null) {
@@ -217,16 +219,16 @@ class RequestLoggingFilter
                 try {
                     MdcScope(exchange.requestId, exchange.method, exchange.path)
                 } catch (e: Exception) {
-                    reportQuietly {
-                        metrics.wiringFailure()
-                        internalLog.error(
-                            "MDC scope could not be opened for {} {} - continuing without chain MDC: {}",
-                            exchange.method,
-                            exchange.path,
-                            e.toString(),
-                            e,
-                        )
-                    }
+                    reportFailOpen(
+                        metrics::wiringFailure,
+                        internalLog,
+                        Level.ERROR,
+                        e,
+                        "MDC scope could not be opened for {} {} - continuing without chain MDC: {}",
+                        exchange.method,
+                        exchange.path,
+                        e.toString(),
+                    )
                     null
                 }
             // The optional arrival line, before the chain and OUTSIDE the try below: a failure in it must be
@@ -269,17 +271,17 @@ class RequestLoggingFilter
                         )
                     }
                 } catch (e: Exception) {
-                    reportQuietly {
-                        metrics.wiringFailure()
-                        internalLog.warn(
-                            "Request logging failed for {} {} (requestId={}): {}",
-                            exchange.method,
-                            exchange.path,
-                            exchange.requestId,
-                            e.toString(),
-                            e,
-                        )
-                    }
+                    reportFailOpen(
+                        metrics::wiringFailure,
+                        internalLog,
+                        Level.WARN,
+                        e,
+                        "Request logging failed for {} {} (requestId={}): {}",
+                        exchange.method,
+                        exchange.path,
+                        exchange.requestId,
+                        e.toString(),
+                    )
                 } finally {
                     // Restoration is guarded separately: a throwing MDC adapter here must neither fail the
                     // request nor MASK an application exception already propagating out of the chain
@@ -287,16 +289,16 @@ class RequestLoggingFilter
                     try {
                         mdcScope?.close()
                     } catch (e: Exception) {
-                        reportQuietly {
-                            metrics.wiringFailure()
-                            internalLog.warn(
-                                "MDC restoration failed for {} {} - the pooled thread may carry stale endpoint keys: {}",
-                                exchange.method,
-                                exchange.path,
-                                e.toString(),
-                                e,
-                            )
-                        }
+                        reportFailOpen(
+                            metrics::wiringFailure,
+                            internalLog,
+                            Level.WARN,
+                            e,
+                            "MDC restoration failed for {} {} - the pooled thread may carry stale endpoint keys: {}",
+                            exchange.method,
+                            exchange.path,
+                            e.toString(),
+                        )
                     }
                 }
             }
@@ -322,16 +324,16 @@ class RequestLoggingFilter
                 try {
                     MdcScope(exchange.requestId, exchange.method, exchange.path)
                 } catch (e: Exception) {
-                    reportQuietly {
-                        metrics.wiringFailure()
-                        internalLog.error(
-                            "MDC scope could not be opened for the async dispatch of {} {} - continuing without chain MDC: {}",
-                            exchange.method,
-                            exchange.path,
-                            e.toString(),
-                            e,
-                        )
-                    }
+                    reportFailOpen(
+                        metrics::wiringFailure,
+                        internalLog,
+                        Level.ERROR,
+                        e,
+                        "MDC scope could not be opened for the async dispatch of {} {} - continuing without chain MDC: {}",
+                        exchange.method,
+                        exchange.path,
+                        e.toString(),
+                    )
                     null
                 }
             try {
@@ -352,33 +354,33 @@ class RequestLoggingFilter
                         exchange.requestId,
                     )
                 } catch (breadcrumb: Exception) {
-                    reportQuietly {
-                        metrics.wiringFailure()
-                        internalLog.warn(
-                            "Request logging failed for {} {} (requestId={}): {}",
-                            exchange.method,
-                            exchange.path,
-                            exchange.requestId,
-                            breadcrumb.toString(),
-                            breadcrumb,
-                        )
-                    }
+                    reportFailOpen(
+                        metrics::wiringFailure,
+                        internalLog,
+                        Level.WARN,
+                        breadcrumb,
+                        "Request logging failed for {} {} (requestId={}): {}",
+                        exchange.method,
+                        exchange.path,
+                        exchange.requestId,
+                        breadcrumb.toString(),
+                    )
                 }
                 throw e
             } finally {
                 try {
                     mdcScope?.close()
                 } catch (e: Exception) {
-                    reportQuietly {
-                        metrics.wiringFailure()
-                        internalLog.warn(
-                            "MDC restoration failed after the async dispatch of {} {} - the pooled thread may carry stale endpoint keys: {}",
-                            exchange.method,
-                            exchange.path,
-                            e.toString(),
-                            e,
-                        )
-                    }
+                    reportFailOpen(
+                        metrics::wiringFailure,
+                        internalLog,
+                        Level.WARN,
+                        e,
+                        "MDC restoration failed after the async dispatch of {} {} - the pooled thread may carry stale endpoint keys: {}",
+                        exchange.method,
+                        exchange.path,
+                        e.toString(),
+                    )
                 }
             }
         }
@@ -399,16 +401,16 @@ class RequestLoggingFilter
                     .getAsyncManager(request)
                     .registerCallableInterceptor(ASYNC_MDC_INTERCEPTOR_KEY, EndpointMdcCallableInterceptor(exchange, metrics))
             } catch (e: Exception) {
-                reportQuietly {
-                    metrics.wiringFailure()
-                    internalLog.warn(
-                        "Async MDC propagation could not be registered for {} {} - worker logs lose the identity: {}",
-                        exchange.method,
-                        exchange.path,
-                        e.toString(),
-                        e,
-                    )
-                }
+                reportFailOpen(
+                    metrics::wiringFailure,
+                    internalLog,
+                    Level.WARN,
+                    e,
+                    "Async MDC propagation could not be registered for {} {} - worker logs lose the identity: {}",
+                    exchange.method,
+                    exchange.path,
+                    e.toString(),
+                )
             }
         }
 

@@ -8,9 +8,11 @@ import eu.inqudium.limesium.common.MdcKeys
 import eu.inqudium.limesium.common.NanoTimeSource
 import eu.inqudium.limesium.common.Traceparent
 import eu.inqudium.limesium.common.failOpen
+import eu.inqudium.limesium.common.reportFailOpen
 import eu.inqudium.limesium.common.reportQuietly
 import io.micrometer.core.instrument.MeterRegistry
 import org.slf4j.LoggerFactory
+import org.slf4j.event.Level
 import org.springframework.http.HttpHeaders
 import org.springframework.http.InvalidMediaTypeException
 import org.springframework.http.server.PathContainer
@@ -86,16 +88,16 @@ internal class ExchangeLifecycle(
         try {
             wireExchange(webExchange)
         } catch (e: Exception) {
-            reportQuietly {
-                metrics.wiringFailure()
-                internalLog.error(
-                    "Request logging could not be wired for {} {} - continuing without logging: {}",
-                    webExchange.request.method,
-                    webExchange.request.uri.rawPath,
-                    e.toString(),
-                    e,
-                )
-            }
+            reportFailOpen(
+                metrics::wiringFailure,
+                internalLog,
+                Level.ERROR,
+                e,
+                "Request logging could not be wired for {} {} - continuing without logging: {}",
+                webExchange.request.method,
+                webExchange.request.uri.rawPath,
+                e.toString(),
+            )
             null
         }
 
@@ -227,25 +229,28 @@ internal class ExchangeLifecycle(
         } catch (e: InterruptedException) {
             // Restore what the JVM cleared when it threw, so the interrupt still reaches its addressee.
             Thread.currentThread().interrupt()
-            reportQuietly {
-                metrics.wiringFailure()
-                internalLog.debug("Interrupted in the terminal callback", e)
-            }
+            reportFailOpen(
+                metrics::wiringFailure,
+                internalLog,
+                Level.DEBUG,
+                e,
+                "Interrupted in the terminal callback",
+            )
             if (exchange.state != ExchangeState.AWAITING_COMMIT) {
                 complete(exchange)
             }
         } catch (e: Exception) {
-            reportQuietly {
-                metrics.wiringFailure()
-                internalLog.warn(
-                    "Request logging failed for {} {} (requestId={}): {}",
-                    exchange.method,
-                    exchange.path,
-                    exchange.requestId,
-                    e.toString(),
-                    e,
-                )
-            }
+            reportFailOpen(
+                metrics::wiringFailure,
+                internalLog,
+                Level.WARN,
+                e,
+                "Request logging failed for {} {} (requestId={}): {}",
+                exchange.method,
+                exchange.path,
+                exchange.requestId,
+                e.toString(),
+            )
             if (exchange.state != ExchangeState.AWAITING_COMMIT) {
                 complete(exchange)
             }

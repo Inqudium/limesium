@@ -1,5 +1,8 @@
 package eu.inqudium.limesium.common
 
+import org.slf4j.Logger
+import org.slf4j.event.Level
+
 /**
  * Runs the diagnostics of a fail-open catch handler - the fail-open counter increment and the internal
  * log line - so that a failure of the DIAGNOSTICS channel itself can never escape into the request.
@@ -44,5 +47,28 @@ internal inline fun failOpen(
         reportQuietly { onInterrupted(e) }
     } catch (e: Exception) {
         reportQuietly { onFailure(e) }
+    }
+}
+
+/**
+ * The REPORTING half every fail-open catch shares (code-style audit of 2026-09-05, pattern S1): the
+ * stage counter ([count], e.g. `metrics::wiringFailure`) and ONE line on the module's own [log] at
+ * [level], both inside [reportQuietly]. The catch keeps its own control flow - a rethrow, a produced
+ * value, work that must still happen - only the report is shared, which is why this is not [failOpen].
+ * [cause] rides the event as its throwable (stack trace) when given; what the line shows inline (the
+ * exchange coordinates, `e.toString()`) travels as [args].
+ */
+internal fun reportFailOpen(
+    count: () -> Unit,
+    log: Logger,
+    level: Level,
+    cause: Throwable?,
+    message: String,
+    vararg args: Any?,
+) {
+    reportQuietly {
+        count()
+        val line = log.atLevel(level)
+        (if (cause == null) line else line.setCause(cause)).log(message, *args)
     }
 }
