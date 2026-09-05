@@ -364,6 +364,6 @@ internal class ExchangeLifecycle(
 internal fun HttpHeaders.declaredCharsetOrUtf8(): Charset =
     try {
         contentType?.charset
-    } catch (e: InvalidMediaTypeException) {
+    } catch (_: InvalidMediaTypeException) {
         null
     } ?: StandardCharsets.UTF_8

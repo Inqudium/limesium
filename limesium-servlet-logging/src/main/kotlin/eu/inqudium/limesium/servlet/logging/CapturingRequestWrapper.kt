@@ -152,7 +152,7 @@ internal class CapturingRequestWrapper(
         fun charsetOrDefault(name: String?): Charset =
             try {
                 name?.let { Charset.forName(it) }
-            } catch (e: IllegalArgumentException) {
+            } catch (_: IllegalArgumentException) {
                 // IllegalCharsetNameException / UnsupportedCharsetException: an undeclared-or-broken
                 // encoding only affects the log rendering, never the application's reader.
                 null

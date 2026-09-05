@@ -14,7 +14,7 @@ package eu.inqudium.limesium.common
 internal inline fun reportQuietly(report: () -> Unit) {
     try {
         report()
-    } catch (ignored: Exception) {
+    } catch (_: Exception) {
         // The diagnostics channel is itself broken; the original failure was already contained.
     }
 }
