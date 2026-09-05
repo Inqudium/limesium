@@ -57,7 +57,7 @@ internal class ExchangeLogEmitter(
     /**
      * The single emission point of the completion event, called exclusively at request destruction -
      * after the container's error dispatch and after async completion, so status, response headers and
-     * captures are FINAL and race-free. The [Exchange.logged] guard backstops to exactly-once.
+     * captures are FINAL and race-free. [Exchange.tryClaimEmission] backstops to exactly-once.
      *
      * The emission runs under the exchange's MDC (the destruction callback carries none of its own), so
      * the encoder emits the request id as an MDC field rather than as a structured key-value; the
@@ -65,7 +65,7 @@ internal class ExchangeLogEmitter(
      * drops key-values and MDC still shows the gist of the exchange.
      */
     fun logExchange(exchange: Exchange) {
-        if (!exchange.logged.compareAndSet(false, true)) {
+        if (!exchange.tryClaimEmission()) {
             return
         }
         // The fail-open guard covers EVERYTHING after the exactly-once CAS: the

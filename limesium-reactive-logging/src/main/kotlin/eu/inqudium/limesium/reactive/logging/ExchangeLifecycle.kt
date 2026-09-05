@@ -163,7 +163,7 @@ internal class ExchangeLifecycle(
                         },
                     ) {
                         exchange.committedStatus = webExchange.response.statusCode?.value()
-                        if (exchange.state.get() == ExchangeState.AWAITING_COMMIT) {
+                        if (exchange.state == ExchangeState.AWAITING_COMMIT) {
                             complete(exchange)
                         }
                     }
@@ -209,7 +209,7 @@ internal class ExchangeLifecycle(
                     // unarmed, the event completes right below with the then-readable status.
                     registerCommitCallback(webExchange, exchange)
                     if (exchange.commitCallbackArmed) {
-                        exchange.state.compareAndSet(ExchangeState.OPEN, ExchangeState.AWAITING_COMMIT)
+                        exchange.awaitCommit()
                         // Race with a commit starting concurrently: doCommit goes COMMITTING (isCommitted)
                         // BEFORE it snapshots the action list, so a registration that still saw
                         // isCommitted = false is in the snapshot; otherwise this side completes itself and
@@ -231,7 +231,7 @@ internal class ExchangeLifecycle(
                 metrics.wiringFailure()
                 internalLog.debug("Interrupted in the terminal callback", e)
             }
-            if (exchange.state.get() != ExchangeState.AWAITING_COMMIT) {
+            if (exchange.state != ExchangeState.AWAITING_COMMIT) {
                 complete(exchange)
             }
         } catch (e: Exception) {
@@ -246,7 +246,7 @@ internal class ExchangeLifecycle(
                     e,
                 )
             }
-            if (exchange.state.get() != ExchangeState.AWAITING_COMMIT) {
+            if (exchange.state != ExchangeState.AWAITING_COMMIT) {
                 complete(exchange)
             }
         }
@@ -254,7 +254,7 @@ internal class ExchangeLifecycle(
 
     /** Exactly-once: closes the gauge and emits, whichever of the terminal/commit callbacks wins the transition. */
     fun complete(exchange: Exchange) {
-        if (exchange.state.getAndSet(ExchangeState.COMPLETED) == ExchangeState.COMPLETED) {
+        if (!exchange.tryComplete()) {
             return
         }
         metrics.exchangeCompleted()

@@ -40,8 +40,8 @@ internal class Exchange(
     override val traceId: String? = null,
     override val parentSpanId: String? = null,
 ) : LoggedExchange {
-    /** The exactly-once guard of the emission; whoever wins the CAS emits - the emitter's own inner backstop. */
-    val logged = AtomicBoolean(false)
+    /** The exactly-once guard of the emission - the emitter's own inner backstop, claimed through [tryClaimEmission]. */
+    private val logged = AtomicBoolean(false)
 
     /**
      * The completion LIFECYCLE as ONE atomic value, so the legal transitions are enumerable
@@ -96,6 +96,9 @@ internal class Exchange(
      */
     @Volatile
     var asyncFailure: Throwable? = null
+
+    /** Claims the emission for the caller: true exactly once, for whoever wins the CAS. */
+    fun tryClaimEmission(): Boolean = logged.compareAndSet(false, true)
 
     /**
      * The [AsyncOutcomeMarker] was registered: from now on a destruction may DEFER to its `onComplete`.

@@ -235,7 +235,7 @@ So the logged status, response headers and captures are final and race-free. Two
    not bare chain time ([§6.1](#61-duration-is-request-occupancy)).
 2. Everything rests on the container firing `requestDestroyed` for every request the filter saw. The
    gauge `endpoint.logging.exchanges.open` makes that assumption measurable
-   ([§5.5](#55-reading-the-meters-together)); the exactly-once CAS on `Exchange.logged` backstops
+   ([§5.5](#55-reading-the-meters-together)); the exactly-once CAS behind `Exchange.tryClaimEmission` backstops
    container quirks.
 
 When the chain throws, a short **WARN breadcrumb** is logged immediately in the `finally` on the module's
