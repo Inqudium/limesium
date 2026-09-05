@@ -83,7 +83,7 @@ import org.springframework.web.util.pattern.PathPatternParser
  * every DISPATCH. A destruction observed while async is still running is therefore skipped (flagged on
  * the exchange), the destruction after the final dispatch completes as usual, and an async cycle that
  * ends WITHOUT a further dispatch (raw `complete()`) is completed by the marker's onComplete backstop -
- * all behind one exactly-once guard ([Exchange.completed]); see the completion listener and
+ * all behind one atomic lifecycle ([Exchange.completionState]); see the completion listener and
  * [AsyncOutcomeMarker] for the choreography (pinned by the Jetty capture-boundary integration test).
  *
  * When the chain throws, a short WARN breadcrumb is additionally logged in the `finally` on the module's
@@ -247,7 +247,7 @@ class RequestLoggingFilter
                     if (request.isAsyncStarted) {
                         exchange.asyncStarted = true
                         request.asyncContext.addListener(AsyncOutcomeMarker(exchange, ::completeExchange))
-                        exchange.asyncMarkerArmed = true
+                        exchange.markAsyncArmed()
                     }
                     // Immediate breadcrumb at the failure site: the full ERROR event follows only at request
                     // destruction, after the container's error dispatch (which is what makes its status
@@ -508,13 +508,13 @@ class RequestLoggingFilter
         fun exchangeCompletionListener(): ServletRequestListener = ExchangeCompletionListener()
 
         /**
-         * The exactly-once end of an exchange - gauge close plus emission - guarded by
-         * [Exchange.completed]: the destruction listener and the [AsyncOutcomeMarker.onComplete] backstop
-         * can both arrive here (see [Exchange.destroyedDuringAsync]); whichever wins the CAS completes,
-         * the other is a no-op.
+         * The exactly-once end of an exchange - gauge close plus emission - guarded by the lifecycle's
+         * `COMPLETED` transition ([Exchange.tryComplete]): the destruction listener and the
+         * [AsyncOutcomeMarker.onComplete] backstop can both arrive here; whichever wins completes, the
+         * other is a no-op.
          */
         private fun completeExchange(exchange: Exchange) {
-            if (!exchange.completed.compareAndSet(false, true)) {
+            if (!exchange.tryComplete()) {
                 return
             }
             metrics.exchangeCompleted()
@@ -530,21 +530,14 @@ class RequestLoggingFilter
                 // of EVERY dispatch - including the initial one that merely STARTED async. Emitting there
                 // logged the pre-completion status (200 for an exchange whose client later received a 500)
                 // and removed the attribute the async-dispatch pass depends on (found by the Jetty
-                // capture-boundary integration test, 2026-08-30). "Still running" is judged from MODULE
-                // state - marker armed, no onComplete observed - never from request.isAsyncStarted():
-                // Tomcat's facade throws on that query inside requestDestroyed after an errored cycle.
-                // Skipping leaves exchange, attribute and gauge untouched; the spec guarantees onComplete
-                // at the end of every cycle, so either a later destruction completes (dispatch-based
-                // endings, after onComplete flipped the flag) or the marker's onComplete backstop does
-                // (a raw complete() with no further dispatch). The RE-CHECK after setting the flag closes
-                // the race with a concurrently completing cycle: whoever loses the Exchange.completed CAS
-                // is a no-op either way. An exchange whose marker could NOT be armed (fail-open) never
-                // defers - completing with possibly pre-completion state beats losing the event.
-                if (exchange.asyncStarted && exchange.asyncMarkerArmed && !exchange.asyncCompleted) {
-                    exchange.destroyedDuringAsync = true
-                    if (!exchange.asyncCompleted) {
-                        return
-                    }
+                // capture-boundary integration test, 2026-08-30). The lifecycle decides atomically
+                // (Exchange.onDestroyed): a skipped destruction leaves exchange, attribute and gauge
+                // untouched, and the spec-guaranteed onComplete either lets a later destruction complete
+                // or completes through the marker's backstop (a raw complete() with no further dispatch).
+                // An exchange whose marker could NOT be armed (fail-open) never defers - completing with
+                // possibly pre-completion state beats losing the event.
+                if (!exchange.onDestroyed()) {
+                    return
                 }
                 request.removeAttribute(EXCHANGE_ATTRIBUTE)
                 completeExchange(exchange)

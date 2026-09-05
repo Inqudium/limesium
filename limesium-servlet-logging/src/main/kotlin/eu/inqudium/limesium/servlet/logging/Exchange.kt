@@ -39,28 +39,86 @@ internal class Exchange(
     val traceId: String? = null,
     val parentSpanId: String? = null,
 ) {
-    /** The exactly-once guard of the emission; whoever wins the CAS emits. */
+    /** The exactly-once guard of the emission; whoever wins the CAS emits - the emitter's own inner backstop. */
     val logged = AtomicBoolean(false)
 
     /**
-     * The exactly-once guard of the COMPLETION bookkeeping (gauge close + emission trigger): the
-     * destruction listener and the async onComplete backstop can both reach the end of an exchange
-     * (see [destroyedDuringAsync]); whoever wins this CAS completes. [logged] stays the emitter's own
-     * inner backstop.
+     * The completion LIFECYCLE as ONE atomic value, so the legal transitions are enumerable
+     * ([CompletionState]) instead of living in the interplay of separate flags - the servlet mirror of
+     * the reactive twin's `ExchangeState` (architecture review of 2026-09-05, finding 4). `OPEN` from
+     * wiring; `ASYNC_ARMED` once the [AsyncOutcomeMarker] is registered and an `onComplete` is therefore
+     * guaranteed; `DESTROYED_DURING_ASYNC` when a per-dispatch container (Jetty) destroyed the request
+     * while the armed cycle was still running - the listener skips that firing; `ASYNC_COMPLETED` when
+     * the cycle ended before any destruction; `COMPLETED` exactly once, by whichever of the destruction
+     * listener and the marker's `onComplete` backstop wins the transition. Every transition is a CAS, so
+     * a destruction racing an `onComplete` on another thread resolves without a re-check protocol.
      */
-    val completed = AtomicBoolean(false)
+    private val completion = AtomicReference(CompletionState.OPEN)
+
+    /** The current lifecycle state - exposed for tests. */
+    val completionState: CompletionState
+        get() = completion.get()
 
     /**
-     * True once a `requestDestroyed` was observed WHILE async processing was still running. Tomcat
-     * fires destruction once, after async completion; Jetty fires it at the end of every DISPATCH, so
-     * the initial dispatch of an async exchange destroys early - the listener skips that firing and
-     * records it here. An async cycle that later ends WITHOUT another dispatch (`complete()` from a
-     * raw worker) would then never see a destruction again; the [AsyncOutcomeMarker.onComplete]
-     * backstop completes the exchange exactly when this flag says the destruction-based path has
-     * already come and gone (found by the Jetty capture-boundary integration test, 2026-08-30).
+     * The [AsyncOutcomeMarker] was registered: from now on a destruction may DEFER to its `onComplete`.
+     * A no-op when the cycle already ended between registration and this call - the destruction then
+     * completes right away, as it does for an exchange whose marker could not be armed (fail-open).
      */
-    @Volatile
-    var destroyedDuringAsync: Boolean = false
+    fun markAsyncArmed() {
+        completion.compareAndSet(CompletionState.OPEN, CompletionState.ASYNC_ARMED)
+    }
+
+    /**
+     * The container's `onComplete`. Returns true when THIS call must complete the exchange: a
+     * destruction already came and went while the cycle was running (per-dispatch container, raw
+     * `complete()` without a further dispatch - found by the Jetty capture-boundary integration test,
+     * 2026-08-30). Otherwise records the ended cycle and leaves completion to the destruction still to
+     * come, exactly as Tomcat's single late destruction expects.
+     */
+    fun onAsyncCompleted(): Boolean {
+        while (true) {
+            when (val state = completion.get()) {
+                CompletionState.OPEN, CompletionState.ASYNC_ARMED -> {
+                    if (completion.compareAndSet(state, CompletionState.ASYNC_COMPLETED)) return false
+                }
+
+                CompletionState.DESTROYED_DURING_ASYNC -> {
+                    return true
+                }
+
+                CompletionState.ASYNC_COMPLETED, CompletionState.COMPLETED -> {
+                    return false
+                }
+            }
+        }
+    }
+
+    /**
+     * A `requestDestroyed`. Returns true when THIS destruction ends the exchange; false when it fired
+     * while an armed async cycle is still running (skipped: either a later destruction or the marker's
+     * backstop completes - never `request.isAsyncStarted()`, which Tomcat's facade rejects inside
+     * `requestDestroyed` after an errored cycle) or when an earlier one was already skipped.
+     */
+    fun onDestroyed(): Boolean {
+        while (true) {
+            when (val state = completion.get()) {
+                CompletionState.ASYNC_ARMED -> {
+                    if (completion.compareAndSet(state, CompletionState.DESTROYED_DURING_ASYNC)) return false
+                }
+
+                CompletionState.DESTROYED_DURING_ASYNC -> {
+                    return false
+                }
+
+                CompletionState.OPEN, CompletionState.ASYNC_COMPLETED, CompletionState.COMPLETED -> {
+                    return true
+                }
+            }
+        }
+    }
+
+    /** The exactly-once completion transition: true for the one caller that wins it. */
+    fun tryComplete(): Boolean = completion.getAndSet(CompletionState.COMPLETED) != CompletionState.COMPLETED
 
     @Volatile
     var failure: Exception? = null
@@ -69,27 +127,13 @@ internal class Exchange(
     @Volatile
     var pathTemplate: String? = null
 
-    /** True once the chain returned with async processing started; set in the filter's `finally`. */
+    /**
+     * True once the chain returned with async processing started; set in the filter's `finally`. A
+     * FACT about the exchange (the `endpoint_async` field), not a lifecycle state - the lifecycle is
+     * [completionState].
+     */
     @Volatile
     var asyncStarted: Boolean = false
-
-    /**
-     * True once the [AsyncOutcomeMarker] was successfully registered: only then is an `onComplete`
-     * guaranteed to reach this exchange, and only then may the destruction listener defer to it. A
-     * failed registration (fail-open) degrades to completing at whatever destruction fires - possibly
-     * with pre-completion state, never with a lost event.
-     */
-    @Volatile
-    var asyncMarkerArmed: Boolean = false
-
-    /**
-     * True once the container signalled `onComplete` - the spec-guaranteed end of EVERY async cycle
-     * (after onError/onTimeout handling and after the error dispatch). The destruction listener keys on
-     * THIS, never on `request.isAsyncStarted()`: Tomcat's request facade throws when the async state is
-     * queried inside `requestDestroyed` after an errored cycle.
-     */
-    @Volatile
-    var asyncCompleted: Boolean = false
 
     /**
      * Which async callback ENDED the exchange - one value, set through [markTimedOut]/[markErrored],
@@ -124,6 +168,9 @@ internal class Exchange(
     var asyncFailure: Throwable? = null
 }
 
+/** See [Exchange.completionState]. */
+internal enum class CompletionState { OPEN, ASYNC_ARMED, DESTROYED_DURING_ASYNC, ASYNC_COMPLETED, COMPLETED }
+
 /**
  * The async disposition of an exchange, as a single value with its precedence built in: [TIMED_OUT]
  * always wins - the container's timeout is what ENDED the exchange, a subsequent `onError` (the
@@ -138,7 +185,7 @@ internal enum class AsyncDisposition { NONE, TIMED_OUT, ERRORED }
  * visible there), but a container that destroys per DISPATCH has already fired - and been skipped -
  * during a raw async cycle that ends via `complete()` without a further dispatch. [onComplete] is the
  * backstop for exactly that case: it invokes [onSettled] (the filter's exactly-once completion) only
- * when [Exchange.destroyedDuringAsync] says no destruction is coming any more. The Servlet spec
+ * when [Exchange.onAsyncCompleted] says no destruction is coming any more. The Servlet spec
  * guarantees onComplete fires at the end of EVERY async cycle - after onError/onTimeout handling and
  * after the error dispatch - so the state it completes with is final. On a re-entrant `startAsync` the
  * container does NOT carry listeners over, so [onStartAsync] re-registers this one.
@@ -148,8 +195,7 @@ internal class AsyncOutcomeMarker(
     private val onSettled: (Exchange) -> Unit,
 ) : AsyncListener {
     override fun onComplete(event: AsyncEvent) {
-        exchange.asyncCompleted = true
-        if (exchange.destroyedDuringAsync) {
+        if (exchange.onAsyncCompleted()) {
             onSettled(exchange)
         }
     }

@@ -60,7 +60,7 @@ worker writes beside the tee, the body is logged as absent.
 
 **Engine quirk (why the module keeps its own async state):** Tomcat's request facade THROWS when the
 async state is queried inside `requestDestroyed` after an errored cycle — the completion listener
-therefore judges "cycle still running" from module state (`asyncMarkerArmed`/`asyncCompleted`), never
+therefore judges "cycle still running" from module state (the exchange's atomic `CompletionState`), never
 from `request.isAsyncStarted()`.
 
 **Trace suppression:** the late destruction thread carries at most STALE bridge keys; the emission
