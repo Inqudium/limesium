@@ -31,6 +31,7 @@ import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.context.request.async.DeferredResult
@@ -410,6 +411,36 @@ class RequestLoggingFilterTomcatIntegrationTest {
         assertThat(keyValues(events.single())).containsEntry("endpoint_url_path", "/it/things/2")
     }
 
+    @Test
+    fun `should pin that a form body the container parses bypasses the request tee`() {
+        // What is tested: the documented capture BOUNDARY for framework-parsed bodies - a form POST
+        //   read through @RequestParam makes the container parse the ORIGINAL request's stream; the
+        //   wrapper's getInputStream()/getReader() are never selected.
+        // Success criteria: the controller sees the field, the exchange event exists, and it carries NO
+        //   endpoint_request_body although log-request-body is enabled class-wide (the response body,
+        //   written through the tee, is present).
+        // Why it matters: form and multipart endpoints sit at `unread` on the read counter by
+        //   construction; the pin keeps that boundary a conscious, documented contract (code analysis
+        //   of 2026-09-05, finding 2).
+        // Given/When: the real Tomcat application; a real form POST against the @RequestParam controller
+        val request =
+            HttpRequest
+                .newBuilder(URI.create("http://localhost:$port/it/form"))
+                .timeout(REQUEST_TIMEOUT)
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .POST(HttpRequest.BodyPublishers.ofString("name=form-value"))
+                .build()
+        val response = http.send(request, HttpResponse.BodyHandlers.ofString())
+
+        // Then: served from the parsed field, event present, request body absent by documented contract
+        assertThat(response.statusCode()).isEqualTo(200)
+        assertThat(response.body()).isEqualTo("form:form-value")
+        val event = appender.awaitEvents(1).single()
+        assertThat(keyValues(event))
+            .doesNotContainKey("endpoint_request_body")
+            .containsEntry("endpoint_response_body", "form:form-value")
+    }
+
     /**
      * Minimal servlet application for the test: the module's auto-configuration via
      * [EnableAutoConfiguration], pinned time/id beans (the auto-configured defaults back off), and the
@@ -501,6 +532,12 @@ class RequestLoggingFilterTomcatIntegrationTest {
 
         @GetMapping("/it/excluded/ping")
         fun excluded(): String = "pong"
+
+        /** Reads a form field through the PARAMETER API - the container parses that body beside the tee. */
+        @PostMapping("/it/form")
+        fun form(
+            @RequestParam name: String,
+        ): String = "form:$name"
     }
 
     /**
