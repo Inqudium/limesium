@@ -40,7 +40,7 @@ fun interface CorrelationIdGenerator {
  * single atomic increment plus a radix conversion.
  *
  * The latency difference is unlikely to be visible in a request-logging pipeline; the structural
- * argument — no shared lock, no I/O in the hot path — is what motivates this implementation.
+ * argument - no shared lock, no I/O in the hot path - is what motivates this implementation.
  *
  * ## Uniqueness model
  *
@@ -48,7 +48,7 @@ fun interface CorrelationIdGenerator {
  * Across instances it is probabilistic, and a prefix collision is worse than a UUID collision:
  * two colliding instances do not produce one duplicate id, they produce two near-identical id
  * sequences, because both counters start at zero. This is why the prefix is not narrowed below
- * 64 bits — entropy in the prefix is what bounds that failure mode. With 64 bits and 10,000
+ * 64 bits - entropy in the prefix is what bounds that failure mode. With 64 bits and 10,000
  * instance starts inside a log retention window the birthday probability is around 3e-12.
  *
  * A colliding prefix is not silently unrecoverable: log entries carry the pod name as platform
@@ -59,7 +59,7 @@ fun interface CorrelationIdGenerator {
  * Base 36 uses `[0-9a-z]`, whose ASCII code points are ordered consistently with their digit
  * values, so for equal-length strings lexicographic order equals numeric order. Combined with
  * the fixed widths below, ids from one instance therefore sort in the order the counter handed
- * them out. Note that this is the order of id *allocation*, not of log *emission* — two
+ * them out. Note that this is the order of id *allocation*, not of log *emission* - two
  * concurrent requests can log out of id order. The id is a tiebreaker, not a primary sort key.
  *
  * Callers must not upper-case the value: mixed case breaks the ordering, since `A-Z` sits
@@ -68,7 +68,7 @@ fun interface CorrelationIdGenerator {
 internal class CountingCorrelationIdGenerator(
     /**
      * Seeded from [SecureRandom] rather than `ThreadLocalRandom`, and the reason is entropy, not
-     * security — nothing here is an attack surface.
+     * security - nothing here is an attack surface.
      *
      * `ThreadLocalRandom` derives its process-wide initial seed from `currentTimeMillis` and
      * `nanoTime` unless `-Djava.util.secureRandomSeed=true` is set. Its output is uniformly
@@ -78,7 +78,7 @@ internal class CountingCorrelationIdGenerator(
      * same node, leaving little more than JVM startup jitter. That would invalidate the birthday
      * estimate above by orders of magnitude.
      *
-     * The usual objection to [SecureRandom] — blocking, lock contention — applies to the
+     * The usual objection to [SecureRandom] - blocking, lock contention - applies to the
      * per-request path only. This runs once, during construction.
      */
     prefixSeed: Long = SecureRandom().nextLong(),
@@ -99,7 +99,7 @@ internal class CountingCorrelationIdGenerator(
     /**
      * An [AtomicLong], deliberately not a thread-local counter. Under virtual threads a
      * `ThreadLocal` belongs to the virtual thread rather than to its carrier, so every request
-     * would start a fresh counter at zero — turning guaranteed uniqueness into guaranteed
+     * would start a fresh counter at zero - turning guaranteed uniqueness into guaranteed
      * collisions. The shared atomic is the correct structure here.
      */
     private val counter = AtomicLong(counterStart)
@@ -123,7 +123,7 @@ internal class CountingCorrelationIdGenerator(
          * 36^8 is about 2.8e12 ids, roughly nine years at a sustained 10,000 ids per second.
          * The relevant horizon is a single instance lifetime, not forever: a restart draws a new
          * prefix and resets the counter, so anything beyond "longer than a pod lives" is wasted
-         * width. Eight digits is the conservative rounding of that — seven would already be
+         * width. Eight digits is the conservative rounding of that - seven would already be
          * within reach of a long-lived pod under load.
          *
          * Both widths are load-bearing, and in two independent ways:
@@ -134,7 +134,7 @@ internal class CountingCorrelationIdGenerator(
          *  2. They keep ids lexicographically ordered, as described in the class documentation.
          *
          * If a value ever exceeds its width, `padStart` simply stops applying: the id grows by
-         * a character, and both properties break — with no exception and no log entry, only
+         * a character, and both properties break - with no exception and no log entry, only
          * wrong results from some point in an instance's life onwards. There is deliberately no
          * runtime overflow check, because at this width the case is unreachable and a branch in
          * the hot path would be the wrong trade. The guard is executable instead: the
