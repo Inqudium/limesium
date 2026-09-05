@@ -22,12 +22,8 @@ import java.nio.charset.StandardCharsets
  * the ORIGINAL request's reader and silently bypass the tee. The reader preserves the SERVLET decoding
  * contract exactly - the declared request encoding, the spec default ISO-8859-1 when none is declared,
  * and `UnsupportedEncodingException` for an unsupported one; the UTF-8 fallback of [bodyCharset] applies
- * ONLY to how the log line renders the captured bytes, never to what the application reads. The LOG charset
- * is bound LATE - when the application first selects
- * a body API - not at construction: the servlet contract lets downstream code call
- * `setCharacterEncoding` until the body is consumed, and a charset frozen at filter entry would decode
- * the captured bytes with an encoding the application never used. The wrapper also reproduces the delegate's
- * stream/reader either-or
+ * ONLY to how the log line renders the captured bytes, never to what the application reads (and is
+ * bound late - see [bodyCharset]). The wrapper also reproduces the delegate's stream/reader either-or
  * contract itself, because the tee satisfies both APIs from ONE delegate stream and the delegate can
  * therefore no longer see which public API the application chose.
  *
@@ -35,7 +31,7 @@ import java.nio.charset.StandardCharsets
  * `startAsync(currentRequest, currentResponse)` and keeps the wrappers; the Servlet-specified
  * zero-argument `startAsync()` initializes its context with the ORIGINAL request/response, so bytes a
  * raw async cycle reads/writes flow beside the tee and are logged as absent - a documented contract
- * boundary, pinned by integration test.
+ * boundary, pinned by `RequestLoggingFilterTomcatIntegrationTest` and `RequestLoggingFilterJettyIntegrationTest`.
  */
 internal class CapturingRequestWrapper(
     request: HttpServletRequest,
@@ -49,9 +45,10 @@ internal class CapturingRequestWrapper(
 
     /**
      * The charset the captured bytes are decoded with for the LOG LINE only - never for the reader. Bound
-     * when the application first selects the stream or the reader (the moment the servlet contract
-     * freezes the encoding); for a body that was never read, resolved from the encoding current at the
-     * time of the query.
+     * LATE, when the application first selects the stream or the reader, not at construction: the servlet
+     * contract lets downstream code call `setCharacterEncoding` until the body is consumed, and a charset
+     * frozen at filter entry would decode the captured bytes with an encoding the application never used.
+     * For a body that was never read, resolved from the encoding current at the time of the query.
      */
     val bodyCharset: Charset
         get() = boundBodyCharset ?: charsetOrDefault(characterEncoding)

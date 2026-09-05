@@ -89,7 +89,12 @@ the UI with a written reason.
   only `variant`), shared behaviour in the common guide, per-stack behaviour in
   the module guide, decisions in the ADRs. Everywhere else - READMEs, KDoc, the
   other guides, code comments - name the key or link the section; do not restate
-  the rule. A rule that exists twice drifts twice.
+  the rule. A rule that exists twice drifts twice. Boundary for the shared PUBLIC
+  types (`HeaderLogProperties`, `BodyLogMode`, `MaskingKey`; comment audit round 2
+  of 2026-09-05, CA-11): their KDoc is the normative source of the TYPE's contract -
+  what the lists mean for `select`, what a mode means for `logs`, what construction
+  rejects - because it is the only text a host reads in the API reference; the
+  reference YAML names those keys and defaults and points to the type for the rule.
 
 ### Tests
 

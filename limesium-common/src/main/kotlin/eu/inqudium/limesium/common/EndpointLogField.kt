@@ -9,7 +9,8 @@ import kotlin.reflect.KClass
  * is allowed to carry. ONE enum for both endpoint-logging twins (ADR-0003 amendment of 2026-09-05): the
  * wire names are a contract with the log index, the mapping is the repository-shared `/docs/elk/`
  * component template, and `EndpointLogFieldTest` in this module keeps enum and template in lockstep,
- * build-breaking in both directions - so the per-field `ELK:` lines below are tested, not asserted.
+ * build-breaking in both directions, and pins type, index and doc_values of EVERY field - so the
+ * per-field `ELK:` lines below are tested, not asserted.
  *
  * These names are a CONTRACT with the log index, not local identifiers: renaming a constant below is free,
  * changing a [wireName] breaks every dashboard, saved search and alert rule keying on it.

@@ -62,8 +62,8 @@ internal class ExchangeLifecycle(
      * handling; finding 3 of the repo-wide code analysis of 2026-08-30), whose segments decode for
      * matching - so the include patterns see exactly what the router's handler mapping sees; the
      * exclude prefixes are compared against the decoded path rebuilt from those segments (path
-     * parameters dropped, as in routing). Matching the already-decoded `uri.path`
-     * re-parsed into a container decoded twice and accepted `/api%2Fthings` for the `/api/` double-star pattern where the
+     * parameters dropped, as in routing). Matching the already-decoded `uri.path` re-parsed into a
+     * container decoded twice and accepted `/api%2Fthings` for the `/api/` double-star pattern where the
      * router does not (twin parity with the servlet module's percent-encoding fix).
      */
     fun shouldNotFilter(path: PathContainer): Boolean {

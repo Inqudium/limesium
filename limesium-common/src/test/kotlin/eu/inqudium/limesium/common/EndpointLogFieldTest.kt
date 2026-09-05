@@ -165,6 +165,50 @@ class EndpointLogFieldTest {
         }
 
         @Test
+        fun `should map every field exactly as its ELK line states`() {
+            // What is tested: type, index and doc_values of ALL thirteen fields against the access
+            //   pattern each constant's `ELK:` KDoc line states (comment audit round 2 of 2026-09-05,
+            //   CA-13 - before, only headers, bodies, path and query were pinned).
+            // Success criteria: every field's mapping equals its expected (type, index, doc_values)
+            //   triple, absent attributes counting as the Elasticsearch default `true`.
+            // Why it matters: the KDoc claims the ELK lines are tested; a template edit that re-types a
+            //   field or drops doc values on an aggregation field must fail the build, not the dashboards.
+            // Given: the expected mapping of every field - keyword/long/short/boolean, indexed unless
+            //   display-only, doc values unless high-cardinality or display-only
+            val expected =
+                mapOf(
+                    EndpointLogField.OUTCOME to Mapping("keyword", index = true, docValues = true),
+                    EndpointLogField.DURATION_MS to Mapping("long", index = true, docValues = true),
+                    EndpointLogField.REQUEST_METHOD to Mapping("keyword", index = true, docValues = true),
+                    EndpointLogField.RESPONSE_STATUS_CODE to Mapping("short", index = true, docValues = true),
+                    EndpointLogField.URL_TEMPLATE to Mapping("keyword", index = true, docValues = true),
+                    EndpointLogField.URL_PATH to Mapping("keyword", index = true, docValues = false),
+                    EndpointLogField.URL_QUERY to Mapping("keyword", index = true, docValues = false),
+                    EndpointLogField.SLOW to Mapping("boolean", index = true, docValues = true),
+                    EndpointLogField.ASYNC to Mapping("boolean", index = true, docValues = true),
+                    EndpointLogField.REQUEST_HEADERS to Mapping("keyword", index = false, docValues = false),
+                    EndpointLogField.RESPONSE_HEADERS to Mapping("keyword", index = false, docValues = false),
+                    EndpointLogField.REQUEST_BODY to Mapping("keyword", index = false, docValues = false),
+                    EndpointLogField.RESPONSE_BODY to Mapping("keyword", index = false, docValues = false),
+                )
+            assertThat(expected.keys).containsExactlyInAnyOrderElementsOf(EndpointLogField.entries)
+
+            // When: the template's mapping of each field is read with the index defaults applied
+            val actual =
+                EndpointLogField.entries.associateWith { field ->
+                    val mapping = properties.getValue(field.wireName)
+                    Mapping(
+                        mapping.getValue("type") as String,
+                        index = mapping["index"] as? Boolean ?: true,
+                        docValues = mapping["doc_values"] as? Boolean ?: true,
+                    )
+                }
+
+            // Then: field by field, so a failure names the field
+            assertThat(actual).containsExactlyInAnyOrderEntriesOf(expected)
+        }
+
+        @Test
         fun `should be a component template, claiming no indices of its own`() {
             // What is tested: the top-level keys of the shipped template.
             // Success criteria: only `template` and `_meta` - no index_patterns.
@@ -250,3 +294,10 @@ class EndpointLogFieldTest {
         }
     }
 }
+
+/** The three mapping attributes an `ELK:` line states; absent attributes default to `true` in Elasticsearch. */
+private data class Mapping(
+    val type: String,
+    val index: Boolean,
+    val docValues: Boolean,
+)

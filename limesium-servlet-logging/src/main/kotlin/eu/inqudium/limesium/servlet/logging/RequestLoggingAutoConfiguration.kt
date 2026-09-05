@@ -68,7 +68,7 @@ class RequestLoggingAutoConfiguration {
      * bare `Filter` bean - a registration bean claims its filter.
      *
      * Trace identity does NOT depend on this order: the filter parses the incoming `traceparent` header
-     * itself (ADR-0002; the retired bridge-MDC capture is what once made the offset load-bearing).
+     * itself (ADR-0002).
      * `RequestLoggingFilterTomcatTracingIntegrationTest` pins that contract beside a live bridge, so a
      * Boot upgrade that lets the bridge displace the parsed context breaks the build.
      */
