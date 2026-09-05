@@ -7,8 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- Benchmarks whose measured code no longer exists (comment audit round 2 of 2026-09-05,
+  CA-10): `ServletTwinSpotCheckBenchmark` measured the servlet copies of the header
+  selection and masking that ADR-0003's amendment of 2026-08-31 replaced by one shared
+  class, and `CorrelationIdBenchmark` measured the retired UUID default against an
+  alternative that never shipped. The recorded results stay under `benchmarks/results/`
+  as the evidence the `BENCH_REPORT`s cite; the remaining benchmarks' Javadocs name the
+  classes they measure today.
+
 ### Changed
 
+- Comment audit round 2 of 2026-09-05 (`docs/assessment/COMMENT_AUDIT-2026-08-31T01-03-25.R2.md`),
+  findings CA-11 to CA-18 - documentation and one test, no behaviour change. CONTRIBUTING
+  draws the boundary of the "one normative source" rule: the KDoc of the shared public types
+  `HeaderLogProperties`, `BodyLogMode` and `MaskingKey` is normative for the type's contract,
+  the reference YAML names keys and defaults and points to the type (its header and body
+  sections are condensed accordingly). The servlet destruction model has one in-code canon
+  (`CompletionState`); `EndpointLogFieldTest` pins type, `index` and `doc_values` of every
+  field, so the `ELK:` KDoc lines are tested as claimed; test references in KDoc name the
+  test classes; chronicle half-sentences without a failure mode are gone.
 - Code-style audit of 2026-09-05 (`docs/assessment/CODE_STYLE-2026-09-05T17-08-39.md`),
   all findings fixed. Host-visible: the servlet tee classes `BoundedBodyCapture`,
   `CapturingRequestWrapper` and `CapturingResponseWrapper` are `internal` like their
