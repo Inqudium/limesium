@@ -133,14 +133,12 @@ internal enum class EndpointLogField(
      * The exact shape this field puts on the wire: [value] itself with its type asserted - see the class
      * comment. No conversion, by design: a value of the wrong type is rejected, never coerced.
      */
-    fun format(value: Any?): Any =
-        if (value != null && type.isInstance(value)) {
-            value
-        } else {
-            throw IllegalArgumentException(
-                "Structured log field $wireName expects ${type.simpleName}, got ${value?.let { it::class.simpleName } ?: "null"}",
-            )
+    fun format(value: Any?): Any {
+        require(value != null && type.isInstance(value)) {
+            "Structured log field $wireName expects ${type.simpleName}, got ${value?.let { it::class.simpleName } ?: "null"}"
         }
+        return value
+    }
 }
 
 /** Where a rejected value is reported, since [addKeyValue] swallows the rejection rather than propagating it. */
