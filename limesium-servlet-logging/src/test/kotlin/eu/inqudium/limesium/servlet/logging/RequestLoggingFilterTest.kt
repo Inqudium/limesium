@@ -437,6 +437,35 @@ class RequestLoggingFilterTest {
         }
 
         @Test
+        fun `should treat an over-long or non-token correlation header value as absent and generate instead`() {
+            // What is tested: the acceptance rule for caller-supplied ids (CorrelationHeaderValue) at the
+            //   filter - a value beyond 128 characters and a value with an inner space.
+            // Success criteria: both exchanges carry the generated id in event and echo; the caller's
+            //   value appears nowhere on the line.
+            // Why it matters: an accepted value is written into every log line and MDC of the exchange;
+            //   without the bound the peer dictates log volume and id shape (code analysis of
+            //   2026-09-05, finding 11).
+            // Given: two traceless requests with unacceptable correlation values
+            val overLong = MockHttpServletRequest("GET", "/api/things").apply { addHeader(properties.correlationIdHeader, "x".repeat(129)) }
+            val withSpace = MockHttpServletRequest("GET", "/api/things").apply { addHeader(properties.correlationIdHeader, "id with space") }
+            val overLongResponse = MockHttpServletResponse()
+            val withSpaceResponse = MockHttpServletResponse()
+
+            // When: both exchanges run
+            handle(overLong, overLongResponse, FilterChain { _, _ -> })
+            handle(withSpace, withSpaceResponse, FilterChain { _, _ -> })
+
+            // Then: generated and echoed, the caller's values nowhere
+            assertThat(overLongResponse.getHeader(properties.correlationIdHeader)).isEqualTo("generated-42")
+            assertThat(withSpaceResponse.getHeader(properties.correlationIdHeader)).isEqualTo("generated-42")
+            assertThat(appender.list).hasSize(2)
+            assertThat(appender.list).allSatisfy { event ->
+                assertThat(event.mdcPropertyMap).containsEntry(MdcKeys.REQUEST_ID, "generated-42")
+                assertThat(event.formattedMessage).doesNotContain("xxxxxxxx").doesNotContain("id with space")
+            }
+        }
+
+        @Test
         fun `should expose the exchange identity in the MDC while the chain runs`() {
             // What is tested: the chain-scoped MDC - a chain that records the MDC it observes.
             // Success criteria: downstream code saw request id, method and route.

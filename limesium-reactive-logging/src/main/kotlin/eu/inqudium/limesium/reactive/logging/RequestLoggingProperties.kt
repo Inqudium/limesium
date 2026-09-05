@@ -41,7 +41,8 @@ data class RequestLoggingProperties(
     val loggerName: String = "endpoint-http-exchange",
     /**
      * Header the correlation id is read from on TRACELESS exchanges (no conformant `traceparent` -
-     * ADR-0002); when absent or blank a new id is generated. Only such an exchange echoes the id back
+     * ADR-0002); when absent, blank, longer than 128 characters or carrying characters outside visible
+     * ASCII (`CorrelationHeaderValue`) a new id is generated. Only such an exchange echoes the id back
      * on the response under the same header name; a traced exchange takes its request id from the
      * `traceparent` trace id, ignores this header, and echoes nothing - the wire stays untouched.
      */
