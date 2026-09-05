@@ -44,7 +44,7 @@ internal class EndpointMdcCallableInterceptor(
             scope.remove()
             reportQuietly {
                 metrics.wiringFailure()
-                log.debug("Endpoint MDC could not be installed on the async worker; handler logs lose the identity", e)
+                internalLog.debug("Endpoint MDC could not be installed on the async worker; handler logs lose the identity", e)
             }
         }
     }
@@ -59,14 +59,14 @@ internal class EndpointMdcCallableInterceptor(
         } catch (e: Exception) {
             reportQuietly {
                 metrics.wiringFailure()
-                log.debug("Endpoint MDC could not be restored on the async worker", e)
+                internalLog.debug("Endpoint MDC could not be restored on the async worker", e)
             }
         } finally {
             scope.remove()
         }
     }
 
-    private companion object {
-        val log = LoggerFactory.getLogger(EndpointMdcCallableInterceptor::class.java)
+    companion object {
+        private val internalLog = LoggerFactory.getLogger(EndpointMdcCallableInterceptor::class.java)
     }
 }

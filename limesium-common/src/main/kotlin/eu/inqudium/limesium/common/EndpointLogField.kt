@@ -129,9 +129,6 @@ internal enum class EndpointLogField(
 
     ;
 
-    /** Where a rejected value is reported, since [addKeyValue] swallows the rejection rather than propagating it. */
-    val log = LoggerFactory.getLogger(EndpointLogField::class.java)
-
     /**
      * The exact shape this field puts on the wire: [value] itself with its type asserted - see the class
      * comment. No conversion, by design: a value of the wrong type is rejected, never coerced.
@@ -145,6 +142,9 @@ internal enum class EndpointLogField(
             )
         }
 }
+
+/** Where a rejected value is reported, since [addKeyValue] swallows the rejection rather than propagating it. */
+private val internalLog = LoggerFactory.getLogger(EndpointLogField::class.java)
 
 /**
  * Adds a field to a log event under its wire name, rendered by the field itself. The overload exists so a
@@ -162,7 +162,7 @@ internal fun LoggingEventBuilder.addKeyValue(
     try {
         addKeyValue(field.wireName, field.format(value))
     } catch (e: IllegalArgumentException) {
-        field.log.warn(e.toString())
+        internalLog.warn(e.toString())
         this
     }
 
