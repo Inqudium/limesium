@@ -69,33 +69,25 @@ endpoint-logging:
   slow-request-threshold: 5s
 
   # Header logging, one section per direction, rendered into one display-only field each
-  # (`endpoint_request_headers` / `endpoint_response_headers`). Matching is case-insensitive
-  # throughout, as header names are. MASKED BY DEFAULT (ADR-0005): whatever the selection logs is
-  # rendered as a fingerprint unless its name is explicitly allowed in plaintext - so the debugging
-  # move `includes: ["*"]` costs readability, never confidentiality.
+  # (`endpoint_request_headers` / `endpoint_response_headers`). MASKED BY DEFAULT (ADR-0005): what the
+  # selection logs is rendered as a fingerprint unless its name is allowed in plaintext, so the debugging
+  # move `includes: ["*"]` costs readability, never confidentiality. The four lists and how they combine
+  # (case-insensitive matching, exclude beats include, unmasked beats masked, which wildcards are
+  # rejected) are the contract of the type `HeaderLogProperties` - its KDoc is the normative text; the
+  # keys and defaults are listed here.
   request-headers:
-    # Names to log. Empty (the default) logs NOTHING; the entry "*" logs every header the request
-    # carries.
+    # Names to log; empty (the default) logs NOTHING, "*" every header the message carries.
     includes: []
     #  - Accept
     #  - "*"
-    # Names removed from the included set - meaningful mainly together with the "*" include; an
-    # exclude always wins over an include.
+    # Names removed from the included set; no "*" (rejected at startup).
     excludes: []
     #  - Cookie
-    # Names whose VALUE is replaced by the HeaderValueMasker bean's rendering - by default a stable short
-    # fingerprint (length:hex-hash, e.g. "18:a8b3c4d5"): a PSEUDONYM, not anonymisation - identical
-    # values yield identical fingerprints, so a masked token can still be correlated across events
-    # without exposing the secret, and a reader can still confirm a guessed value unless the fingerprint
-    # is keyed with `masking-key`. The default "*" masks every logged header; narrow it to names, or
-    # empty it to switch masking off - a visible decision, never the side effect of another list. Key the fingerprint with `masking-key` below (guess-proof, still stable), or pin an own
-    # HeaderValueMasker bean for any other shape; the properties decide WHICH values are masked. "*"
-    # masks every logged header. Masking only affects headers that are logged at all - listing a name
-    # here does not include it.
+    # Names whose VALUE is replaced by the HeaderValueMasker bean's rendering - by default a stable
+    # `length:hex` fingerprint (keyed with `masking-key` below, or a bean of the host's own). "*" (the
+    # default) masks every logged header; an empty list switches masking off.
     masked: ["*"]
-    # Names that appear in PLAINTEXT although `masked` covers them - the allowlist of harmless names.
-    # An unmasked name always wins over a masked one. No "*" here: the plaintext set is an explicit list
-    # by design (to log everything in plaintext, empty `masked` instead).
+    # Names that appear in PLAINTEXT although `masked` covers them; no "*" (rejected at startup).
     unmasked: []
     #  - Accept
     #  - X-Correlation-Id
@@ -109,16 +101,10 @@ endpoint-logging:
     #  - Content-Type
 
   # Body logging per direction - a MODE, not a switch (ADR-0006): `never` (the default), `on-failure`
-  # or `always`. `on-failure` is the volume switch: the body is logged only when `endpoint_outcome` is
-  # not `success` (failure, timeout, cancelled) or the status is a 4xx - orders of magnitude fewer bytes
-  # than `always`, on
-  # exactly the lines a body is wanted for. The emitter decides when the outcome is final; the request
-  # body flows before that, so `on-failure` tees it (up to max-body-bytes) like `always` and drops it
-  # on success - the capture is paid, the output is saved. A 4xx response keeps its `success` outcome
-  # (the application answered) but logs its bodies in `on-failure`: the client's error is exactly what
-  # the body explains.
-  # The bodies are TEED as they flow - never pre-read, never replayed, so
-  # streaming and async behaviour are untouched and the log shows exactly the bytes that actually
+  # or `always`. `on-failure` logs the body only for a failed exchange (outcome not `success`, or a 4xx
+  # status) - the volume switch; what each mode captures and when it logs is the contract of the type
+  # `BodyLogMode` (normative KDoc). The bodies are TEED as they flow - never pre-read, never replayed,
+  # so streaming and async behaviour are untouched and the log shows exactly the bytes that actually
   # moved (an unread request body is logged as absent). Fields `endpoint_request_body` /
   # `endpoint_response_body` appear only when bytes flowed.
   log-request-body: never

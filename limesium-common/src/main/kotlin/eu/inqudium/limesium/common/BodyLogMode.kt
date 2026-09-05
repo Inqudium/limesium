@@ -1,20 +1,16 @@
 package eu.inqudium.limesium.common
 
 /**
- * When a captured body reaches the exchange line - per direction, the switch that decides log VOLUME
- * (ADR-0006).
+ * When a captured body reaches the exchange line - per direction, the switch that decides log VOLUME.
+ * The normative contract of the `log-request-body` / `log-response-body` keys (the reference YAML names
+ * them and points here); the decision and its derivation are ADR-0006.
  *
- * `always` means every body of every exchange. What an operator nearly always wants is "bodies only
- * when something went wrong": that cuts the volume by orders of magnitude and hits exactly the lines a
- * body is wanted for. The outcome is final before the line is written, so the emitter simply decides
- * then. The request body flows BEFORE the outcome is known, so [ON_FAILURE] captures it exactly like
- * [ALWAYS] does (bounded by `max-body-bytes`) and discards it for a success: the capture is paid, the
- * output is saved - and the output is what burdens the log pipeline.
- *
- * "Failed" is wider than the outcome vocabulary of the exchange line by one status class: `failure`,
- * `timeout`, on the reactive twin `cancelled` - and a 4xx response, which keeps its `success`
- * outcome (the application answered; the client's request was wrong) but is exactly the case a body explains. A 5xx is a
- * `failure` and logs as well; a slow but healthy exchange stays `success` and logs no body.
+ * [ON_FAILURE] captures exactly like [ALWAYS] (bounded by `max-body-bytes`) - the request body flows
+ * BEFORE the outcome is known - and writes the body only for a FAILED exchange: outcome not `success`
+ * (`failure`, `timeout`, on the reactive twin `cancelled`), or a 4xx status. The 4xx is the one
+ * widening over the outcome vocabulary: it keeps its `success` outcome (the application answered; the
+ * client's request was wrong) but is exactly the case a body explains. A slow but healthy exchange
+ * stays `success` and logs no body.
  */
 enum class BodyLogMode {
     /** Nothing is captured for logging; a size meter may still install a count-only capture. */
