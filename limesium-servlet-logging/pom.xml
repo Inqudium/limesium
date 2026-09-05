@@ -12,6 +12,8 @@
     <artifactId>limesium-servlet-logging</artifactId>
     <name>limesium-servlet-logging</name>
     <description>Auto-configured servlet filter that logs one structured line per HTTP exchange</description>
+    <!-- Explicit, so the published (dependency-reduced) POM carries the homepage itself. -->
+    <url>https://github.com/Inqudium/limesium</url>
 
     <properties>
         <!-- Test-only: the Undertow capture-boundary suite. Boot 4 dropped Undertow (no Servlet 6.1

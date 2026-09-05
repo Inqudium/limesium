@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The published POMs name the repository itself as homepage and SCM. Maven appends the
+  module name to an inherited `url` and `scm`, so Maven Central showed the twins with a
+  homepage `.../limesium/limesium-servlet-logging` that does not exist; the root POM now
+  switches that inheritance off and each twin states its `url` explicitly.
+
 ### Added
 
 - Server-agnostic reactive twin, pinned: one `ServerContract` runs the Reactor variant
