@@ -23,7 +23,7 @@ class TraceparentFuzzTest {
     private static final String HEX = "0123456789abcdef";
 
     @FuzzTest(maxDuration = "10m")
-    void parserUpholdsItsContract(FuzzedDataProvider data) {
+    void parser_upholds_its_contract(FuzzedDataProvider data) {
         if (data.consumeBoolean()) {
             // Positive oracle: a conformant version-00 header must parse.
             String traceId = hex(data, 32, true);

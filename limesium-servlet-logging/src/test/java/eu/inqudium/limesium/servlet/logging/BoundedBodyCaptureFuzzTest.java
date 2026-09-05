@@ -25,7 +25,7 @@ class BoundedBodyCaptureFuzzTest {
     };
 
     @FuzzTest(maxDuration = "10m")
-    void captureUpholdsItsContract(FuzzedDataProvider data) {
+    void capture_upholds_its_contract(FuzzedDataProvider data) {
         int maxBytes = data.consumeInt(0, 1 << 16);
         BoundedBodyCapture capture = new BoundedBodyCapture(maxBytes);
         long expectedTotal = 0;

@@ -27,7 +27,7 @@ class HeaderMaskingFuzzTest {
     private static final Pattern FINGERPRINT = Pattern.compile("\\d+:[0-9a-f]{16}");
 
     @FuzzTest(maxDuration = "10m")
-    void selectionAndMaskingUpholdTheirContract(FuzzedDataProvider data) {
+    void selection_and_masking_uphold_their_contract(FuzzedDataProvider data) {
         List<String> includes = consumeNames(data);
         List<String> excludes = consumeNames(data);
         List<String> masked = consumeNames(data);
