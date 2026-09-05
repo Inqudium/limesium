@@ -261,6 +261,11 @@ class RequestLoggingFilterTraceContextTest {
 
     @Test
     fun `should emit without trace decoration when no traceparent is present`() {
+        // What is tested: a request without a traceparent header run to destruction.
+        // Success criteria: the event has neither trace MDC entries nor a trace suffix in the
+        //   message.
+        // Why it matters: the traceless line is the common case; decoration with empty or
+        //   placeholder ids would corrupt the log-to-trace join.
         // Given: no traceparent header
         val request = MockHttpServletRequest("GET", "/api/things")
 

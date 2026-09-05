@@ -176,6 +176,12 @@ class RequestLoggingFilterTomcatIntegrationTest {
 
     @Test
     fun `should capture both bodies of a real round trip through the tee wrappers`() {
+        // What is tested: both tees on real Tomcat streams - a POST whose controller reads and
+        //   echoes the body.
+        // Success criteria: the client sees the echo; the event carries the request body and the
+        //   echoed response body.
+        // Why it matters: Tomcat's streams differ from the mocks (buffering, flush timing); only
+        //   the real container proves the wrappers observe without disturbing.
         // Given/When: the real Tomcat application; a real POST whose controller reads the body and echoes it back
         val response = post("/it/echo", "hello integration")
 
@@ -190,6 +196,10 @@ class RequestLoggingFilterTomcatIntegrationTest {
 
     @Test
     fun `should generate a correlation id from the pinned generator when the caller sends none`() {
+        // What is tested: the generated-id path on real Tomcat.
+        // Success criteria: the pinned id is echoed on the wire and carried in the event's MDC.
+        // Why it matters: the echo header must survive the real container's response handling, or
+        //   callers could never quote the id.
         // Given/When: the real Tomcat application; a real GET without a correlation header
         val response = get("/it/things/1")
 
@@ -267,6 +277,12 @@ class RequestLoggingFilterTomcatIntegrationTest {
 
     @Test
     fun `should log a DeferredResult error result at ERROR with its cause via the async dispatch`() {
+        // What is tested: a DeferredResult completed with an error result on real Tomcat - the
+        //   async dispatch path.
+        // Success criteria: the client sees 500; one ERROR event with outcome failure,
+        //   endpoint_async true and the deferred failure in the cause chain.
+        // Why it matters: a DeferredResult error reaches the filter through the ASYNC dispatch, not
+        //   the initial one; the classification must hold across that boundary.
         // Given/When: a DeferredResult completed with an error result
         val response = get("/it/deferred-boom")
 
@@ -378,6 +394,10 @@ class RequestLoggingFilterTomcatIntegrationTest {
 
     @Test
     fun `should not log an excluded path while still logging the next regular exchange`() {
+        // What is tested: the exclude prefix on real Tomcat, followed by a regular request.
+        // Success criteria: both served with 200; exactly one event, for the regular path.
+        // Why it matters: an exclusion must not leave request state behind that suppresses or
+        //   duplicates the next exchange on the same container.
         // Given/When: the real Tomcat application; a request below the excluded prefix, followed by a regular one
         val excluded = get("/it/excluded/ping")
         val regular = get("/it/things/2")

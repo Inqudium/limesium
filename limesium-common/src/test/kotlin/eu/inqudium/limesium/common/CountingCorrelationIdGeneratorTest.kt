@@ -18,6 +18,12 @@ class CountingCorrelationIdGeneratorTest {
     inner class `Id format` {
         @Test
         fun `should render an id of exactly twenty-one lowercase alphanumeric characters`() {
+            // What is tested: the format contract of ADR-0004 - 13 prefix plus 8 counter
+            //   characters, base-36 digits only.
+            // Success criteria: length 21 and the whole id matches [0-9a-z].
+            // Why it matters: the fixed length is what makes the id splittable and sortable
+            //   downstream; a stray uppercase or sign character would break consumers that key on the
+            //   alphabet.
             // Given
             val generator = CountingCorrelationIdGenerator(prefixSeed = 1L)
 
@@ -31,6 +37,11 @@ class CountingCorrelationIdGeneratorTest {
 
         @Test
         fun `should pad a small seed to the full prefix width`() {
+            // What is tested: the `padStart` of the prefix - seed 1 renders as a single digit
+            //   before padding.
+            // Success criteria: the id starts with twelve zeros followed by `1`.
+            // Why it matters: without the padding the prefix length would vary with the seed and
+            //   the prefix/counter split point would move from id to id.
             // Given
             val generator = CountingCorrelationIdGenerator(prefixSeed = 1L)
 
@@ -43,6 +54,11 @@ class CountingCorrelationIdGeneratorTest {
 
         @Test
         fun `should render seed 35 as the last single-digit value of base 36`() {
+            // What is tested: the top of the base-36 digit alphabet in the prefix - 35 is the last
+            //   value rendered by one character.
+            // Success criteria: the id starts with twelve zeros followed by `z`.
+            // Why it matters: pins that the radix is 36 and the digits are lowercase; a radix of 32
+            //   or 62 or an uppercase alphabet would change the character set the index sees.
             // Given: 35 is the largest value that still occupies a single base-36 digit,
             // so this pins the digit alphabet at its upper end.
             val generator = CountingCorrelationIdGenerator(prefixSeed = 35L)
@@ -56,6 +72,10 @@ class CountingCorrelationIdGeneratorTest {
 
         @Test
         fun `should render seed 36 as a carry into the second digit`() {
+            // What is tested: the first carry of the prefix rendering - 36 is `10` in base 36.
+            // Success criteria: the id starts with eleven zeros, then `10`.
+            // Why it matters: together with the seed-35 test this pins the radix from both sides -
+            //   the boundary a wrong radix or a `toString()` without radix would cross first.
             // Given
             val generator = CountingCorrelationIdGenerator(prefixSeed = 36L)
 
@@ -90,6 +110,11 @@ class CountingCorrelationIdGeneratorTest {
 
         @Test
         fun `should produce a well-formed id when constructed without an explicit seed`() {
+            // What is tested: the production constructor path - the prefix seeded from
+            //   SecureRandom.
+            // Success criteria: the id still matches the 21-character base-36 contract.
+            // Why it matters: this is the only path production takes; the seeded tests would keep
+            //   passing while a broken default (a sign character, a wrong width) shipped unnoticed.
             // Given: the production path, which draws its seed from SecureRandom.
             val generator = CountingCorrelationIdGenerator()
 
@@ -105,6 +130,10 @@ class CountingCorrelationIdGeneratorTest {
     inner class `Counter behaviour` {
         @Test
         fun `should start the counter at zero`() {
+            // What is tested: the initial counter value - the first id of an instance with seed 0.
+            // Success criteria: thirteen zeros of prefix followed by eight zeros of counter.
+            // Why it matters: the counter width pins where the prefix ends; a counter starting at 1
+            //   or padded differently would move the split point.
             // Given
             val generator = CountingCorrelationIdGenerator(prefixSeed = 0L)
 
@@ -117,6 +146,10 @@ class CountingCorrelationIdGeneratorTest {
 
         @Test
         fun `should increment the counter by one on every call`() {
+            // What is tested: the per-call increment of the counter under a zero prefix.
+            // Success criteria: three consecutive ids end in 0, 1, 2 with the width preserved.
+            // Why it matters: the id is the correlation of one request; a counter that skipped or
+            //   repeated would silently join or split exchanges.
             // Given
             val generator = CountingCorrelationIdGenerator(prefixSeed = 0L)
 
@@ -153,6 +186,13 @@ class CountingCorrelationIdGeneratorTest {
 
         @Test
         fun `should keep the counter width constant across a second base-36 carry`() {
+            // What is tested: the counter at 36^2 - the carry from two to three significant digits
+            //   after 1295 calls.
+            // Success criteria: the id before the carry ends in `zz`, the one after in `100`, both
+            //   eight characters wide.
+            // Why it matters: a width change on carry would break the fixed-length contract exactly
+            //   where an unpadded counter would - deep into an instance's lifetime, never in a short
+            //   test.
             // Given: 1296 is 36^2, the next carry after the one covered above.
             val generator = CountingCorrelationIdGenerator(prefixSeed = 0L)
             repeat(1295) { generator.nextCorrelationId() }
@@ -193,6 +233,11 @@ class CountingCorrelationIdGeneratorTest {
 
         @Test
         fun `should produce a reproducible sequence for a given seed`() {
+            // What is tested: the seed seam - two instances with the same prefixSeed and the same
+            //   counter start.
+            // Success criteria: five ids from each are identical.
+            // Why it matters: the seam is what makes the generator testable without a mocking
+            //   library; a hidden second source of randomness would defeat it.
             // Given: the seed is the injection point that makes the generator testable
             // without any mocking library.
             val first = CountingCorrelationIdGenerator(prefixSeed = 4711L)
@@ -208,6 +253,11 @@ class CountingCorrelationIdGeneratorTest {
 
         @Test
         fun `should use different prefixes for different seeds`() {
+            // What is tested: the prefix's dependence on the seed - two instances with seeds 1 and
+            //   2.
+            // Success criteria: the first 13 characters differ.
+            // Why it matters: the prefix is the only thing keeping ids of two JVMs apart; a seed
+            //   that did not reach the prefix would make cross-instance collisions certain.
             // Given
             val first = CountingCorrelationIdGenerator(prefixSeed = 1L)
             val second = CountingCorrelationIdGenerator(prefixSeed = 2L)
@@ -244,6 +294,12 @@ class CountingCorrelationIdGeneratorTest {
 
         @Test
         fun `should hand out ids that sort in allocation order across a carry`() {
+            // What is tested: lexicographic ordering of consecutive ids around the 36^2 carry
+            //   (twelve ids from 1290 on).
+            // Success criteria: the list is sorted as strings.
+            // Why it matters: fixed width plus a lowercase alphabet is what makes string order
+            //   equal allocation order; a carry that broke it would misorder exactly the ids an
+            //   operator sorts by.
             // Given
             val generator = CountingCorrelationIdGenerator(prefixSeed = 0L)
             repeat(1290) { generator.nextCorrelationId() }
@@ -295,6 +351,11 @@ class CountingCorrelationIdGeneratorTest {
 
         @Test
         fun `should keep the id format intact under concurrent access`() {
+            // What is tested: the shared AtomicLong under eight threads drawing 500 ids each.
+            // Success criteria: every id matches the 21-character base-36 contract and the run
+            //   finishes within the timeout.
+            // Why it matters: the generator sits on every request thread; a race in the counter or
+            //   the rendering would surface only under contention.
             // Given
             val threads = 8
             val generator = CountingCorrelationIdGenerator(prefixSeed = 0L)

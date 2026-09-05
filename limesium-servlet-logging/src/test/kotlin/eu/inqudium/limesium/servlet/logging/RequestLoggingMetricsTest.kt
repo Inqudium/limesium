@@ -108,6 +108,10 @@ class RequestLoggingMetricsTest {
 
         @Test
         fun `should count a thrown chain as outcome failure`() {
+            // What is tested: the events counter for a chain that throws.
+            // Success criteria: the exception is rethrown unchanged; failure counts 1, success 0.
+            // Why it matters: the counter is the reconciliation ground truth; a thrown chain must
+            //   be counted under the outcome the line carries.
             // Given: a failing chain
             val boom = IllegalStateException("boom")
 
@@ -267,6 +271,12 @@ class RequestLoggingMetricsTest {
 
         @Test
         fun `should record both body sizes with the handler pattern as uri tag`() {
+            // What is tested: the two size summaries for a chain that reads 5 bytes, writes 6 and
+            //   records a handler pattern.
+            // Success criteria: one sample per direction under the template tag with the exact byte
+            //   counts.
+            // Why it matters: the size meters are tagged by template so their cardinality stays
+            //   bounded; a sample under the raw path would explode the registry.
             // Given: a chain that reads the 5-byte request body, writes a 6-byte response and carries a
             //   recorded handler pattern
             val request = MockHttpServletRequest("POST", "/api/things/7")
@@ -406,6 +416,11 @@ class RequestLoggingMetricsTest {
 
         @Test
         fun `should count a body read to its end as complete under the handler pattern`() {
+            // What is tested: the read-state counter for a chain that drains the request stream and
+            //   records a pattern.
+            // Success criteria: one complete under the template, zero partial, zero unread.
+            // Why it matters: the counter's complete share is what tells consumed bodies from
+            //   ignored ones per route.
             // Given: a chain that drains the stream (readAllBytes observes the EOF) and records a pattern
             val chain =
                 FilterChain { req, _ ->
@@ -469,6 +484,10 @@ class RequestLoggingMetricsTest {
 
         @Test
         fun `should observe completion through the reader as well as through the stream`() {
+            // What is tested: the read state for a chain consuming the body through getReader.
+            // Success criteria: complete.
+            // Why it matters: the reader sits on the same tee stream; a separate path would count
+            //   every text-reading handler as partial.
             // Given: a chain consuming the body through getReader
             val chain = FilterChain { req, _ -> (req as HttpServletRequest).reader.readText() }
 
@@ -481,6 +500,10 @@ class RequestLoggingMetricsTest {
 
         @Test
         fun `should record nothing when request body measuring is off`() {
+            // What is tested: a filter without request measuring on a chain that reads the body.
+            // Success criteria: no read-state counter exists in the registry.
+            // Why it matters: the measuring flag is the opt-in; a counter appearing without it
+            //   would surprise a host that budgets its meter cardinality.
             // Given: a filter without request measuring, a chain that reads
             val notMeasuring =
                 RequestLoggingFilter(properties.copy(measureRequestBodySize = false), { ticker.get() }, { "generated-42" }, meterRegistry)

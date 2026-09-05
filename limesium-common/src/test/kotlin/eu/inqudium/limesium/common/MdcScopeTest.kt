@@ -101,6 +101,13 @@ class MdcScopeTest {
 
     @Test
     fun `should attach a failing rollback to the install exception instead of replacing it`() {
+        // What is tested: the partial-install rollback of MdcScope when the rollback itself fails -
+        //   a put that throws followed by a remove that throws.
+        // Success criteria: the install exception is the one thrown, the rollback failure rides
+        //   along as suppressed, and the keys put before the failure are gone.
+        // Why it matters: an exception that replaced the original would hide the root cause; a
+        //   rollback that gave up at the first failure would leave half an identity on a pooled
+        //   thread.
         // Given: an adapter whose put of endpoint_route fails AND whose remove of endpoint_request_id fails
         installMdcAdapter(FailingAdapter(original, failPut = setOf(MdcKeys.ROUTE), failRemove = setOf(MdcKeys.REQUEST_ID)))
 

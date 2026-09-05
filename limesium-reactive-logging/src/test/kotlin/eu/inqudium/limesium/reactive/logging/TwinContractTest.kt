@@ -57,6 +57,11 @@ class TwinContractTest {
 
     @Test
     fun `should pin the MDC keys to the literal twin contract`() {
+        // What is tested: the MdcKeys and TraceMdcKeys literals of the reactive stack - including
+        //   its parentSpanId key.
+        // Success criteria: the three endpoint_* keys, traceId and parentSpanId spelled exactly so.
+        // Why it matters: structured encoders emit MDC entries as fields by name; a drift would
+        //   break the join between the two twins' lines and the trace.
         // Given/When/Then: the literal MDC keys, pinned
         assertThat(MdcKeys.REQUEST_ID).isEqualTo("endpoint_request_id")
         assertThat(MdcKeys.REQUEST_METHOD).isEqualTo("endpoint_method")
@@ -69,6 +74,11 @@ class TwinContractTest {
 
     @Test
     fun `should pin the masking fingerprint format to the literal twin contract`() {
+        // What is tested: HeaderValueMasker.DEFAULT over a fixed value - the `length:hex` shape
+        //   with the first 64 bits of SHA-256.
+        // Success criteria: `secret-token` renders as the literal `12:930bbdc51b6aed5c`.
+        // Why it matters: a masked token must correlate across both twins and the outbound sibling
+        //   Legatium, which pins the same literal.
         // The expected value is hardcoded, not derived: the first 64 bits of SHA-256 over the UTF-8
         //   bytes are stable across JVMs - and a format change in one twin breaks that module's literal here, forcing coordinated change.
         // Given/When/Then: one fixed input against its literal fingerprint
@@ -77,6 +87,11 @@ class TwinContractTest {
 
     @Test
     fun `should pin the shared outcome vocabulary plus this stack's own disposition`() {
+        // What is tested: the outcome literals of the reactive stack - the shared success and
+        //   failure plus cancelled.
+        // Success criteria: the three literals match the values dashboards filter on.
+        // Why it matters: endpoint_outcome and the events counter's tag are the closed vocabulary
+        //   every alert keys on; a renamed value would silently zero an alert.
         // Given/When/Then: the literal outcome vocabulary, pinned
         assertThat(EndpointLoggingMetrics.OUTCOME_SUCCESS).isEqualTo("success")
         assertThat(EndpointLoggingMetrics.OUTCOME_FAILURE).isEqualTo("failure")

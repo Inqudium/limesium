@@ -82,6 +82,11 @@ class RequestLoggingFilterBodyAndHeaderTest {
     inner class `Request body capture` {
         @Test
         fun `should log the request body the application actually read`() {
+            // What is tested: the request-body tee on a chain that consumes the body through the
+            //   input stream.
+            // Success criteria: endpoint_request_body is exactly what was read.
+            // Why it matters: the tee mirrors consumption; a wrapper the chain could bypass would
+            //   log an empty body without another symptom.
             // Given: a request body and a chain that consumes it via the input stream
             val request = MockHttpServletRequest("POST", "/api/things")
             request.setContent("hello".toByteArray(StandardCharsets.UTF_8))
@@ -96,6 +101,10 @@ class RequestLoggingFilterBodyAndHeaderTest {
 
         @Test
         fun `should log the request body when the application reads via the reader`() {
+            // What is tested: the character API - a chain that consumes the body through getReader.
+            // Success criteria: the logged body is what the reader delivered.
+            // Why it matters: the wrapper must route the reader over its own tee stream, or the
+            //   capture would be silently bypassed by every text-reading handler.
             // Given: a chain that consumes the body through the CHARACTER API - the wrapper must route the
             //   reader over its own tee stream, or the capture would be silently bypassed
             val request = MockHttpServletRequest("POST", "/api/things")
@@ -218,6 +227,11 @@ class RequestLoggingFilterBodyAndHeaderTest {
 
         @Test
         fun `should truncate the logged request body at the configured limit and say so`() {
+            // What is tested: a 16-byte body against an 8-byte cap.
+            // Success criteria: the captured prefix plus the explicit truncation note with the
+            //   total.
+            // Why it matters: the cap bounds memory, not the exchange; the note is what tells an
+            //   operator the body was longer than what they see.
             // Given: a 16-byte body against an 8-byte capture limit
             val request = MockHttpServletRequest("POST", "/api/things")
             request.setContent("0123456789ABCDEF".toByteArray(StandardCharsets.UTF_8))
@@ -235,6 +249,10 @@ class RequestLoggingFilterBodyAndHeaderTest {
     inner class `Response body capture` {
         @Test
         fun `should log the response body written through the output stream and leave the client response intact`() {
+            // What is tested: the response tee on a chain writing through the stream API.
+            // Success criteria: the body is logged AND fully delivered to the client.
+            // Why it matters: a tee, not a cache: a wrapper that buffered or altered the bytes
+            //   would change the response it observes.
             // Given: a chain that writes bytes through the stream API
             val response = MockHttpServletResponse()
             val chain = FilterChain { _, res -> (res as HttpServletResponse).outputStream.write("bytes!".toByteArray()) }
@@ -249,6 +267,10 @@ class RequestLoggingFilterBodyAndHeaderTest {
 
         @Test
         fun `should log the response body written through the writer and leave the client response intact`() {
+            // What is tested: the response tee on a chain writing through the character API.
+            // Success criteria: the body is logged AND fully delivered to the client.
+            // Why it matters: the writer must sit on the same tee stream as the output stream, or
+            //   text-writing handlers would produce unlogged bodies.
             // Given: a chain that writes through the CHARACTER API
             val response = MockHttpServletResponse()
             response.characterEncoding = "UTF-8"
@@ -636,6 +658,12 @@ class RequestLoggingFilterBodyAndHeaderTest {
 
         @Test
         fun `should include every header via the wildcard except the excluded ones`() {
+            // What is tested: the wildcard include with one exclusion and masking switched off
+            //   explicitly.
+            // Success criteria: Accept and User-Agent are logged verbatim, the Cookie is absent by
+            //   name and value, matched case-insensitively.
+            // Why it matters: the wildcard is the debugging configuration; an exclusion that failed
+            //   case-insensitively would leak the one header it was meant to keep out.
             // Given: a wildcard include with one exclusion
             val wildcardFilter =
                 RequestLoggingFilter(
@@ -673,6 +701,12 @@ class RequestLoggingFilterBodyAndHeaderTest {
     inner class `Header capture` {
         @Test
         fun `should log the configured request and response headers`() {
+            // What is tested: explicit header selection per direction on a request with an
+            //   unselected Authorization header.
+            // Success criteria: exactly the selected headers appear, one field per direction;
+            //   Authorization appears nowhere.
+            // Why it matters: selection is allowlisting; an unselected secret reaching the line
+            //   would be a leak the operator never configured.
             // Given: a request carrying a selected header and a chain setting a selected response header
             val request = MockHttpServletRequest("GET", "/api/things")
             request.addHeader("Accept", "application/json")
@@ -711,6 +745,10 @@ class RequestLoggingFilterBodyAndHeaderTest {
 
         @Test
         fun `should omit a configured header that the exchange does not carry`() {
+            // What is tested: a selected header the request and response do not carry.
+            // Success criteria: both header fields are absent, not logged as null or empty.
+            // Why it matters: an absent field keeps the index sparse and honest; an empty string
+            //   would look like a header with no value.
             // Given: a request without the selected Accept header
             val request = MockHttpServletRequest("GET", "/api/things")
 
@@ -771,6 +809,11 @@ class RequestLoggingFilterBodyAndHeaderTest {
 
         @Test
         fun `should log both bodies of a 5xx response in on-failure mode`() {
+            // What is tested: on-failure body logging for a failure outcome WITHOUT an exception -
+            //   a 502 the handler answered.
+            // Success criteria: outcome failure, request and response body on the line.
+            // Why it matters: a 5xx is a failure to the operator whether or not an exception was
+            //   involved; the body gate must follow the outcome, not the exception.
             // Given/When: a failure outcome without an exception
             run(gated, posted("sent"), MockHttpServletResponse(), answering(502))
 
@@ -783,6 +826,12 @@ class RequestLoggingFilterBodyAndHeaderTest {
 
         @Test
         fun `should log the teed request body of an exchange whose handler threw in on-failure mode`() {
+            // What is tested: on-failure body logging when the handler read the body and then
+            //   threw.
+            // Success criteria: the exception propagates; the event carries outcome failure and the
+            //   request body, and no response body.
+            // Why it matters: the request body flowed before the outcome was known; on-failure must
+            //   keep it for exactly this line and drop it for a clean one.
             // Given: a handler that reads the body and then fails
             val failing =
                 FilterChain { req, _ ->
@@ -820,6 +869,10 @@ class RequestLoggingFilterBodyAndHeaderTest {
 
         @Test
         fun `should still measure the size of a body it withholds`() {
+            // What is tested: on-failure plus request-body measuring on a successful exchange.
+            // Success criteria: the size sample is recorded, the body field is absent.
+            // Why it matters: the meter and the field are independent opt-ins; a body the mode
+            //   withholds from the log is still bytes that flowed.
             // Given: on-failure plus measuring, on an own registry
             val registry = SimpleMeterRegistry()
             val measuring = RequestLoggingFilter(onFailure.copy(measureRequestBodySize = true), { ticker.get() }, { "generated-42" }, registry)

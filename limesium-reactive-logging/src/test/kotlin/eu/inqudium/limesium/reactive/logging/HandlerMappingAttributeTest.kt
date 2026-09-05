@@ -13,6 +13,11 @@ import org.springframework.web.reactive.HandlerMapping
 class HandlerMappingAttributeTest {
     @Test
     fun `should mirror the best-matching-pattern attribute name WebFlux actually uses`() {
+        // What is tested: the mirrored attribute-name literal against WebFlux's own HandlerMapping
+        //   constant.
+        // Success criteria: the two strings are equal.
+        // Why it matters: the filter reads the pattern by attribute name; a WebFlux rename would
+        //   silently drop endpoint_url_template from every event without this pin.
         // Given/When/Then: the mirrored literal against the real WebFlux constant
         assertThat(RequestLoggingWebFilter.BEST_MATCHING_PATTERN_ATTRIBUTE).isEqualTo(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE)
     }

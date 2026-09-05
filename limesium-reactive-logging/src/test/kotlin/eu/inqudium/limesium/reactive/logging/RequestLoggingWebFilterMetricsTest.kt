@@ -664,6 +664,12 @@ class RequestLoggingWebFilterMetricsTest {
     inner class `Body size distributions` {
         @Test
         fun `should record body sizes under the handler pattern independent of the level gate`() {
+            // What is tested: the response-size sample with the exchange logger gated to ERROR and
+            //   a handler pattern recorded.
+            // Success criteria: the summary under the template tag holds the 4 bytes although no
+            //   event was emitted.
+            // Why it matters: a metric must not appear and disappear with the logger level; the
+            //   size is recorded before the gate.
             // Given: measuring on, logging gated to ERROR, a chain that writes and carries a pattern
             val measuring =
                 RequestLoggingWebFilter(
@@ -729,6 +735,11 @@ class RequestLoggingWebFilterMetricsTest {
 
         @Test
         fun `should count a fully consumed body as complete under the handler pattern`() {
+            // What is tested: the read-state counter for a chain that drains a two-buffer request
+            //   body.
+            // Success criteria: one complete under the template, zero partial.
+            // Why it matters: the counter's `complete` share is what tells consumed bodies from
+            //   ignored ones per route.
             // Given: a chain that drains the body and records a pattern
             val chain =
                 WebFilterChain { ex ->
@@ -793,6 +804,11 @@ class RequestLoggingWebFilterMetricsTest {
 
         @Test
         fun `should record nothing when request body measuring is off`() {
+            // What is tested: the default filter without request measuring on a chain that reads
+            //   the body.
+            // Success criteria: no read-state counter exists in the registry.
+            // Why it matters: the measuring flag is the opt-in; a counter appearing without it
+            //   would surprise a host that budgets its meter cardinality.
             // Given: the default filter (no measuring), a chain that reads
             val chain = WebFilterChain { ex -> ex.request.body.then() }
 

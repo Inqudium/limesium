@@ -26,6 +26,14 @@ class BoundedBodyCaptureFuzzTest {
 
     @FuzzTest(maxDuration = "10m")
     void capture_upholds_its_contract(FuzzedDataProvider data) {
+        // What is tested: BoundedBodyCapture under a fuzzed sequence of single-byte and ranged
+        //   captures, start and completion marks and clears, against a fuzzed cap.
+        // Success criteria: totalBytes equals the bytes fed since the last clear; the logged value
+        //   is null exactly for zero bytes; a body beyond the cap carries the truncation note - for
+        //   any charset and any input Jazzer generates.
+        // Why it matters: the capture bounds memory on every request; a counting drift or a missing
+        //   note would misreport payload sizes and truncation to the operator without another
+        //   symptom.
         int maxBytes = data.consumeInt(0, 1 << 16);
         BoundedBodyCapture capture = new BoundedBodyCapture(maxBytes);
         long expectedTotal = 0;

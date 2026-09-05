@@ -236,6 +236,13 @@ class CoRequestLoggingWebFilterTest {
 
     @Test
     fun `should defer the error emission until the response commits with the rendered status`() {
+        // What is tested: the coroutine variant's error path - the chain throws, the response is
+        //   still uncommitted, then upstream error handling renders and commits.
+        // Success criteria: the exception propagates (or its stacktrace-recovered copy with the
+        //   original as cause), no event before the commit, one ERROR event with status 500 and
+        //   outcome failure after it.
+        // Why it matters: emitting at the throw would log a status the error handler has not
+        //   rendered yet; the commit callback is the one point where it is final.
         // Given: a failing chain (the suspend variant surfaces it as a thrown exception)
         val boom = IllegalStateException("boom")
         val exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/api/things"))
@@ -306,6 +313,11 @@ class CoRequestLoggingWebFilterTest {
 
     @Test
     fun `should log outcome cancelled when the client disconnects`() {
+        // What is tested: the coroutine variant's cancel path - a never-completing chain whose
+        //   subscription is disposed.
+        // Success criteria: one WARN event with outcome cancelled and no status field.
+        // Why it matters: a disconnect is the reactive disposition a servlet request cannot have;
+        //   inventing a status for it would misreport an abandoned exchange as answered.
         // Given: a chain that never completes
         val exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/api/things"))
         val subscription = filter.filter(exchange, WebFilterChain { Mono.never() }).subscribe()

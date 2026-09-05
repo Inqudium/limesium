@@ -144,6 +144,12 @@ class CoRequestLoggingWebFilterCoroutineIntegrationTest {
 
     @Test
     fun `should log a real round trip with both bodies through a suspend handler`() {
+        // What is tested: the coroutine variant on real Netty - a POST whose suspend handler reads
+        //   and echoes the body, the correlation echo, both tees.
+        // Success criteria: the client sees the echo and its correlation id; one INFO event carries
+        //   both bodies, the template and the id in the MDC, without an endpoint_async field.
+        // Why it matters: the coroutine variant shares the ExchangeLifecycle with the Reactor
+        //   variant; only a real dispatch through kotlinx's bridge proves the line is identical.
         // Given/When: the real Netty application; a real POST whose suspend handler reads the body and echoes it
         val request =
             HttpRequest
@@ -249,6 +255,12 @@ class CoRequestLoggingWebFilterCoroutineIntegrationTest {
 
     @Test
     fun `should record the handler pattern of a real suspend dispatch`() {
+        // What is tested: the BEST_MATCHING_PATTERN attribute WebFlux sets for a suspend handler,
+        //   read at emission.
+        // Success criteria: endpoint_url_path carries the expanded path, endpoint_url_template the
+        //   pattern with its placeholder.
+        // Why it matters: the template is the aggregation half of the path pair; a coroutine
+        //   dispatch that left the attribute unset would collapse every route into one bucket.
         // Given/When: the real Netty application; a GET against a templated suspend route
         val response = get("/co/things/42")
 

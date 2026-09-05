@@ -287,6 +287,12 @@ class RequestLoggingFilterAsyncTest {
 
         @Test
         fun `should escalate to ERROR with the cause when async processing ends in onError`() {
+            // What is tested: an exchange in async mode whose async phase fails through the
+            //   container's AsyncListener before destruction.
+            // Success criteria: one ERROR event with outcome failure and the async failure as its
+            //   cause.
+            // Why it matters: an async failure never passes the filter's own catch block; the
+            //   listener is the only place it can be observed.
             // Given: an exchange in async mode
             val request = asyncRequest()
             val response = MockHttpServletResponse()
@@ -440,6 +446,12 @@ class RequestLoggingFilterAsyncTest {
 
         @Test
         fun `should pass an async dispatch through untouched when no exchange is attached`() {
+            // What is tested: an ASYNC dispatch of a request the filter never wired - excluded or
+            //   failed open.
+            // Success criteria: the chain runs, nothing is logged, and destruction finds nothing to
+            //   emit.
+            // Why it matters: the per-dispatch path must not wire a second exchange for a request
+            //   the initial dispatch deliberately skipped.
             // Given: an ASYNC dispatch of a request the filter never wired (excluded or failed open)
             val request = asyncRequest().apply { dispatcherType = DispatcherType.ASYNC }
             var chainRan = false

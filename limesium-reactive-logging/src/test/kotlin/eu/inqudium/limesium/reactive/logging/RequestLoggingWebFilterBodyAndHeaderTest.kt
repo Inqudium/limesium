@@ -84,6 +84,11 @@ class RequestLoggingWebFilterBodyAndHeaderTest {
 
         @Test
         fun `should log the request body the application actually consumed`() {
+            // What is tested: the request-body tee on a chain that subscribes to the decorated
+            //   body.
+            // Success criteria: endpoint_request_body carries the bytes that flowed.
+            // Why it matters: the tee mirrors consumption; a decorator the chain could bypass would
+            //   log an empty body without another symptom.
             // Given: a chain that subscribes to the (decorated) body
             val chain =
                 WebFilterChain { ex ->
@@ -199,6 +204,11 @@ class RequestLoggingWebFilterBodyAndHeaderTest {
 
         @Test
         fun `should truncate the logged request body at the capture limit and say so`() {
+            // What is tested: a 16-byte body against an 8-byte cap.
+            // Success criteria: the captured prefix plus the explicit truncation note with the
+            //   total.
+            // Why it matters: the cap bounds memory, not the exchange; the note is what tells an
+            //   operator the body was longer than what they see.
             // Given: a 16-byte body against the 8-byte cap
             val chain = WebFilterChain { ex -> ex.request.body.then(Mono.empty()) }
 
@@ -214,6 +224,11 @@ class RequestLoggingWebFilterBodyAndHeaderTest {
     inner class `Response body tee` {
         @Test
         fun `should log the response body and deliver identical content downstream`() {
+            // What is tested: the response-body tee on a chain writing through the decorated
+            //   response.
+            // Success criteria: the body is logged AND arrives at the client unchanged.
+            // Why it matters: a tee, not a cache: a decorator that consumed or altered the buffers
+            //   would break the response it observes.
             // Given: a chain writing through the decorated response
             val exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/api/things"))
             val chain =
@@ -260,6 +275,13 @@ class RequestLoggingWebFilterBodyAndHeaderTest {
 
         @Test
         fun `should hand a Flux body to the delegate as a Flux`() {
+            // What is tested: the publisher specialization of the response decorator - a two-buffer
+            //   Flux written through it.
+            // Success criteria: the delegate receives a Flux (not a Mono) and the capture holds
+            //   both buffers' bytes.
+            // Why it matters: servers take a different write path for a single-buffer Mono; a
+            //   decorator that changed the publisher type would change the server's behaviour, not
+            //   only the log.
             // Given
             val capture = BoundedBodyCapture(32)
             val delegate = RecordingResponse()
@@ -305,6 +327,12 @@ class RequestLoggingWebFilterBodyAndHeaderTest {
     inner class `Header selection and masking` {
         @Test
         fun `should log selected headers multi-value and mask the configured ones stably`() {
+            // What is tested: header selection and masking on the reactive request - a repeated
+            //   Accept header and a secret header masked by lower-case name.
+            // Success criteria: multi-value joined with a comma, the secret fingerprinted and never
+            //   verbatim, matching case-insensitive.
+            // Why it matters: a single-value getFirst would truncate repeated headers, and a case-
+            //   sensitive mask list would leak a secret under a differently cased name.
             // Given: a repeated Accept header and a secret header, selection and masking as configured
             val maskingFilter =
                 RequestLoggingWebFilter(
@@ -417,6 +445,11 @@ class RequestLoggingWebFilterBodyAndHeaderTest {
 
         @Test
         fun `should log the selected response header set by the chain`() {
+            // What is tested: the response-header selection read at emission from a header the
+            //   chain set.
+            // Success criteria: endpoint_response_headers carries the Content-Type.
+            // Why it matters: response headers exist only after the chain ran; reading them earlier
+            //   would log nothing.
             // Given: a chain that sets the selected response header
             val exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/api/things"))
             val chain =
@@ -465,6 +498,11 @@ class RequestLoggingWebFilterBodyAndHeaderTest {
 
         @Test
         fun `should log both bodies of a 5xx response in on-failure mode`() {
+            // What is tested: on-failure body logging for a failure outcome WITHOUT an error signal
+            //   - a 502 the handler answered.
+            // Success criteria: outcome failure, request and response body on the line.
+            // Why it matters: a 5xx is a failure to the operator whether or not an exception was
+            //   involved; the body gate must follow the outcome, not the signal.
             // Given/When: a failure outcome without an error signal
             gated.filter(posted("sent"), answering(HttpStatus.BAD_GATEWAY)).block()
 
@@ -477,6 +515,12 @@ class RequestLoggingWebFilterBodyAndHeaderTest {
 
         @Test
         fun `should log the teed request body of an exchange whose handler errored in on-failure mode`() {
+            // What is tested: on-failure body logging when the handler consumed the body and then
+            //   errored, with the emission deferred to the commit.
+            // Success criteria: the exception propagates; the event carries outcome failure and the
+            //   request body, and no response body.
+            // Why it matters: the request body flowed before the outcome was known; on-failure must
+            //   keep it for exactly this line and drop it for a clean one.
             // Given: a handler that consumes the body and then errors
             val failing = WebFilterChain { ex -> ex.request.body.then(Mono.error<Void>(IllegalStateException("handler broke"))) }
             val exchange = posted("sent")
@@ -514,6 +558,10 @@ class RequestLoggingWebFilterBodyAndHeaderTest {
 
         @Test
         fun `should still measure the size of a body it withholds`() {
+            // What is tested: on-failure plus request-body measuring on a successful exchange.
+            // Success criteria: the size sample is recorded, the body field is absent.
+            // Why it matters: the meter and the field are independent opt-ins; a body the mode
+            //   withholds from the log is still bytes that flowed.
             // Given: on-failure plus measuring, on an own registry
             val registry = SimpleMeterRegistry()
             val measuring = RequestLoggingWebFilter(onFailure.copy(measureRequestBodySize = true), { ticker.get() }, { "generated-42" }, registry)

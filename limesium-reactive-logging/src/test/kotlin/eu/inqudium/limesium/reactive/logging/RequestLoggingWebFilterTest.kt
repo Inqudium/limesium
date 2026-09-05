@@ -117,6 +117,12 @@ class RequestLoggingWebFilterTest {
 
         @Test
         fun `should log query and handler pattern as their own fields`() {
+            // What is tested: the path pair on the reactive stack - expanded path, query string and
+            //   the WebFlux handler pattern each in its own field.
+            // Success criteria: endpoint_url_path, endpoint_url_query and endpoint_url_template
+            //   carry their values separately.
+            // Why it matters: grouping by path must not be defeated by varying queries, and the
+            //   template is the low-cardinality half; the servlet twin logs the same three fields.
             // Given: a query string and a recorded WebFlux handler pattern
             val exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/api/things/7?page=2"))
             val chain =
@@ -174,6 +180,11 @@ class RequestLoggingWebFilterTest {
 
         @Test
         fun `should echo the correlation id and adopt one from the request header on a traceless exchange`() {
+            // What is tested: a traceless request already carrying a correlation id.
+            // Success criteria: the id is echoed on the response, rides the event's MDC and appears
+            //   inline in the message.
+            // Why it matters: ADR-0002 on the inbound side: a traceless caller's private
+            //   correlation is honoured, not replaced.
             // Given: a traceless request already carrying a correlation id
             val exchange =
                 MockServerWebExchange.from(
@@ -249,6 +260,11 @@ class RequestLoggingWebFilterTest {
 
         @Test
         fun `should carry the traceparent-derived trace context into the event`() {
+            // What is tested: an incoming W3C traceparent header - the trace id and the caller's
+            //   span id at emission.
+            // Success criteria: traceId and parentSpanId in the MDC and the message; no spanId key.
+            // Why it matters: the header's parent-id is the CALLER's span; publishing it as the
+            //   local spanId would misattribute the server span this module cannot know.
             // Given: an incoming W3C traceparent header
             val exchange =
                 MockServerWebExchange.from(
@@ -276,6 +292,11 @@ class RequestLoggingWebFilterTest {
     inner class `Levels and outcomes` {
         @Test
         fun `should escalate to WARN with outcome failure for a handled 5xx`() {
+            // What is tested: the classification of a chain that answers 503 without an error
+            //   signal.
+            // Success criteria: WARN with outcome failure.
+            // Why it matters: severity and semantic are decoupled: the handler answered, so WARN
+            //   rather than ERROR, while the outcome tag still counts the failure.
             // Given: a chain that answers 503 itself
             val exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/api/things"))
             val chain =
@@ -293,6 +314,10 @@ class RequestLoggingWebFilterTest {
 
         @Test
         fun `should escalate to WARN and flag a slow but successful exchange`() {
+            // What is tested: the slow threshold reached by a successful exchange.
+            // Success criteria: WARN, endpoint_slow true, outcome still success.
+            // Why it matters: slowness raises severity; it must never turn a completed exchange
+            //   into a failure on the outcome dashboards.
             // Given: a chain that consumes the configured threshold
             val exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/api/slow"))
             val chain =
@@ -461,6 +486,10 @@ class RequestLoggingWebFilterTest {
     inner class `Exclusions and start line` {
         @Test
         fun `should not log an excluded path at all`() {
+            // What is tested: the exclude prefix on the reactive filter for a request below it.
+            // Success criteria: the chain runs, nothing is logged.
+            // Why it matters: health probes and the like must produce no line at all, not a
+            //   suppressed one that still costs wiring.
             // Given: a filter with an exclusion and a request below it
             val excluding =
                 RequestLoggingWebFilter(
@@ -543,6 +572,13 @@ class RequestLoggingWebFilterTest {
 
         @Test
         fun `should be active only for endpoints matching an include pattern`() {
+            // What is tested: the include pattern on the reactive filter - one matching and one
+            //   non-matching exchange.
+            // Success criteria: only the matching exchange is logged and carries the correlation
+            //   echo; the other has no echo header.
+            // Why it matters: activation is identical on both stacks by construction; an include
+            //   that leaked the echo onto non-matching responses would touch traffic it is not
+            //   supposed to see.
             // Given: a filter restricted to /api/** - identical semantics to the servlet twin
             val including =
                 RequestLoggingWebFilter(
@@ -567,6 +603,10 @@ class RequestLoggingWebFilterTest {
 
         @Test
         fun `should let an exclude win inside an included pattern`() {
+            // What is tested: an exclude prefix nested inside an include pattern.
+            // Success criteria: the excluded-inside-included exchange produces no event.
+            // Why it matters: an exclude always wins - the rule the header sections follow too; a
+            //   different precedence here would surprise an operator configuring both.
             // Given: /api/** included, /api/internal excluded
             val filterUnderTest =
                 RequestLoggingWebFilter(
@@ -585,6 +625,11 @@ class RequestLoggingWebFilterTest {
 
         @Test
         fun `should reject an invalid include pattern at construction time`() {
+            // What is tested: a syntactically broken PathPattern in the include list.
+            // Success criteria: the constructor throws the parser's PatternParseException whose
+            //   detail names the malformed pattern.
+            // Why it matters: a configuration error must fail the context start with a diagnostic,
+            //   not fail per request or match nothing silently.
             // Given/When: a broken pattern at construction
             val thrown =
                 catchThrowable {
@@ -604,6 +649,12 @@ class RequestLoggingWebFilterTest {
 
         @Test
         fun `should announce the exchange before the chain when enabled`() {
+            // What is tested: the optional arrival line - its timing relative to the chain and its
+            //   content.
+            // Success criteria: the start line is visible while the chain runs, carries the
+            //   identity in the MDC and no outcome; the completion line carries the outcome.
+            // Why it matters: long-running exchanges are visible in flight only with the start
+            //   line, and outcome-keyed dashboards must stay blind to it.
             // Given: start-line logging and a chain that observes the log stream mid-flight
             val startLogging =
                 RequestLoggingWebFilter(

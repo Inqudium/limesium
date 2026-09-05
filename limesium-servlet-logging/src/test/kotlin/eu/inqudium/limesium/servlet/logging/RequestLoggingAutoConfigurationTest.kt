@@ -44,6 +44,11 @@ class RequestLoggingAutoConfigurationTest {
 
     @Test
     fun `should register the filter its completion listener and the defaults in a servlet web application`() {
+        // What is tested: the auto-configuration alone in a servlet web context.
+        // Success criteria: one filter, one filter registration wrapping it, one listener
+        //   registration carrying the emission, and the three injectable defaults.
+        // Why it matters: the emission lives in the completion listener, not the filter; a missing
+        //   listener registration would wire a filter that never logs.
         // Given/When: the module's auto-configuration alone, in a servlet web context
         contextRunner.run { context ->
             // Then: the filter bean, its registration, the completion listener carrying the emission, and
@@ -76,6 +81,10 @@ class RequestLoggingAutoConfigurationTest {
 
     @Test
     fun `should back off entirely when disabled by property`() {
+        // What is tested: endpoint-logging.enabled=false on the servlet stack.
+        // Success criteria: no registrations, no filter, no defaults, no properties bean.
+        // Why it matters: the master switch must remove the servlet registrations too, or a
+        //   disabled module would still sit in the container's filter chain.
         // Given/When: the context with endpoint-logging.enabled=false
         contextRunner.withPropertyValues("endpoint-logging.enabled=false").run { context ->
             // Then: nothing of this module is in the context
@@ -90,6 +99,12 @@ class RequestLoggingAutoConfigurationTest {
 
     @Test
     fun `should bind the properties namespace`() {
+        // What is tested: eight endpoint-logging.* keys bound into the properties class, including
+        //   the nested header section and a duration.
+        // Success criteria: every configured value comes back typed - the enum, the list, the
+        //   duration in milliseconds.
+        // Why it matters: the namespace is the operator's contract; a key that silently failed to
+        //   bind would leave a default in force the operator believes changed.
         // Given/When: endpoint-logging.* keys bound into the properties class
         contextRunner
             .withPropertyValues(
@@ -117,6 +132,10 @@ class RequestLoggingAutoConfigurationTest {
 
     @Test
     fun `should register the fail-open counters in a host-provided meter registry`() {
+        // What is tested: the filter bean created against a host MeterRegistry.
+        // Success criteria: all three fail-open stages are pre-registered there.
+        // Why it matters: a rate() alert must see the zero before the first occurrence, and in the
+        //   HOST registry, where it is exported.
         contextRunner.withUserConfiguration(MeterRegistryHostConfig::class.java).run { context ->
             // Given/When: a host MeterRegistry; the filter bean created against it
             context.getBean(RequestLoggingFilter::class.java)
@@ -129,6 +148,10 @@ class RequestLoggingAutoConfigurationTest {
 
     @Test
     fun `should let a host-defined time source win over the default`() {
+        // What is tested: a host-defined NanoTimeSource bean beside the auto-configuration.
+        // Success criteria: the host bean is the only one; the default backed off.
+        // Why it matters: the time source is an injectable seam for tests and hosts; two beans
+        //   would make the injection ambiguous at start.
         // Given/When: a host-defined NanoTimeSource bean beside the auto-configuration
         contextRunner.withUserConfiguration(PinnedTimeSourceHostConfig::class.java).run { context ->
             // Then: the host bean is the only one, the auto-configured default backed off
@@ -139,6 +162,11 @@ class RequestLoggingAutoConfigurationTest {
 
     @Test
     fun `should wire a host-defined filter into the registration instead of creating a second one`() {
+        // What is tested: a host-defined RequestLoggingFilter bean beside the auto-configuration.
+        // Success criteria: one filter - the host's - wrapped by the registration, with the
+        //   completion listener still present.
+        // Why it matters: overriding the filter must change the filter and keep the wiring; a
+        //   second filter would log every exchange twice.
         // Given/When: a host-defined RequestLoggingFilter bean beside the auto-configuration
         contextRunner.withUserConfiguration(OwnFilterHostConfig::class.java).run { context ->
             // Then: the auto-configured filter backs off, and registration plus completion listener wrap

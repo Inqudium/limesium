@@ -245,6 +245,11 @@ class RequestLoggingFilterUndertowIntegrationTest {
 
     @Test
     fun `should log a DeferredResult error result at ERROR under Undertow's destruction model`() {
+        // What is tested: a DeferredResult completed with an error result on real Undertow.
+        // Success criteria: the client sees 500; one ERROR event with outcome failure,
+        //   endpoint_async true and the deferred failure in the cause chain.
+        // Why it matters: Undertow is unsupported territory with its own destruction timing; the
+        //   suite pins that the classification still holds there.
         // Given/When: the real Undertow application; a DeferredResult completed with an error result
         val response = get("/it/deferred-boom")
 

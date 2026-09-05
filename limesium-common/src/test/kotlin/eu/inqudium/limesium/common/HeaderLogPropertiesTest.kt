@@ -57,6 +57,11 @@ class HeaderLogPropertiesTest {
 
     @Test
     fun `should switch masking off only through an explicitly emptied masked list`() {
+        // What is tested: select() with `masked = emptyList()` - the one configuration that logs
+        //   values in plaintext.
+        // Success criteria: the included Authorization value appears verbatim.
+        // Why it matters: plaintext must be an explicit, visible decision (ADR-0005), never the
+        //   accidental result of another list.
         // Given: masking emptied on purpose
         val plain = HeaderLogProperties(includes = listOf("Authorization"), masked = emptyList())
 
@@ -83,6 +88,12 @@ class HeaderLogPropertiesTest {
 
     @Test
     fun `should keep supporting the wildcard in includes and masked`() {
+        // What is tested: the two documented wildcard positions - `includes = [*]` and `masked =
+        //   [*]` - at construction and in select().
+        // Success criteria: constructed without rejection; the included header is logged with its
+        //   value masked.
+        // Why it matters: the wildcard is rejected in excludes and unmasked; the two places it IS
+        //   allowed must keep working or the default configuration breaks.
         // Given/When: the two documented wildcard positions
         val section = HeaderLogProperties(includes = listOf("*"), masked = listOf("*"))
 

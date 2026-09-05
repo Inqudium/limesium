@@ -147,6 +147,11 @@ class EndpointLogFieldTest {
 
         @Test
         fun `should map the numeric and boolean shapes the code guarantees`() {
+            // What is tested: the component template's types for the non-keyword fields - duration,
+            //   status, slow, async.
+            // Success criteria: long, short, boolean, boolean respectively.
+            // Why it matters: the shape checked() enforces in code and the type the index expects
+            //   must describe the same value; a status mapped as long would invite summing a label.
             // Given / When / Then: the shape checked() enforces in code and the type the index expects
             //   must describe the same value - long duration, short status (three digits, a label never
             //   summed), boolean flags
@@ -158,6 +163,11 @@ class EndpointLogFieldTest {
 
         @Test
         fun `should be a component template, claiming no indices of its own`() {
+            // What is tested: the top-level keys of the shipped template.
+            // Success criteria: only `template` and `_meta` - no index_patterns.
+            // Why it matters: a component template composes into the host's index template; one
+            //   with its own patterns would compete on priority and claim data streams that are the
+            //   host pipeline's decision.
             // Given / When: the top-level keys
             val root: Map<String, Any> = JsonPath.read(template, "$")
 
@@ -171,6 +181,11 @@ class EndpointLogFieldTest {
     inner class `Type guarantee` {
         @Test
         fun `should pass a correctly typed value through unchanged`() {
+            // What is tested: format() for values of the shape each field declares.
+            // Success criteria: the identical value comes back for a String, a Long, an Int status
+            //   and a Boolean.
+            // Why it matters: format checks, it never converts; a conversion would let a mistyped
+            //   value slip through as a coerced one.
             // Given/When: values of the shape each field declares
             // Then: format returns the identical value - checked, never converted
             assertThat(EndpointLogField.OUTCOME.format("success")).isEqualTo("success")
@@ -181,6 +196,12 @@ class EndpointLogFieldTest {
 
         @Test
         fun `should reject a value of the wrong type naming the field`() {
+            // What is tested: format() for an Int where the field declares Long.
+            // Success criteria: IllegalArgumentException naming the field, the declared type and
+            //   the actual type.
+            // Why it matters: the emitter is the only writer; a shape violation must fail loudly
+            //   with a diagnostic that names the field, not surface as a mapping conflict in the
+            //   index weeks later.
             // Given/When: an Int where the mapping says long
             val thrown = catchThrowable { EndpointLogField.DURATION_MS.format(42) }
 

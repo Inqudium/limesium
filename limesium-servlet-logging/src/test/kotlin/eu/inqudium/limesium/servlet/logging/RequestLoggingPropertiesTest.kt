@@ -29,6 +29,11 @@ class RequestLoggingPropertiesTest {
 
         @Test
         fun `should reject zero and negative thresholds`() {
+            // What is tested: the slow-threshold guard at binding time.
+            // Success criteria: Duration.ZERO and a negative duration both throw
+            //   IllegalArgumentException.
+            // Why it matters: a zero threshold would flag every exchange as slow, a negative one
+            //   none; both are configuration errors better caught at start than read off a dashboard.
             // Given/When/Then: neither zero nor a negative duration is a threshold
             assertThat(catchThrowable { RequestLoggingProperties(slowRequestThreshold = Duration.ZERO) })
                 .isInstanceOf(IllegalArgumentException::class.java)
@@ -38,6 +43,10 @@ class RequestLoggingPropertiesTest {
 
         @Test
         fun `should accept exactly one millisecond as the smallest threshold`() {
+            // What is tested: the boundary of the threshold guard.
+            // Success criteria: one millisecond is accepted unchanged.
+            // Why it matters: the logged duration has millisecond resolution, so 1 ms is the
+            //   smallest threshold that can ever match a logged value.
             // Given/When: the boundary value
             val properties = RequestLoggingProperties(slowRequestThreshold = Duration.ofMillis(1))
 
@@ -94,6 +103,12 @@ class RequestLoggingPropertiesTest {
 
         @Test
         fun `should accept every token character of a field name`() {
+            // What is tested: the correlation-header validation against the full RFC 9110 tchar
+            //   set.
+            // Success criteria: a name using every token character is accepted unchanged.
+            // Why it matters: the validation must reject non-tokens without rejecting legal but
+            //   unusual names; an over-strict pattern would fail a host's existing header name at
+            //   start.
             // Given/When: the full RFC 9110 tchar set
             val properties = RequestLoggingProperties(correlationIdHeader = "X-Corr.Id_42!#$%&'*+^`|~")
 

@@ -13,6 +13,11 @@ import org.springframework.web.servlet.HandlerMapping
 class HandlerMappingAttributeTest {
     @Test
     fun `should mirror the best-matching-pattern attribute name Spring MVC actually uses`() {
+        // What is tested: the mirrored attribute-name literal against Spring MVC's own
+        //   HandlerMapping constant.
+        // Success criteria: the two strings are equal.
+        // Why it matters: the filter reads the pattern by attribute name; a Spring MVC rename would
+        //   silently drop endpoint_url_template from every event without this pin.
         // Given/When/Then: the mirrored literal against the real Spring MVC constant
         assertThat(RequestLoggingFilter.BEST_MATCHING_PATTERN_ATTRIBUTE).isEqualTo(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE)
     }

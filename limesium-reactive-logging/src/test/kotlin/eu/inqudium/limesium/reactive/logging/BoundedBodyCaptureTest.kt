@@ -49,6 +49,11 @@ class BoundedBodyCaptureTest {
 
         @Test
         fun `should freeze idempotently and keep a zero-byte capture absent`() {
+            // What is tested: freeze() called twice on an untouched capture, then the logged value
+            //   and the byte count.
+            // Success criteria: no exception, the logged value is null and totalBytes is 0.
+            // Why it matters: the emitter freezes first and a late terminal callback may freeze
+            //   again; a zero-byte body must stay an absent field, not an empty string.
             // Given: an untouched capture, frozen twice
             val capture = BoundedBodyCapture(8)
             capture.freeze()
@@ -110,6 +115,12 @@ class BoundedBodyCaptureTest {
 
         @Test
         fun `should drop an incomplete trailing sequence of another variable-width charset`() {
+            // What is tested: decodeTruncated on a Shift_JIS body cut inside a two-byte character.
+            // Success criteria: the complete character survives, the cut one is dropped, the
+            //   truncation note counts all three bytes.
+            // Why it matters: the capture limit bounds bytes, not characters, for every charset; a
+            //   decoder that only handled UTF-8 would corrupt the logged prefix for Japanese
+            //   payloads.
             // Given: Shift_JIS "a\u3042" = 61 82 a0, capped at 2 bytes
             val shiftJis = Charset.forName("Shift_JIS")
             val capture = BoundedBodyCapture(2)
@@ -123,6 +134,11 @@ class BoundedBodyCaptureTest {
 
         @Test
         fun `should keep a complete multi-byte character that ends exactly at the cap`() {
+            // What is tested: the boundary case of the byte cap - a two-byte character whose last
+            //   byte is the last captured byte.
+            // Success criteria: the character is logged intact, followed by the truncation note.
+            // Why it matters: an off-by-one in the underflow handling would drop a character that
+            //   was fully captured.
             // Given: "\u00e9" (2 bytes) capped at 2, followed by more
             val capture = BoundedBodyCapture(2)
             val body = bytes("\u00e9x")
@@ -134,6 +150,12 @@ class BoundedBodyCaptureTest {
 
         @Test
         fun `should still replace malformed bytes inside the prefix`() {
+            // What is tested: a lone continuation byte in the middle of a truncated capture.
+            // Success criteria: the malformed byte renders as the replacement character, the rest
+            //   of the prefix is intact.
+            // Why it matters: endOfInput=false must only spare the TRAILING incomplete sequence;
+            //   malformed bytes inside the prefix are the peer's problem and must stay visible as
+            //   such.
             // Given: a lone continuation byte in the middle, under truncation
             val capture = BoundedBodyCapture(3)
             val body = byteArrayOf(0x61, 0xa9.toByte(), 0x62, 0x63)
@@ -148,6 +170,13 @@ class BoundedBodyCaptureTest {
     inner class `Read state` {
         @Test
         fun `should start unread and move to partial on start and to complete on completion, never backwards`() {
+            // What is tested: the read-state transitions of the capture - unread, partial on
+            //   markStarted, complete on markCompleted, and a later markStarted.
+            // Success criteria: UNREAD, then PARTIAL, then COMPLETE, and COMPLETE again after the
+            //   late start.
+            // Why it matters: the state is the `state` tag of the read counter; a regression from
+            //   complete to partial on a second subscription would count a fully read body as
+            //   abandoned.
             // Given: a fresh capture
             val capture = BoundedBodyCapture(8)
             assertThat(capture.readState).isEqualTo(BodyReadState.UNREAD)

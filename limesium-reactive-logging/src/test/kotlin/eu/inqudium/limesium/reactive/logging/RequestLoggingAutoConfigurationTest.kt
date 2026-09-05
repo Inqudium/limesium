@@ -79,6 +79,11 @@ class RequestLoggingAutoConfigurationTest {
 
     @Test
     fun `should register the web filter and the defaults in a reactive web application`() {
+        // What is tested: the auto-configuration alone in a reactive web context.
+        // Success criteria: exactly one RequestLoggingWebFilter and one each of the three
+        //   injectable defaults.
+        // Why it matters: the filter is picked up by WebFlux through its Ordered contract; a
+        //   missing or duplicated bean would log nothing or twice.
         // Given/When: the module's auto-configuration alone, in a reactive web context
         contextRunner.run { context ->
             // Then: the filter bean (picked up by WebFlux via its Ordered contract) and the defaults exist
@@ -105,6 +110,10 @@ class RequestLoggingAutoConfigurationTest {
 
     @Test
     fun `should back off entirely when disabled by the identical property`() {
+        // What is tested: endpoint-logging.enabled=false on the reactive stack.
+        // Success criteria: no filter, no defaults, no properties bean.
+        // Why it matters: the master switch is one key for both twins; a bean surviving the switch
+        //   would still register itself into the filter chain.
         // Given/When: the context with endpoint-logging.enabled=false
         contextRunner.withPropertyValues("endpoint-logging.enabled=false").run { context ->
             // Then: nothing of this module is in the context
@@ -117,6 +126,12 @@ class RequestLoggingAutoConfigurationTest {
 
     @Test
     fun `should bind the identical properties namespace`() {
+        // What is tested: four endpoint-logging.* keys bound into the reactive module's properties
+        //   class.
+        // Success criteria: logger name, wildcard include, masked list and the measuring flag carry
+        //   the configured values.
+        // Why it matters: the namespace is a cross-stack contract; a key that bound on the servlet
+        //   twin but not here would break the twin symmetry silently.
         // Given/When: the identical endpoint-logging.* keys bound into this module's properties class
         contextRunner
             .withPropertyValues(
@@ -136,6 +151,11 @@ class RequestLoggingAutoConfigurationTest {
 
     @Test
     fun `should register the MDC accessors when context-propagation is on the classpath`() {
+        // What is tested: the initializer bean and its writes into the JVM-global ContextRegistry.
+        // Success criteria: the bean exists and the registry carries one accessor per endpoint_*
+        //   MDC key.
+        // Why it matters: handler-side MDC for the Reactor variant rests on these accessors;
+        //   without them the identity would vanish on the first thread hop.
         // Given: the JVM-global registry, restored by the class-level guard so the accessors do not leak
         //   into other tests
         // When: context-propagation on the test classpath, the Reactor variant active
@@ -325,6 +345,12 @@ class RequestLoggingAutoConfigurationTest {
 
     @Test
     fun `should register the meters in a host-provided registry and let a host filter win`() {
+        // What is tested: a host MeterRegistry and a host filter bean beside the auto-
+        //   configuration.
+        // Success criteria: the host's filter is the only one, and the fail-open counters are pre-
+        //   registered in the host registry.
+        // Why it matters: overriding the filter must keep the wiring, and the meters must land
+        //   where the host exports them, not in a private registry.
         // Given/When: a host MeterRegistry and a host filter bean
         contextRunner.withUserConfiguration(HostConfig::class.java).run { context ->
             // Then: the host's filter bean is the only one, and the meters landed in the host registry

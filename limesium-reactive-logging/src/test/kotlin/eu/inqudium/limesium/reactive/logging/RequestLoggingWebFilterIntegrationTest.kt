@@ -131,6 +131,11 @@ class RequestLoggingWebFilterIntegrationTest {
 
     @Test
     fun `should capture both bodies of a real reactive round trip`() {
+        // What is tested: both tees on real Netty buffers - a POST whose handler reads and echoes
+        //   the body.
+        // Success criteria: the event carries the request body and the echoed response body.
+        // Why it matters: pooled Netty buffers differ from the mock DataBuffers; only the real
+        //   server proves the tee reads them without consuming them.
         // Given/When: the real Netty application; a real POST whose handler reads the body and echoes it
         val request =
             HttpRequest
@@ -183,6 +188,10 @@ class RequestLoggingWebFilterIntegrationTest {
 
     @Test
     fun `should join the event with the caller trace via the real traceparent header`() {
+        // What is tested: the traceparent parse on a real request carrying a W3C header.
+        // Success criteria: the event's MDC and message carry the header's trace id.
+        // Why it matters: the log-to-trace join rests on this id; a header lost or rewritten by the
+        //   real server would break it silently.
         // Given/When: the real Netty application; a real GET carrying a W3C traceparent
         val response = get("/it/things/3", "traceparent" to "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01")
 
@@ -214,6 +223,10 @@ class RequestLoggingWebFilterIntegrationTest {
 
     @Test
     fun `should not log an excluded path while still logging the next regular exchange`() {
+        // What is tested: the exclude prefix on the real server, followed by a regular request.
+        // Success criteria: both served with 200; exactly one event, for the regular path.
+        // Why it matters: an exclusion must not leave state behind that suppresses or duplicates
+        //   the next exchange on the same server.
         // Given/When: the real Netty application; an excluded request followed by a regular one
         val excluded = get("/it/excluded/ping")
         val regular = get("/it/things/2")

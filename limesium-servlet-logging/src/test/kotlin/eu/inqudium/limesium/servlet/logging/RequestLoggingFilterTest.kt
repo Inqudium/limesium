@@ -93,6 +93,12 @@ class RequestLoggingFilterTest {
     inner class `The exchange line` {
         @Test
         fun `should log method path status and duration of a completed exchange`() {
+            // What is tested: the completion event of a plain synchronous exchange - message, level
+            //   and the endpoint_* fields including the measured duration.
+            // Success criteria: one INFO event with the literal message, outcome success, method,
+            //   path, status 200, duration 42 ms, async false and no slow flag.
+            // Why it matters: this is the line every other test refines; the field family and the
+            //   message format are the contract dashboards and appenders key on.
             // Given: a GET request and a chain that answers 200 after 42 ms of measured work
             val request = MockHttpServletRequest("GET", "/api/things")
             val response = MockHttpServletResponse()
@@ -122,6 +128,11 @@ class RequestLoggingFilterTest {
 
         @Test
         fun `should log the query string as its own field beside the query-free path`() {
+            // What is tested: a request with a query string.
+            // Success criteria: endpoint_url_path carries the path without the query,
+            //   endpoint_url_query the query.
+            // Why it matters: grouping by path must not be defeated by varying query strings; the
+            //   query rides its own filter-only field.
             // Given: a request with a query string
             val request = MockHttpServletRequest("GET", "/api/things")
             request.queryString = "page=2"
@@ -138,6 +149,12 @@ class RequestLoggingFilterTest {
 
         @Test
         fun `should log the handler pattern as the url template field when the dispatch recorded one`() {
+            // What is tested: the BEST_MATCHING_PATTERN attribute Spring MVC records during the
+            //   chain, read at emission.
+            // Success criteria: the expanded path and the pattern with its placeholder in their two
+            //   fields.
+            // Why it matters: the template is the low-cardinality aggregation half of the path
+            //   pair; without it every id would be its own bucket.
             // Given: a request on which Spring MVC recorded its best-matching pattern during the chain
             val request = MockHttpServletRequest("GET", "/api/things/7")
             val chain =
@@ -156,6 +173,10 @@ class RequestLoggingFilterTest {
 
         @Test
         fun `should omit the query string when disabled`() {
+            // What is tested: includeQueryString=false on a request with a query string.
+            // Success criteria: the query appears neither in the message nor as a field.
+            // Why it matters: query strings may carry personal data; the switch must remove them
+            //   from every rendering, not only the field.
             // Given: a filter configured without query logging and a request with a query string
             val quietProperties = properties.copy(includeQueryString = false)
             val quietFilter = RequestLoggingFilter(quietProperties, { ticker.get() }, { "generated-42" }, SimpleMeterRegistry())
@@ -220,6 +241,10 @@ class RequestLoggingFilterTest {
 
         @Test
         fun `should not log a start line by default`() {
+            // What is tested: the default configuration's handling of one exchange.
+            // Success criteria: exactly one event, and it is not the start line.
+            // Why it matters: the arrival line is opt-in; a default that emitted two lines would
+            //   double every host's log volume on upgrade.
             // Given/When: a default-configured filter handling an exchange
             handle(MockHttpServletRequest("GET", "/api/things"), MockHttpServletResponse(), FilterChain { _, _ -> })
 
@@ -233,6 +258,10 @@ class RequestLoggingFilterTest {
     inner class `Level escalation` {
         @Test
         fun `should escalate to WARN for a server error status`() {
+            // What is tested: the classification of a chain that answers 503.
+            // Success criteria: WARN with status 503 and outcome failure.
+            // Why it matters: severity and semantic are decoupled: the handler answered, so WARN,
+            //   while the outcome tag still counts the failure.
             // Given: a chain that answers 503
             val chain = FilterChain { _, res -> (res as HttpServletResponse).status = 503 }
 
@@ -249,6 +278,10 @@ class RequestLoggingFilterTest {
 
         @Test
         fun `should escalate to WARN and flag the exchange when the slow threshold is reached`() {
+            // What is tested: exactly the configured 200 ms threshold consumed by a clean exchange.
+            // Success criteria: WARN, endpoint_slow true, duration 200 ms, outcome still success.
+            // Why it matters: slowness raises severity and must never turn a completed exchange
+            //   into a failure; the boundary is inclusive.
             // Given: a chain that consumes exactly the configured slow threshold (200 ms)
             val chain = FilterChain { _, _ -> ticker.addAndGet(200_000_000) }
 
@@ -364,6 +397,11 @@ class RequestLoggingFilterTest {
     inner class `Correlation id and MDC` {
         @Test
         fun `should adopt the correlation id from the request header and echo it on the response`() {
+            // What is tested: a request already carrying a correlation id.
+            // Success criteria: the caller's id is echoed on the response, rides the event's MDC
+            //   and appears inline in the message.
+            // Why it matters: ADR-0002 on the inbound side: a traceless caller's correlation is
+            //   honoured, and the echo lets the caller quote it.
             // Given: a request already carrying a correlation id
             val request = MockHttpServletRequest("GET", "/api/things")
             request.addHeader(properties.correlationIdHeader, "caller-supplied-id")
@@ -382,6 +420,11 @@ class RequestLoggingFilterTest {
 
         @Test
         fun `should generate a correlation id when the request carries none`() {
+            // What is tested: a request without the correlation header.
+            // Success criteria: the pinned generator's id is echoed on the response and rides the
+            //   event's MDC.
+            // Why it matters: every exchange needs an identity; a missing header must not leave the
+            //   line and the response without one.
             // Given: a request without a correlation header
             val response = MockHttpServletResponse()
 
@@ -395,6 +438,10 @@ class RequestLoggingFilterTest {
 
         @Test
         fun `should expose the exchange identity in the MDC while the chain runs`() {
+            // What is tested: the chain-scoped MDC - a chain that records the MDC it observes.
+            // Success criteria: downstream code saw request id, method and route.
+            // Why it matters: every log line the application writes while serving the request
+            //   inherits the identity through the MDC; that join is the point of the scope.
             // Given: a chain that records the MDC it observes
             var observedMdc: Map<String, String?> = emptyMap()
             val chain =
@@ -450,6 +497,11 @@ class RequestLoggingFilterTest {
 
         @Test
         fun `should not log an excluded path at all`() {
+            // What is tested: the exclude prefix through the full OncePerRequestFilter entry point
+            //   and the destruction callback.
+            // Success criteria: no event; destruction finds no exchange.
+            // Why it matters: health probes must produce no line and no wiring; a suppressed-but-
+            //   wired exchange would still cost a gauge movement per probe.
             // Given: a request below an excluded prefix, run through the full OncePerRequestFilter entry point
             val request = MockHttpServletRequest("GET", "/actuator/health/liveness")
 
@@ -532,6 +584,10 @@ class RequestLoggingFilterTest {
 
         @Test
         fun `should let an exclude win inside an included pattern`() {
+            // What is tested: an exclude prefix nested inside an include pattern.
+            // Success criteria: the excluded-inside-included exchange produces no event.
+            // Why it matters: an exclude always wins - the rule the header sections follow too; a
+            //   different precedence would surprise an operator configuring both.
             // Given: /api/** included, /api/internal excluded
             val filterUnderTest =
                 RequestLoggingFilter(
@@ -552,6 +608,11 @@ class RequestLoggingFilterTest {
 
         @Test
         fun `should reject an invalid include pattern at construction time`() {
+            // What is tested: a syntactically broken PathPattern in the include list.
+            // Success criteria: the constructor throws the parser's PatternParseException whose
+            //   detail names the malformed pattern.
+            // Why it matters: a configuration error must fail the context start with a diagnostic,
+            //   not fail per request or match nothing silently.
             // Given/When: a syntactically broken PathPattern
             val thrown =
                 catchThrowable {
@@ -617,6 +678,11 @@ class RequestLoggingFilterTest {
 
         @Test
         fun `should still log a path that merely resembles an excluded prefix`() {
+            // What is tested: a path sharing characters with an excluded prefix without matching
+            //   it.
+            // Success criteria: the exchange is logged.
+            // Why it matters: prefix matching must be a prefix match, not a substring or fuzzy one;
+            //   an over-eager exclude would hide real endpoints.
             // Given: a path that shares characters but not the prefix
             val request = MockHttpServletRequest("GET", "/actuator-dashboard")
 

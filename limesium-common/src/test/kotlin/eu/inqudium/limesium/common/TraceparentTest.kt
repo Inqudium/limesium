@@ -11,6 +11,12 @@ import org.junit.jupiter.api.Test
 class TraceparentTest {
     @Test
     fun `should accept every conformant header of the shared fixture with the expected identifiers`() {
+        // What is tested: Traceparent.parse against every valid line of the shared conformance
+        //   fixture.
+        // Success criteria: each header parses to exactly the trace id and span id the fixture
+        //   names.
+        // Why it matters: the fixture is the one copy of the W3C contract both twins and Legatium
+        //   share; a parser drifting from it would join or drop traces differently per module.
         // Given: the valid lines of the shared fixture
         val cases = TraceparentConformanceFixture.valid()
         assertThat(cases).isNotEmpty()
@@ -38,6 +44,10 @@ class TraceparentTest {
 
     @Test
     fun `should treat an absent header as no trace context`() {
+        // What is tested: parse(null) - the traceless request.
+        // Success criteria: null, no exception.
+        // Why it matters: most requests carry no traceparent; the absent case is the hot path and
+        //   must not throw on the fail-open route.
         // Given/When/Then
         assertThat(Traceparent.parse(null)).isNull()
     }

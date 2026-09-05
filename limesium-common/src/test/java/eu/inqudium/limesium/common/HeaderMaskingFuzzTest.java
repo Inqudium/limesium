@@ -28,6 +28,14 @@ class HeaderMaskingFuzzTest {
 
     @FuzzTest(maxDuration = "10m")
     void selection_and_masking_uphold_their_contract(FuzzedDataProvider data) {
+        // What is tested: HeaderLogProperties construction and select() plus the default masker
+        //   against arbitrary name lists and header maps - a rejection only for the documented cases,
+        //   no throw from select(), include-minus-exclude once per name, masked values only as the
+        //   fingerprint.
+        // Success criteria: no exception and no oracle violation for any input Jazzer generates - a
+        //   masked value in plaintext or an unexpected selection fails the run.
+        // Why it matters: header names and values are peer- and operator-controlled input on every
+        //   exchange; a plaintext leak through an unforeseen name shape is a secret in the logs.
         List<String> includes = consumeNames(data);
         List<String> excludes = consumeNames(data);
         List<String> masked = consumeNames(data);

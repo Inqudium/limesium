@@ -87,6 +87,12 @@ class ExchangeLogEmitterTest {
     inner class `Level and outcome matrix` {
         @Test
         fun `should classify a clean 200 as INFO success`() {
+            // What is tested: the emitter's classification of a completed exchange without failure
+            //   - level, outcome, status field and the events counter.
+            // Success criteria: one INFO event with outcome success and status 200; the success
+            //   counter reads 1.
+            // Why it matters: the events counter is the reconciliation ground truth against the log
+            //   index; it must count exactly the events that were emitted.
             // Given/When: a clean exchange
             emitter.logExchange(exchange(200))
 
@@ -101,6 +107,10 @@ class ExchangeLogEmitterTest {
 
         @Test
         fun `should classify a handled 5xx as WARN failure without a cause`() {
+            // What is tested: an exchange the application answered with 503 and no exception.
+            // Success criteria: WARN, outcome failure, no throwable attached.
+            // Why it matters: the handler decided the status; ERROR with a stack trace would be
+            //   noise, while the outcome tag still counts the failure.
             // Given/When: the application rendered a 503 itself
             emitter.logExchange(exchange(503))
 
@@ -113,6 +123,11 @@ class ExchangeLogEmitterTest {
 
         @Test
         fun `should classify a thrown chain as ERROR failure carrying the cause`() {
+            // What is tested: an exchange whose chain failed with an exception recorded on it.
+            // Success criteria: ERROR, outcome failure, the exception attached as the event's
+            //   cause.
+            // Why it matters: the cause on the event is what a structured encoder renders as the
+            //   stack trace; without it the failure line names no reason.
             // Given: a chain failure marked on the exchange
             val ex = exchange(200).apply { failure = IllegalStateException("boom") }
 
@@ -220,6 +235,10 @@ class ExchangeLogEmitterTest {
 
         @Test
         fun `should escalate a slow success to WARN without changing the outcome`() {
+            // What is tested: exactly the configured threshold elapsed on a clean exchange.
+            // Success criteria: WARN, endpoint_slow true, outcome success, duration 200 ms.
+            // Why it matters: slowness raises severity, never the outcome; the boundary must be
+            //   inclusive so a 200 ms threshold flags a 200 ms exchange.
             // Given: exactly the threshold elapsed
             val ex = exchange(200)
             ticker.addAndGet(200_000_000)
@@ -241,6 +260,10 @@ class ExchangeLogEmitterTest {
     inner class `Gates and guards` {
         @Test
         fun `should emit exactly once however often completion is signalled`() {
+            // What is tested: two completion signals for one exchange.
+            // Success criteria: one event, one count.
+            // Why it matters: the containers signal destruction on differing schedules (once-late,
+            //   per-dispatch); the exactly-once guard is what keeps the line count truthful.
             // Given/When: two completion signals for one exchange
             val ex = exchange(200)
             emitter.logExchange(ex)
@@ -253,6 +276,10 @@ class ExchangeLogEmitterTest {
 
         @Test
         fun `should skip the event and the emitted counter when the level is disabled`() {
+            // What is tested: the level gate with INFO disabled on the exchange logger.
+            // Success criteria: nothing logged and the success counter stays at 0.
+            // Why it matters: the counter counts EMITTED events, so a gated exchange must not be
+            //   counted, or the reconciliation against the index would show phantom loss.
             // Given: INFO disabled on the exchange logger
             logger.level = Level.WARN
 
