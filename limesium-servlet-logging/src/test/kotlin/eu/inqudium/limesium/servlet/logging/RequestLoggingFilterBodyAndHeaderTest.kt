@@ -25,6 +25,9 @@ import org.springframework.mock.web.MockHttpServletResponse
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.atomic.AtomicLong
 
+import java.io.IOException
+import java.io.PrintWriter
+import java.io.Writer
 /**
  * Header capture and the tee-based body capture of [RequestLoggingFilter]: bodies are logged exactly as
  * they flowed through the exchange - what the application read, what it wrote - bounded by
@@ -351,15 +354,15 @@ class RequestLoggingFilterBodyAndHeaderTest {
             val failingDelegate =
                 object : MockHttpServletResponse() {
                     override fun getWriter(): java.io.PrintWriter =
-                        java.io.PrintWriter(
-                            object : java.io.Writer() {
+                        PrintWriter(
+                            object : Writer() {
                                 override fun write(
                                     cbuf: CharArray,
                                     off: Int,
                                     len: Int,
-                                ): Unit = throw java.io.IOException("client gone")
+                                ): Unit = throw IOException("client gone")
 
-                                override fun flush(): Unit = throw java.io.IOException("client gone")
+                                override fun flush(): Unit = throw IOException("client gone")
 
                                 override fun close() = Unit
                             },

@@ -3,6 +3,8 @@ package eu.inqudium.limesium.servlet.logging
 import io.undertow.Undertow
 import io.undertow.servlet.Servlets
 import io.undertow.servlet.api.DeploymentManager
+import io.undertow.servlet.api.ServletContainerInitializerInfo
+import io.undertow.servlet.util.ImmediateInstanceFactory
 import jakarta.servlet.ServletContainerInitializer
 import jakarta.servlet.ServletContext
 import org.springframework.boot.web.server.WebServer
@@ -28,10 +30,9 @@ internal class UndertowTestServer : ServletWebServerFactory {
                 .setDeploymentName("undertow-capture-boundary-test")
                 .setEagerFilterInit(true)
                 .addServletContainerInitializer(
-                    io.undertow.servlet.api.ServletContainerInitializerInfo(
+                    ServletContainerInitializerInfo(
                         BootInitializerBridge::class.java,
-                        io.undertow.servlet.util
-                            .ImmediateInstanceFactory(BootInitializerBridge(initializers.toList())),
+                        ImmediateInstanceFactory(BootInitializerBridge(initializers.toList())),
                         emptySet(),
                     ),
                 )

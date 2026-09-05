@@ -16,6 +16,7 @@ import jakarta.servlet.FilterChain
 import jakarta.servlet.ServletRequestEvent
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.catchThrowable
+import jakarta.servlet.http.HttpServlet
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
@@ -325,7 +326,7 @@ class RequestLoggingFilterAsyncTest {
             request,
             response,
             MockFilterChain(
-                object : jakarta.servlet.http.HttpServlet() {},
+                object : HttpServlet() {},
                 object : jakarta.servlet.Filter {
                     override fun doFilter(
                         req: jakarta.servlet.ServletRequest,
