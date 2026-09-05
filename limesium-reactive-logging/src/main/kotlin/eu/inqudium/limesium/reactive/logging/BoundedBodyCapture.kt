@@ -50,6 +50,14 @@ internal class BoundedBodyCapture(
     override val readState: BodyReadState
         get() = lock.withLock { state }
 
+    /** Every byte that flowed, including those beyond the capture limit - the size metrics' source. */
+    override val totalBytes: Long
+        get() = lock.withLock { total }
+
+    /** Whether [freeze] has been called - exposed for the tee tests. */
+    val isFrozen: Boolean
+        get() = lock.withLock { frozen }
+
     /** The application subscribed to the body: from now on it counts as (at least) partially read. */
     fun markStarted() =
         lock.withLock {
@@ -65,10 +73,6 @@ internal class BoundedBodyCapture(
                 state = BodyReadState.COMPLETE
             }
         }
-
-    /** Every byte that flowed, including those beyond the capture limit - the size metrics' source. */
-    override val totalBytes: Long
-        get() = lock.withLock { total }
 
     fun capture(b: Int) {
         lock.withLock {
@@ -138,10 +142,6 @@ internal class BoundedBodyCapture(
         lock.withLock {
             frozen = true
         }
-
-    /** Whether [freeze] has been called - exposed for the tee tests. */
-    val isFrozen: Boolean
-        get() = lock.withLock { frozen }
 
     /**
      * The captured bytes decoded with [charset], suffixed with a truncation note when the body was larger

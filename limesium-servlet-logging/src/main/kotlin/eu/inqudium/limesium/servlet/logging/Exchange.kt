@@ -60,6 +60,43 @@ internal class Exchange(
     val completionState: CompletionState
         get() = completion.get()
 
+    @Volatile
+    var failure: Exception? = null
+
+    /** The best-matching handler pattern Spring MVC recorded, read after the chain; null without MVC. */
+    @Volatile
+    var pathTemplate: String? = null
+
+    /**
+     * True once the chain returned with async processing started; set in the filter's `finally`. A
+     * FACT about the exchange (the `endpoint_async` field), not a lifecycle state - the lifecycle is
+     * [completionState].
+     */
+    @Volatile
+    var asyncStarted: Boolean = false
+
+    // The precedence is an ATOMIC transition, not a volatile check-then-set: the container does not
+    // promise that onTimeout and onError run on one thread, and an onError reading NONE, losing the
+    // race to onTimeout and then writing ERRORED would erase the absorbing timeout.
+    private val disposition = AtomicReference(AsyncDisposition.NONE)
+
+    /**
+     * Which async callback ENDED the exchange - one value, set through [markTimedOut]/[markErrored],
+     * carrying its own precedence (see [AsyncDisposition]). The disposition is the callback that occurred,
+     * never inferred from throwable presence: the servlet API permits an `AsyncEvent` WITHOUT a throwable
+     * on `onError`, and `onTimeout` MAY carry one.
+     */
+    val asyncDisposition: AsyncDisposition
+        get() = disposition.get()
+
+    /**
+     * The throwable of an async `onError`/`onTimeout` event, when the container supplied one. Attached
+     * to the event as its cause; which CALLBACK occurred is [asyncDisposition] and is never inferred
+     * from this field.
+     */
+    @Volatile
+    var asyncFailure: Throwable? = null
+
     /**
      * The [AsyncOutcomeMarker] was registered: from now on a destruction may DEFER to its `onComplete`.
      * A no-op when the cycle already ended between registration and this call - the destruction then
@@ -121,35 +158,6 @@ internal class Exchange(
     /** The exactly-once completion transition: true for the one caller that wins it. */
     fun tryComplete(): Boolean = completion.getAndSet(CompletionState.COMPLETED) != CompletionState.COMPLETED
 
-    @Volatile
-    var failure: Exception? = null
-
-    /** The best-matching handler pattern Spring MVC recorded, read after the chain; null without MVC. */
-    @Volatile
-    var pathTemplate: String? = null
-
-    /**
-     * True once the chain returned with async processing started; set in the filter's `finally`. A
-     * FACT about the exchange (the `endpoint_async` field), not a lifecycle state - the lifecycle is
-     * [completionState].
-     */
-    @Volatile
-    var asyncStarted: Boolean = false
-
-    /**
-     * Which async callback ENDED the exchange - one value, set through [markTimedOut]/[markErrored],
-     * carrying its own precedence (see [AsyncDisposition]). The disposition is the callback that occurred,
-     * never inferred from throwable presence: the servlet API permits an `AsyncEvent` WITHOUT a throwable
-     * on `onError`, and `onTimeout` MAY carry one.
-     */
-    val asyncDisposition: AsyncDisposition
-        get() = disposition.get()
-
-    // The precedence is an ATOMIC transition, not a volatile check-then-set: the container does not
-    // promise that onTimeout and onError run on one thread, and an onError reading NONE, losing the
-    // race to onTimeout and then writing ERRORED would erase the absorbing timeout.
-    private val disposition = AtomicReference(AsyncDisposition.NONE)
-
     /** TIMED_OUT is absorbing: set unconditionally, whatever was recorded before or concurrently. */
     fun markTimedOut() {
         disposition.set(AsyncDisposition.TIMED_OUT)
@@ -159,14 +167,6 @@ internal class Exchange(
     fun markErrored() {
         disposition.compareAndSet(AsyncDisposition.NONE, AsyncDisposition.ERRORED)
     }
-
-    /**
-     * The throwable of an async `onError`/`onTimeout` event, when the container supplied one. Attached
-     * to the event as its cause; which CALLBACK occurred is [asyncDisposition] and is never inferred
-     * from this field.
-     */
-    @Volatile
-    var asyncFailure: Throwable? = null
 }
 
 /** See [Exchange.completionState]. */
