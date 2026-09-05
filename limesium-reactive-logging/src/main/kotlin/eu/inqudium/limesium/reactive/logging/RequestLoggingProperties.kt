@@ -23,9 +23,8 @@ import java.time.Duration
  * value (by default a stable short fingerprint).
  *
  * Every property's semantics, rules and default are documented ONCE, in the repository-shared reference
- * configuration `/docs/endpoint-logging-reference.yml` (the normative source, bound against this class by
- * `EndpointLoggingReferenceConfigTest`); the KDoc here names the key only - architecture review of
- * 2026-09-05, finding 2.
+ * configuration `/docs/endpoint-logging-reference.yml` (bound against this class by
+ * `EndpointLoggingReferenceConfigTest`); the KDoc here names the key.
  */
 @ConfigurationProperties("endpoint-logging")
 data class RequestLoggingProperties(
