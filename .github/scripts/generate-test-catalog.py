@@ -4,8 +4,12 @@
 Reads every module's target/surefire-reports/TEST-*.xml (the
 authoritative record of what actually ran) and enriches each test with
 its rationale block extracted from the test sources
-(*/src/test/kotlin/**): the "What is tested / Success criteria / Why it
-matters" comment run at the top of the test body. Writes
+(*/src/test/kotlin/**/*Test.kt, the abstract *Contract.kt suites the
+per-engine integration tests inherit from, and the Java tests under
+*/src/test/java/**/*Test.java - the Jazzer targets among them): the "What is tested / Success
+criteria / Why it matters" comment run at the top of the test body. A
+test class that extends a contract (`class X : YContract()`) inherits
+the contract's rationales for the methods it does not declare itself. Writes
 docs/tests/test-evidence.md, which the Docs workflow feeds into MkDocs.
 
 The page is GENERATED - it must never be checked in or edited by hand,
@@ -25,7 +29,18 @@ from pathlib import Path
 
 OUTPUT = Path(sys.argv[1] if len(sys.argv) > 1 else "docs/tests/test-evidence.md")
 
-FUN_RE = re.compile(r"^\s*fun `([^`]+)`\(")
+# Kotlin test methods carry backticked sentence names (with modifiers such as
+# `internal` in front, for a parameterized test over an internal type); the
+# Java tests are plain `void name(...)` methods.
+FUN_RE = re.compile(r"^\s*(?:\w+\s+)*fun `([^`]+)`\(")
+JAVA_FUN_RE = re.compile(r"^\s*(?:public\s+)?void\s+(\w+)\(")
+# Surefire names a Jazzer regression invocation `method(FuzzedDataProvider)[n]` and a
+# parameterized Kotlin test `method$module(Type)[n]` (an `internal fun` is name-mangled
+# with the module name); the rationale is keyed by the bare method name.
+INVOCATION_SUFFIX_RE = re.compile(r"(\$\w+)?\(.*$")
+# `class JettyConnectorIntegrationTest : ConnectorContract() {` - the subclass runs the
+# contract's tests; Surefire reports them under the subclass name.
+SUPERCLASS_RE = re.compile(r"^(?:abstract\s+)?class\s+(\w+)[^:\n]*:\s*(\w+)\(")
 QUESTIONS = [
     ("What is tested?", re.compile(r"What is tested:")),
     ("How is success determined?", re.compile(r"Success criteria:")),
@@ -36,14 +51,16 @@ QUESTIONS = [
 STAGES_RE = re.compile(r"\b(?:Given|When|Then|And)\b\s*(?:\([^)]*\))?:")
 
 
-def extract_rationales(src_dir: Path) -> dict:
-    """Map (top-level test class, test method name) -> {question: text}.
+def extract_rationales(module: Path) -> tuple[dict, dict]:
+    """Map (top-level test class, test method name) -> {question: text},
+    plus the map of test class -> superclass for contract inheritance.
 
     The rationale block is the run of '//' comment lines directly after
     the test function's opening line, cut off at the first Given/When/
     Then stage label; method names are sentence-shaped and unique per
     file, so the file's class name plus the method name is a sufficient
-    key.
+    key. Kotlin tests under src/test/kotlin and the Java fuzz targets
+    under src/test/java are read alike.
 
     A detected rationale must answer all three questions (the
     CONTRIBUTING.md contract); a partial block fails the run with the
@@ -51,12 +68,20 @@ def extract_rationales(src_dir: Path) -> dict:
     as documented.
     """
     rationales = {}
+    superclasses = {}
     incomplete = []
-    for kt in sorted(src_dir.rglob("*Test.kt")):
+    kotlin = module / "src" / "test" / "kotlin"
+    sources = [(kt, FUN_RE) for kt in sorted(set(kotlin.rglob("*Test.kt")) | set(kotlin.rglob("*Contract.kt")))]
+    sources += [(java, JAVA_FUN_RE) for java in sorted((module / "src" / "test" / "java").rglob("*Test.java"))]
+    for kt, fun_re in sources:
         clazz = kt.stem
         lines = kt.read_text(encoding="utf-8").splitlines()
+        for line in lines:
+            m = SUPERCLASS_RE.match(line)
+            if m:
+                superclasses[m.group(1)] = m.group(2)
         for i, line in enumerate(lines):
-            m = FUN_RE.match(line)
+            m = fun_re.match(line)
             if not m:
                 continue
             comment = []
@@ -91,7 +116,21 @@ def extract_rationales(src_dir: Path) -> dict:
             "error: incomplete test rationale blocks (CONTRIBUTING.md requires"
             " all three labels):\n  " + "\n  ".join(incomplete)
         )
-    return rationales
+    return rationales, superclasses
+
+
+def find_rationale(rationales: dict, superclasses: dict, clazz: str, name: str):
+    """The rationale of `clazz.name`, inherited along the superclass chain when the
+    class does not declare the method itself; the Jazzer invocation suffix is stripped."""
+    bare = INVOCATION_SUFFIX_RE.sub("", name)
+    seen = set()
+    while clazz and clazz not in seen:
+        seen.add(clazz)
+        found = rationales.get((clazz, name)) or rationales.get((clazz, bare))
+        if found:
+            return found
+        clazz = superclasses.get(clazz)
+    return None
 
 
 def load_suites(reports_dir: Path):
@@ -127,9 +166,9 @@ def main() -> None:
     grand = {"tests": 0, "failures": 0, "errors": 0, "skipped": 0, "time": 0.0}
     per_module = {}
     for module in modules:
-        rationales = extract_rationales(Path(module) / "src" / "test" / "kotlin")
+        rationales, superclasses = extract_rationales(Path(module))
         suites, totals, times = load_suites(Path(module) / "target" / "surefire-reports")
-        per_module[module] = (suites, totals, times, rationales)
+        per_module[module] = (suites, totals, times, rationales, superclasses)
         for key in grand:
             grand[key] += totals[key]
 
@@ -167,14 +206,14 @@ def main() -> None:
     out.append("| Module | Component under test | Tests | Time |")
     out.append("|---|---|---:|---:|")
     for module in modules:
-        suites, _, times, _ = per_module[module]
+        suites, _, times, _, _ = per_module[module]
         for top in sorted(suites, key=lambda t: -sum(len(v) for v in suites[t].values())):
             count = sum(len(v) for v in suites[top].values())
             out.append(f"| `{module}` | [`{top}`](#{anchors[(module, top)]}) | {count} | {times[top]:.1f}s |")
     out.append("")
 
     for module in modules:
-        suites, totals, _, rationales = per_module[module]
+        suites, totals, _, rationales, superclasses = per_module[module]
         out.append(f"## {module}")
         out.append("")
         out.append(f"{totals['tests']} tests.")
@@ -192,7 +231,7 @@ def main() -> None:
                 for name in sorted(suites[top][group]):
                     out.append(f"**{md_escape(name)}**")
                     out.append("")
-                    rationale = rationales.get((top, name))
+                    rationale = find_rationale(rationales, superclasses, top, name)
                     if rationale:
                         out.append('??? quote "Rationale"')
                         for label, answer in rationale.items():
@@ -207,7 +246,7 @@ def main() -> None:
         for top in per_module[module][0]
         for g in per_module[module][0][top]
         for n in per_module[module][0][top][g]
-        if (top, n) in per_module[module][3]
+        if find_rationale(per_module[module][3], per_module[module][4], top, n)
     )
     print(f"wrote {OUTPUT}: {grand['tests']} tests, {documented} with rationale blocks")
 

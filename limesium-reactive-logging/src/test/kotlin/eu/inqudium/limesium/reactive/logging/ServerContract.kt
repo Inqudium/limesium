@@ -126,6 +126,12 @@ abstract class ServerContract {
 
     @Test
     fun `should run the reactor variant as the single active filter on this server`() {
+        // What is tested: the variant selection of the auto-configuration with the coroutine
+        //   auto-configuration excluded - the majority consumer configuration - on this server.
+        // Success criteria: exactly one EndpointLoggingFilter bean, the Reactor variant; no coroutine
+        //   variant in the context.
+        // Why it matters: two active filters would emit two lines per exchange; the wrong variant would
+        //   run a lifecycle the rest of this contract does not exercise.
         // Given/When: the application started on this server with the coroutine auto-configuration excluded
         // Then: the Reactor filter owns the slot; the coroutine variant is absent
         assertThat(context.getBeansOfType(EndpointLoggingFilter::class.java).values)
@@ -136,6 +142,13 @@ abstract class ServerContract {
 
     @Test
     fun `should log a real round trip with both bodies through this server`() {
+        // What is tested: the full happy path on this server - the request body teed as the server's
+        //   buffers arrive, the response body teed as the handler writes, the correlation echo, the
+        //   handler pattern - through the Reactor variant's Mono.defer/doFinally lifecycle.
+        // Success criteria: the client sees the echo and its correlation id; one INFO event carries both
+        //   bodies, the template and the id in the MDC, format-identical across servers.
+        // Why it matters: the tee reads whatever DataBuffer implementation the server hands out; a
+        //   server whose buffers the tee could not read would log empty bodies without another symptom.
         // Given/When: the real application on this server; a real POST whose handler reads the body and echoes it
         val request =
             HttpRequest
@@ -210,6 +223,12 @@ abstract class ServerContract {
 
     @Test
     fun `should record the handler pattern of a real dispatch on this server`() {
+        // What is tested: the BEST_MATCHING_PATTERN attribute WebFlux sets during a real dispatch, read
+        //   at emission time on this server.
+        // Success criteria: endpoint_url_path carries the expanded path, endpoint_url_template the
+        //   pattern with its placeholder.
+        // Why it matters: the template is the aggregation half of the path pair; a server whose dispatch
+        //   left the attribute unset would collapse every route into one bucket.
         // Given/When: the real application on this server; a GET against a templated route
         val response = get("/rx/things/42")
 
