@@ -101,6 +101,7 @@ artifacts run on - the build itself needs JDK 24+.
 
 | Limesium | Spring Boot | Kotlin | Java |
 |---|---|---|---|
+| 3.0.0 | 4.1.x | 2.4.x | 21 |
 | 2.0.0 | 4.1.x | 2.4.x | 21 |
 | 1.1.0 | 4.1.x | 2.4.x | 21 |
 | 1.0.0 | 4.1.x | 2.4.x | 21 |

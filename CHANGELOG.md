@@ -7,18 +7,83 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Removed
+## [3.0.0] - 2026-09-05
 
-- Benchmarks whose measured code no longer exists (comment audit round 2 of 2026-09-05,
-  CA-10): `ServletTwinSpotCheckBenchmark` measured the servlet copies of the header
-  selection and masking that ADR-0003's amendment of 2026-08-31 replaced by one shared
-  class, and `CorrelationIdBenchmark` measured the retired UUID default against an
-  alternative that never shipped. The recorded results stay under `benchmarks/results/`
-  as the evidence the `BENCH_REPORT`s cite; the remaining benchmarks' Javadocs name the
-  classes they measure today.
+Heads-up: this cycle is **breaking on four axes** - the default logger name,
+the configuration (body modes instead of booleans, masking on by default), the
+source (`HeaderLogProperties.mask` and the servlet tee classes gone from the API,
+`MaskingKey` as the type of `maskingKey`, `select` taking the masker) and the wire
+behaviour (masked header values by default, the correlation-id acceptance rule).
+Each configuration and behaviour break carries its migration note below; the
+decisions are ADR-0005 and ADR-0006 under `docs/adr/`.
 
+### Added
+
+- Server-agnostic reactive twin, pinned: one `ServerContract` runs the Reactor variant
+  against every reactive server Boot 4 ships - Reactor Netty, Tomcat and Jetty (the
+  latter two through Spring's `HttpHandler` adapters) - for the single active filter, a
+  real round trip with both bodies teed on the server's own buffers, the
+  commit-deferred emission behind the server's error rendering, a later commit
+  action's status and header, and the handler pattern of a real dispatch. Undertow
+  left Boot with 4.0 and is not part of the matrix.
+- Injectable `HeaderValueMasker`: the rendering of masked header values is a
+  `@ConditionalOnMissingBean` bean (`eu.inqudium.limesium.common.HeaderValueMasker`)
+  shared by both twins and both reactive variants - the built-in default is the
+  stable `length:hash` fingerprint, a host pins a keyed or fixed masker instead;
+  the properties decide which values are masked, the bean decides how.
+  `endpoint-logging.masking-key` keys the built-in fingerprint (HMAC-SHA256)
+  without a bean: same shape and stability, guess-proof without the key. Both
+  ported from the outbound sibling Legatium, where they were designed in first.
+- `on-failure` body logging
+  ([ADR-0006](docs/adr/ADR-0006-bodies-logged-by-outcome.md)): `log-request-body`
+  / `log-response-body` are now a mode per direction - `never` (the default),
+  `on-failure` or `always`. `on-failure` writes a body only when
+  `endpoint_outcome` is not `success` or the status is a 4xx - the emitter decides
+  when the outcome is
+  final, the request body is teed before the outcome is known and discarded on
+  success - which keeps body logging affordable outside a debug session. Ported
+  from Legatium.
 ### Changed
 
+- **BREAKING (default logger name):** the exchange logger's default name is
+  `endpoint-http-exchange` instead of `http-exchange`, so the logger starts with
+  the vocabulary word like every field, MDC key, meter and property of the
+  `endpoint` family - and mirrors the outbound sibling Legatium's
+  `adapter-http-exchange`, so an operator sees both families as two prefixed
+  blocks. *Migrate:* logback/Log4j level rules, appender routing and index
+  queries that name `http-exchange` move to `endpoint-http-exchange`; a host
+  that must keep the old name sets `endpoint-logging.logger-name: http-exchange`
+  and nothing else changes.
+- **BREAKING (configuration and source,
+  [ADR-0006](docs/adr/ADR-0006-bodies-logged-by-outcome.md)):**
+  `log-request-body` / `log-response-body` take `never` | `on-failure` |
+  `always` instead of `true` / `false`; the former booleans no longer bind, so
+  a leftover `true` fails the context start instead of silently switching
+  bodies off. *Migrate:* `true` becomes `always` (or, better, `on-failure`),
+  `false` becomes `never` or is dropped. In code, the properties' type is
+  `BodyLogMode` instead of `Boolean`.
+- **BREAKING (behaviour,
+  [ADR-0005](docs/adr/ADR-0005-headers-masked-by-default.md)):** logged header
+  values are masked by default. `masked` now defaults to `["*"]`, and the new
+  `unmasked` list per section names the headers that may appear in plaintext
+  (no wildcard) - so `includes: ["*"]` costs readability, not confidentiality.
+  *Migrate:* name the harmless headers in `unmasked`, or set `masked: []` to
+  restore the old rendering knowingly. The fingerprint is documented as what it
+  is - a stable pseudonym, not anonymisation.
+- **BREAKING (source):** `HeaderLogProperties.mask(value)` is gone, and
+  `HeaderLogProperties.select(names, valueOf)` takes the masker as its second
+  argument. *Migrate:* call `HeaderValueMasker.DEFAULT.mask(value)`, and pass a
+  `HeaderValueMasker` to `select`. The filter constructors gain an optional
+  trailing `HeaderValueMasker` parameter (the default when omitted) - existing
+  host-built filter beans compile unchanged.
+- Documentation: the two module guides are split into a common guide
+  (`docs/GUIDE.md` - everything both twins share: the exchange line, the
+  shared architecture, dependency and encoder setup, the configuration
+  namespace, the field family, the meters, the trace contract, and the one
+  table of deliberate stack differences) and two stack-specific guides
+  (`<module>/docs/GUIDE.md` - only what the stack decides). Section numbers
+  of the module guides changed; the READMEs, the container guide and the
+  docs site link the new sections.
 - Comment audit round 2 of 2026-09-05 (`docs/assessment/COMMENT_AUDIT-2026-08-31T01-03-25.R2.md`),
   findings CA-11 to CA-18 - documentation and one test, no behaviour change. CONTRIBUTING
   draws the boundary of the "one normative source" rule: the KDoc of the shared public types
@@ -76,7 +141,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   absent header: a fresh id is generated and echoed, counted as `generated`. Before, any
   non-blank value up to the server's header limit was echoed and written into every log
   line and MDC entry of the exchange (code analysis of 2026-09-05, finding 11).
+### Removed
 
+- Benchmarks whose measured code no longer exists (comment audit round 2 of 2026-09-05,
+  CA-10): `ServletTwinSpotCheckBenchmark` measured the servlet copies of the header
+  selection and masking that ADR-0003's amendment of 2026-08-31 replaced by one shared
+  class, and `CorrelationIdBenchmark` measured the retired UUID default against an
+  alternative that never shipped. The recorded results stay under `benchmarks/results/`
+  as the evidence the `BENCH_REPORT`s cite; the remaining benchmarks' Javadocs name the
+  classes they measure today.
 ### Fixed
 
 - The reactive emission scope now OWNS the trace MDC keys, like the servlet twin's: the
@@ -118,75 +191,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   module name to an inherited `url` and `scm`, so Maven Central showed the twins with a
   homepage `.../limesium/limesium-servlet-logging` that does not exist; the root POM now
   switches that inheritance off and each twin states its `url` explicitly.
-
-### Added
-
-- Server-agnostic reactive twin, pinned: one `ServerContract` runs the Reactor variant
-  against every reactive server Boot 4 ships - Reactor Netty, Tomcat and Jetty (the
-  latter two through Spring's `HttpHandler` adapters) - for the single active filter, a
-  real round trip with both bodies teed on the server's own buffers, the
-  commit-deferred emission behind the server's error rendering, a later commit
-  action's status and header, and the handler pattern of a real dispatch. Undertow
-  left Boot with 4.0 and is not part of the matrix.
-- Injectable `HeaderValueMasker`: the rendering of masked header values is a
-  `@ConditionalOnMissingBean` bean (`eu.inqudium.limesium.common.HeaderValueMasker`)
-  shared by both twins and both reactive variants - the built-in default is the
-  stable `length:hash` fingerprint, a host pins a keyed or fixed masker instead;
-  the properties decide which values are masked, the bean decides how.
-  `endpoint-logging.masking-key` keys the built-in fingerprint (HMAC-SHA256)
-  without a bean: same shape and stability, guess-proof without the key. Both
-  ported from the outbound sibling Legatium, where they were designed in first.
-- `on-failure` body logging
-  ([ADR-0006](docs/adr/ADR-0006-bodies-logged-by-outcome.md)): `log-request-body`
-  / `log-response-body` are now a mode per direction - `never` (the default),
-  `on-failure` or `always`. `on-failure` writes a body only when
-  `endpoint_outcome` is not `success` or the status is a 4xx - the emitter decides
-  when the outcome is
-  final, the request body is teed before the outcome is known and discarded on
-  success - which keeps body logging affordable outside a debug session. Ported
-  from Legatium.
-
-### Changed
-
-- **BREAKING (default logger name):** the exchange logger's default name is
-  `endpoint-http-exchange` instead of `http-exchange`, so the logger starts with
-  the vocabulary word like every field, MDC key, meter and property of the
-  `endpoint` family - and mirrors the outbound sibling Legatium's
-  `adapter-http-exchange`, so an operator sees both families as two prefixed
-  blocks. *Migrate:* logback/Log4j level rules, appender routing and index
-  queries that name `http-exchange` move to `endpoint-http-exchange`; a host
-  that must keep the old name sets `endpoint-logging.logger-name: http-exchange`
-  and nothing else changes.
-- **BREAKING (configuration and source,
-  [ADR-0006](docs/adr/ADR-0006-bodies-logged-by-outcome.md)):**
-  `log-request-body` / `log-response-body` take `never` | `on-failure` |
-  `always` instead of `true` / `false`; the former booleans no longer bind, so
-  a leftover `true` fails the context start instead of silently switching
-  bodies off. *Migrate:* `true` becomes `always` (or, better, `on-failure`),
-  `false` becomes `never` or is dropped. In code, the properties' type is
-  `BodyLogMode` instead of `Boolean`.
-- **BREAKING (behaviour,
-  [ADR-0005](docs/adr/ADR-0005-headers-masked-by-default.md)):** logged header
-  values are masked by default. `masked` now defaults to `["*"]`, and the new
-  `unmasked` list per section names the headers that may appear in plaintext
-  (no wildcard) - so `includes: ["*"]` costs readability, not confidentiality.
-  *Migrate:* name the harmless headers in `unmasked`, or set `masked: []` to
-  restore the old rendering knowingly. The fingerprint is documented as what it
-  is - a stable pseudonym, not anonymisation.
-- **BREAKING (source):** `HeaderLogProperties.mask(value)` is gone, and
-  `HeaderLogProperties.select(names, valueOf)` takes the masker as its second
-  argument. *Migrate:* call `HeaderValueMasker.DEFAULT.mask(value)`, and pass a
-  `HeaderValueMasker` to `select`. The filter constructors gain an optional
-  trailing `HeaderValueMasker` parameter (the default when omitted) - existing
-  host-built filter beans compile unchanged.
-- Documentation: the two module guides are split into a common guide
-  (`docs/GUIDE.md` - everything both twins share: the exchange line, the
-  shared architecture, dependency and encoder setup, the configuration
-  namespace, the field family, the meters, the trace contract, and the one
-  table of deliberate stack differences) and two stack-specific guides
-  (`<module>/docs/GUIDE.md` - only what the stack decides). Section numbers
-  of the module guides changed; the READMEs, the container guide and the
-  docs site link the new sections.
 
 ## [2.0.0] - 2026-08-31
 
@@ -334,7 +338,8 @@ default id format (ADR-0004). Each break was decided in a numbered ADR under
 - `limesium-reactive-logging` — auto-configured WebFlux web filter (Reactor and
   coroutines), field- and configuration-identical twin of the servlet module.
 
-[Unreleased]: https://github.com/Inqudium/limesium/compare/2.0.0...HEAD
+[Unreleased]: https://github.com/Inqudium/limesium/compare/3.0.0...HEAD
+[3.0.0]: https://github.com/Inqudium/limesium/releases/tag/3.0.0
 [2.0.0]: https://github.com/Inqudium/limesium/releases/tag/2.0.0
 [1.1.0]: https://github.com/Inqudium/limesium/releases/tag/1.1.0
 [1.0.0]: https://github.com/Inqudium/limesium/releases/tag/1.0.0
