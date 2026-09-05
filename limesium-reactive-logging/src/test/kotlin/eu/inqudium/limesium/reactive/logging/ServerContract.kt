@@ -240,6 +240,37 @@ abstract class ServerContract {
             .containsEntry("endpoint_url_template", "/rx/things/{id}")
     }
 
+    @Test
+    fun `should pin that a form body WebFlux parses bypasses the request tee on this server`() {
+        // What is tested: the documented capture BOUNDARY for framework-parsed bodies - a form POST read
+        //   through `getFormData()` (what a @ModelAttribute binding resolves too), which the mutated
+        //   exchange delegates to the ORIGINAL exchange whose form-data publisher reads the undecorated
+        //   request.
+        // Success criteria: the handler sees the field, the exchange event exists, and it carries NO
+        //   endpoint_request_body although log-request-body is enabled class-wide (the response body,
+        //   written through the tee, is present).
+        // Why it matters: form and multipart endpoints sit at `unread` on the read counter by
+        //   construction; the pin keeps that boundary a conscious, documented contract on every server
+        //   (code analysis of 2026-09-05, finding 2).
+        // Given/When: the real application on this server; a real form POST against the form-data handler
+        val request =
+            HttpRequest
+                .newBuilder(URI.create("http://localhost:$port/rx/form"))
+                .timeout(REQUEST_TIMEOUT)
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .POST(HttpRequest.BodyPublishers.ofString("name=form-value"))
+                .build()
+        val response = http.send(request, HttpResponse.BodyHandlers.ofString())
+
+        // Then: served from the parsed field, event present, request body absent by documented contract
+        assertThat(response.statusCode()).isEqualTo(200)
+        assertThat(response.body()).isEqualTo("form:form-value")
+        val event = appender.awaitEvents(1).single()
+        assertThat(keyValues(event))
+            .doesNotContainKey("endpoint_request_body")
+            .containsEntry("endpoint_response_body", "form:form-value")
+    }
+
     /** Minimal reactive application: the module's auto-configuration plus pinned beans and handlers. */
     @SpringBootConfiguration
     @EnableAutoConfiguration
@@ -296,6 +327,10 @@ abstract class ServerContract {
 
         @GetMapping("/rx/boom-late")
         fun boomLate(): Mono<String> = Mono.error(IllegalStateException("rx boom late"))
+
+        /** Reads a form field through the exchange's form data - which the mutated exchange delegates to the ORIGINAL one. */
+        @PostMapping("/rx/form")
+        fun form(exchange: ServerWebExchange): Mono<String> = exchange.formData.map { "form:${it.getFirst("name")}" }
     }
 
     companion object {

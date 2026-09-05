@@ -209,6 +209,26 @@ class RequestLoggingFilterBodyAndHeaderTest {
         }
 
         @Test
+        fun `should report the delegate's available bytes through the tee stream`() {
+            // What is tested: `available()` of the tee stream - inherited from InputStream it answers a
+            //   constant 0, delegated it answers what the container's stream answers.
+            // Success criteria: before any read the tee reports the full body length, after reading two
+            //   bytes the remainder - exactly like the unwrapped stream.
+            // Why it matters: a parser probing `available()` must behave identically with and without
+            //   body capture; a passive tee that changes the answer changes the application (code
+            //   analysis of 2026-09-05, finding 5).
+            // Given: a five-byte body behind the wrapper
+            val request = MockHttpServletRequest("POST", "/api/things").apply { setContent("hello".toByteArray(StandardCharsets.UTF_8)) }
+            val stream = CapturingRequestWrapper(request, BoundedBodyCapture(8)).inputStream
+
+            // When/Then: the tee answers like the delegate, before and after reading
+            assertThat(stream.available()).isEqualTo(5)
+            stream.read()
+            stream.read()
+            assertThat(stream.available()).isEqualTo(3)
+        }
+
+        @Test
         fun `should omit the request body key when the application read nothing`() {
             // What is tested: the tee's truthfulness - a body that was never consumed by the application.
             // Success criteria: no requestBody key at all, rather than an empty or fabricated value.

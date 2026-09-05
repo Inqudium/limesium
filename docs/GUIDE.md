@@ -118,7 +118,9 @@ lists what its stack adds.
 - **No sampling.** Every matching exchange emits one event; the logger level is the only volume control
   ([§4.5](#45-logger-levels)), and `on-failure` body logging the only body-volume control
   ([§4.3](#43-body-logging-and-body-measuring)).
-- **No replaying body cache.** The tee is passive; an unread request body is logged as absent.
+- **No replaying body cache.** The tee is passive; an unread request body is logged as absent — and a
+  body the framework parses itself (a form or multipart request read through the parameter/form-data
+  API) never passes the tee, so it counts as unread ([§4.3](#43-body-logging-and-body-measuring)).
 - **No exporting of a `MeterRegistry`.** The host's registry is consumed if present; otherwise a private
   `SimpleMeterRegistry` absorbs the values.
 
@@ -226,8 +228,8 @@ At filter entry each module resolves **one** request id for the exchange
 | The request carries | Request id | Response echo | `correlation.id{source=…}` |
 |---|---|---|---|
 | a conformant W3C `traceparent` header | its **trace id** | none — the wire stays untouched | `trace` |
-| no conformant `traceparent`, but the configured correlation header (`X-Correlation-Id` by default) | the header value | echoed on the response | `header` |
-| neither | a generated id (`CorrelationIdGenerator`, [ADR-0004](adr/ADR-0004-counting-correlation-id-default.md)) | echoed on the response | `generated` |
+| no conformant `traceparent`, but the configured correlation header (`X-Correlation-Id` by default) with an **acceptable** value — 1 to 128 visible-ASCII characters (`CorrelationHeaderValue`) | the header value | echoed on the response | `header` |
+| neither — a correlation header that is absent, blank, longer than 128 characters or not visible ASCII counts as absent | a generated id (`CorrelationIdGenerator`, [ADR-0004](adr/ADR-0004-counting-correlation-id-default.md)) | echoed on the response | `generated` |
 
 The echo is set **once at filter entry** — downstream code that sets the header itself decides what the
 client finally sees; event and MDC keep the id resolved at entry. The id is the `endpoint_request_id`
@@ -622,7 +624,7 @@ has it.
 | `enabled` | boolean | `true` | Master switch. `false` makes the auto-configuration back off — no filter, no registrations, no default beans. A context-start decision, not a runtime toggle. |
 | `variant` | `auto` \| `reactor` \| `coroutine` | `auto` | **Reactive-only** — selects the WebFlux filter variant; the servlet module has no such key. `auto` = coroutine variant when `kotlinx-coroutines-reactor` + `kotlinx-coroutines-slf4j` are present, Reactor otherwise; `reactor` forces the Reactor variant; `coroutine` requires the libraries and fails startup without them ([reactive guide §3.4](https://github.com/Inqudium/limesium/blob/main/limesium-reactive-logging/docs/GUIDE.md#34-choosing-the-filter-variant)). |
 | `logger-name` | string | `endpoint-http-exchange` | Logger of the arrival line and the exchange event. Its level is the runtime volume control ([§4.5](#45-logger-levels)). |
-| `correlation-id-header` | string (RFC 9110 token) | `X-Correlation-Id` | Header the correlation id is read from on **traceless** exchanges (no conformant `traceparent` — ADR-0002); blank/absent means generated. Only such an exchange gets the echo, set once at filter entry — downstream code that sets the header itself decides what the client finally sees; event and MDC keep the id resolved at entry. A traced exchange takes its request id from the `traceparent` trace id, ignores this header and echoes nothing. |
+| `correlation-id-header` | string (RFC 9110 token) | `X-Correlation-Id` | Header the correlation id is read from on **traceless** exchanges (no conformant `traceparent` — ADR-0002); absent, blank, longer than 128 characters or not visible ASCII means generated (the value is echoed and written into every log line of the exchange, so its length and shape are bounded, not peer-controlled). Only such an exchange gets the echo, set once at filter entry — downstream code that sets the header itself decides what the client finally sees; event and MDC keep the id resolved at entry. A traced exchange takes its request id from the `traceparent` trace id, ignores this header and echoes nothing. |
 | `include-query-string` | boolean | `true` | Log the query string as its own field `endpoint_url_query` (never part of the path). Disable when query parameters may carry personal data. |
 | `log-request-start` | boolean | `false` | Additionally log an arrival line before the chain runs, at INFO, with the identity in the MDC. Carries no outcome/status/duration. |
 | `include-path-patterns` | list of `PathPattern` | `[]` | Endpoints the filter is active for at all; empty = every endpoint. Parsed once at startup; an invalid pattern fails the context. |
@@ -697,7 +699,10 @@ Rules that hold for every combination on both stacks:
   consumed the body completely, partially, or not at all ([§5.4](#54-meters)).
 
 What bypasses the tee on each stack (container error rendering, buffer resets, raw async cycles,
-zero-copy responses) is §4.3 of the
+zero-copy responses, and — on both stacks — bodies the framework parses itself: a form POST read
+through `@RequestParam`/`getParameter*` on the servlet stack or `@ModelAttribute`/`getFormData()` on the
+reactive stack, a multipart request through `getParts()`/`getMultipartData()`; such an exchange logs no
+request body and counts as `unread`) is §4.3 of the
 [servlet guide](https://github.com/Inqudium/limesium/blob/main/limesium-servlet-logging/docs/GUIDE.md#43-body-rules)
 and of the
 [reactive guide](https://github.com/Inqudium/limesium/blob/main/limesium-reactive-logging/docs/GUIDE.md#43-body-rules).
@@ -910,7 +915,7 @@ identical on both stacks and pinned by `TwinContractTest`.
 | `endpoint.logging.events` | counter | `outcome` = `success` \| `failure` \| the stack's own disposition (`timeout` / `cancelled`) | Exchange events actually **emitted** on the exchange logger — after the level gate, arrival lines excluded. The reconciliation ground truth against the log index. |
 | `endpoint.logging.exchanges.open` | gauge | — | Exchanges between filter entry and the exactly-once completion (request destruction on the servlet stack, the terminal signal or commit on the reactive stack). Hovers near the active-request count in health. |
 | `endpoint.logging.correlation.id` | counter | `source` = `trace` \| `header` \| `generated` | Origin of each exchange's request id ([§2.2](#22-exchange-identity)); the meter name predates ADR-0002 and stays stable. |
-| `endpoint.request.body.read` | counter | `uri` = handler pattern, `UNKNOWN` without one; `state` = `unread` \| `partial` \| `complete` | How far the application **consumed** the request body, opt-in via `measure-request-body-size`. Recorded once per exchange whenever the measuring tee exists — including bodyless requests the application never touched, which is the `unread` share the counter exists to show. `partial` = consumption started but the end of the body was never observed (what that looks like per stack is the module guide's §5.4). Created lazily per `uri`/`state` on first use, like the size summaries. |
+| `endpoint.request.body.read` | counter | `uri` = handler pattern, `UNKNOWN` without one; `state` = `unread` \| `partial` \| `complete` | How far the application **consumed** the request body, opt-in via `measure-request-body-size`. Recorded once per exchange whenever the measuring tee exists — including bodyless requests the application never touched, which is the `unread` share the counter exists to show. `partial` = consumption started but the end of the body was never observed (what that looks like per stack is the module guide's §5.4). Bodies the framework parses itself (form and multipart requests read through the parameter/form-data API) never pass the tee and always count as `unread` — read the share per `uri` with that in mind. Created lazily per `uri`/`state` on first use, like the size summaries. |
 | `endpoint.request.body.size` / `endpoint.response.body.size` | distribution summary, base unit `bytes` | `uri` = handler pattern, `UNKNOWN` without one | Bytes that **actually flowed**, opt-in via `measure-*-body-size`, independent of body logging and level. Exact beyond `max-body-bytes`. Zero-byte bodies record no sample. Created lazily per `uri` on first use. |
 
 **Registration conflicts.** Micrometer rejects a registration whose id already exists with a different
@@ -930,7 +935,7 @@ The meters are designed to cover each other's blind spots:
 | Is the **log pipeline** (appender, broker, index) losing events? | `sum(endpoint.logging.events)` over a window ≠ count of indexed `endpoint-http-exchange` documents for the same window |
 | Did the upstream stop propagating identity (`traceparent` or correlation ids)? | the `generated` share of `correlation.id` rises |
 | Are async cycles timing out (servlet) / are clients disconnecting (reactive)? | `events{outcome="timeout"}` resp. `events{outcome="cancelled"}` |
-| Is an endpoint ignoring or abandoning the payload it is handed? | the `unread` or `partial` share of `request.body.read{uri=...}` rises — the logged body and the size sample cannot show this, both describe only what was consumed |
+| Is an endpoint ignoring or abandoning the payload it is handed? | the `unread` or `partial` share of `request.body.read{uri=...}` rises — the logged body and the size sample cannot show this, both describe only what was consumed. Form and multipart endpoints sit at `unread` by construction (the framework parses those bodies beside the tee), so judge the share per `uri`, not globally |
 | Are payloads growing beyond what the log captures? | `body.size` percentiles vs. `max-body-bytes` |
 
 A suggested alert set:

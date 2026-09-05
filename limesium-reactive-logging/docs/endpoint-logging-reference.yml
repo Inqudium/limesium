@@ -46,7 +46,10 @@ endpoint-logging:
   # code that sets this header itself decides what the client finally sees, while the event and the
   # MDC keep the id resolved at entry. Whichever identity wins rides the emission MDC as
   # `endpoint_request_id` - and the Reactor context (or the coroutine MDCContext) under the same key -
-  # while the request is handled.
+  # while the request is handled. A caller-supplied value is adopted only when it is 1-128 visible-ASCII
+  # characters (an opaque token: UUID, base-36, ULID, hex); anything else - whitespace, control or
+  # non-ASCII characters, more than 128 characters - counts as absent, so the peer never dictates the
+  # length or shape of what reaches every log line.
   correlation-id-header: X-Correlation-Id
 
   # Whether the query string is logged (as its own field `endpoint_url_query`, never as part of the

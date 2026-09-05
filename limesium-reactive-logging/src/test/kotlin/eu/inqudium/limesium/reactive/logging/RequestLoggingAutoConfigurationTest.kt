@@ -360,6 +360,26 @@ class RequestLoggingAutoConfigurationTest {
             assertThat(registry.find(EndpointLoggingMetrics.FAIL_OPEN_METER).counters()).hasSize(3)
         }
     }
+
+    @Test
+    fun `should start and register the accessors beside two host-defined filters`() {
+        // What is tested: the propagation initializer with an AMBIGUOUS filter slot - two host-defined
+        //   Reactor filters, a constellation the back-off contract permits.
+        // Success criteria: the context starts, both host filters exist, the module's own filter backed
+        //   off, and the accessors are registered because at least one Reactor variant owns a slot.
+        // Why it matters: resolved through ObjectProvider.getIfAvailable() the initializer threw
+        //   NoUniqueBeanDefinitionException and failed the context start from a logging library (code
+        //   analysis of 2026-09-05, finding 4).
+        // Given/When: two host filters beside the auto-configuration
+        contextRunner.withUserConfiguration(TwoHostFiltersConfig::class.java).run { context ->
+            // Then: started, both host filters present, accessors registered
+            assertThat(context).hasNotFailed()
+            assertThat(context.getBeansOfType(EndpointLoggingFilter::class.java)).hasSize(2)
+            assertThat(context).doesNotHaveBean("requestLoggingWebFilter")
+            val keys = ContextRegistry.getInstance().threadLocalAccessors.map { it.key() }
+            assertThat(keys).contains(MdcKeys.REQUEST_ID, MdcKeys.REQUEST_METHOD, MdcKeys.ROUTE)
+        }
+    }
 }
 
 // Host configuration at file level: a @Configuration class local to a test method holds a hidden
@@ -375,6 +395,15 @@ private class HostConfig {
         properties: RequestLoggingProperties,
         registry: MeterRegistry,
     ): RequestLoggingWebFilter = RequestLoggingWebFilter(properties, NanoTimeSource.SYSTEM, CorrelationIdGenerator.DEFAULT, registry)
+}
+
+@Configuration(proxyBeanMethods = false)
+private class TwoHostFiltersConfig {
+    @Bean
+    fun firstHostWebFilter(properties: RequestLoggingProperties): RequestLoggingWebFilter = RequestLoggingWebFilter(properties, NanoTimeSource.SYSTEM, CorrelationIdGenerator.DEFAULT, SimpleMeterRegistry())
+
+    @Bean
+    fun secondHostWebFilter(properties: RequestLoggingProperties): RequestLoggingWebFilter = RequestLoggingWebFilter(properties, NanoTimeSource.SYSTEM, CorrelationIdGenerator.DEFAULT, SimpleMeterRegistry())
 }
 
 @Configuration(proxyBeanMethods = false)

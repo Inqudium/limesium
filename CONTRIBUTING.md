@@ -111,13 +111,22 @@ invariants in the test body. They run in two modes:
 - **Regression mode, in every build.** `mvn verify` executes each fuzz test
   against its checked-in inputs (`src/test/resources/**/<Class>Inputs/`)
   plus the empty input - cheap, deterministic, part of the normal suite.
+  Every target ships a small SEED corpus there (conformant and malformed
+  headers, masking edge cases, byte sequences at the capture cap); without
+  one, regression mode would execute exactly one empty input and prove
+  nothing. `FuzzedDataProvider` consumes strings and byte arrays from the
+  FRONT of an input and booleans/integers from its END, so a seed carries
+  the interesting text first and a short trailer of control bytes last.
 - **Fuzzing mode, nightly.** The `Fuzz` workflow sets `JAZZER_FUZZ=1` and
   runs each target in its own job (Jazzer fuzzes only one `@FuzzTest` per
   JVM), each capped by its `@FuzzTest(maxDuration = ...)`.
 
 A finding is written into the seed-corpus directory next to the test
 sources (the nightly run also uploads it as a workflow artifact): commit it
-there and it becomes a permanent regression input; then fix the code. New
+there and it becomes a permanent regression input; then fix the code. The
+nightly run also uploads the corpus it grew (`.cifuzz-corpus/`, ignored by
+git) as an artifact - promote an input from it into the seed directory when
+it reaches a branch the seeds do not. New
 parsing/bounding surface should bring a fuzz target stating its invariants,
 like the existing ones do - in JAVA, not Kotlin: the OpenSSF Scorecard
 fuzzing detector only recognizes Jazzer in `*.java` files.

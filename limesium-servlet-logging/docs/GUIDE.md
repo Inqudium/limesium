@@ -57,6 +57,7 @@ when the two disagree, the code wins.
    6. [Request charset: log rendering vs. the servlet contract](#66-request-charset-log-rendering-vs-the-servlet-contract)
    7. [Writer fidelity and `checkError()`](#67-writer-fidelity-and-checkerror)
    8. [The `+ 10` order is load-bearing](#68-the--10-order-is-load-bearing)
+   9. [Framework-parsed bodies bypass the tee](#69-framework-parsed-bodies-bypass-the-tee)
 7. [Appendix](#7-appendix)
    1. [File map](#71-file-map)
    2. [Related documents](#72-related-documents)
@@ -588,6 +589,9 @@ In addition to the rules that hold on both stacks
 
 - Streaming **and async** behaviour are untouched by the tee; a raw zero-argument `startAsync()` cycle
   flows beside it, though ([§6.4](#64-raw-startasync-bypasses-the-tee)).
+- A body the **container parses** — a form POST read through `@RequestParam`/`getParameter*`, a
+  multipart request through `getParts()` — flows beside the tee as well: no `endpoint_request_body`,
+  no size sample, read state `unread` ([§6.9](#69-framework-parsed-bodies-bypass-the-tee)).
 - The log charset is the declared request/response encoding, UTF-8 when absent or unparsable; on the
   request side it is bound **late**, when the application first selects the stream or the reader, and
   the reader itself keeps the servlet decoding contract
@@ -796,6 +800,19 @@ later filter can commit the response. `RequestLoggingFilterTomcatTracingIntegrat
 context against a real bridge — its MDC writes and its own server span must never leak into the event.
 
 ---
+
+### 6.9 Framework-parsed bodies bypass the tee
+
+`CapturingRequestWrapper` tees `getInputStream()` and `getReader()`. Everything else the
+`HttpServletRequestWrapper` base class delegates to the **original** request — `getParameter*`,
+`getParts()`, `getPart()` included. When Spring MVC binds a `@RequestParam`, a `@ModelAttribute` or a
+`MultipartFile` on a POST, the container parses the body from its own stream; the wrapper's accessors
+are never selected, so the tee sees nothing: `endpoint_request_body` stays absent although
+`log-request-body` is on, no size sample is recorded, and `endpoint.request.body.read` counts the
+exchange as `unread`. The response side is unaffected. A documented boundary — the tee mirrors what the
+application read through the stream API, and a parameter read is not that — pinned by the form-POST
+integration test on Tomcat. Read the `unread` share of the read counter per `uri` with this in mind:
+a form endpoint sits at 100 % `unread` by construction, not because it drops its payload.
 
 ## 7. Appendix
 

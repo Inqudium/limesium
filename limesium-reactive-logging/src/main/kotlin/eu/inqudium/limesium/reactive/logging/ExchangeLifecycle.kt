@@ -1,5 +1,6 @@
 package eu.inqudium.limesium.reactive.logging
 
+import eu.inqudium.limesium.common.CorrelationHeaderValue
 import eu.inqudium.limesium.common.CorrelationIdGenerator
 import eu.inqudium.limesium.common.HeaderValueMasker
 import eu.inqudium.limesium.common.MdcKeys
@@ -265,13 +266,12 @@ internal class ExchangeLifecycle(
         // request id (the caller's X-Correlation-Id is ignored on such exchanges - the distributed
         // identity outranks the private one); only a traceless exchange accepts the correlation header
         // or generates a fresh id, and only a traceless exchange gets the echo - a traced exchange
-        // passes through observationally untouched.
+        // passes through observationally untouched. A header value outside the acceptance rule
+        // (CorrelationHeaderValue: 1-128 visible-ASCII characters) counts as absent.
         val trace = Traceparent.parse(request.headers.getFirst(Traceparent.HEADER))
         val headerCorrelationId =
             if (trace == null) {
-                request.headers
-                    .getFirst(properties.correlationIdHeader)
-                    ?.takeUnless { it.isBlank() }
+                CorrelationHeaderValue.accept(request.headers.getFirst(properties.correlationIdHeader))
             } else {
                 null
             }

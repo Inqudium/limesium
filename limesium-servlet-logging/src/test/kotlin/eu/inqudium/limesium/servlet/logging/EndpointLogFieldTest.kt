@@ -12,8 +12,8 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.slf4j.LoggerFactory
-import java.nio.file.Files
-import java.nio.file.Path
+import org.springframework.core.io.ClassPathResource
+import java.nio.charset.StandardCharsets
 
 /**
  * Contract of the [EndpointLogField] family: the wire names (a contract with the log index), the per-field
@@ -21,15 +21,15 @@ import java.nio.file.Path
  * lockstep with the repository-shared `/docs/elk/limesium-servlet-logging-fields.component-template.json`.
  */
 class EndpointLogFieldTest {
-    private val templatePath: Path = Path.of("../docs/elk/limesium-servlet-logging-fields.component-template.json")
-
+    // The ONE template for both stacks lives in the repository-shared /docs and reaches this module's test
+    // classpath through the declared test resource in the POM (like the reactive twin) - no dependency on
+    // the working directory of the test run.
     private val template: String by lazy {
-        assertThat(templatePath)
-            .describedAs(
-                "the component template must be readable relative to the module directory (working directory: %s)",
-                Path.of("").toAbsolutePath(),
-            ).exists()
-        Files.readString(templatePath)
+        val resource = ClassPathResource("elk/limesium-servlet-logging-fields.component-template.json")
+        assertThat(resource.exists())
+            .describedAs("the component template must be on the test classpath (declared test resource from the shared /docs)")
+            .isTrue()
+        resource.inputStream.use { String(it.readAllBytes(), StandardCharsets.UTF_8) }
     }
 
     private val properties: Map<String, Map<String, Any>> by lazy {

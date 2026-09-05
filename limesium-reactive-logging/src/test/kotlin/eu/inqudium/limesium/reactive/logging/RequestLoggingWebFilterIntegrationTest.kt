@@ -32,12 +32,15 @@ import java.net.http.HttpResponse
 import java.time.Duration
 
 /**
- * End-to-end test of the auto-configured [RequestLoggingWebFilter] against a REAL Netty server: the
- * auto-configuration registers the filter (reactive condition), WebFlux dispatches to real annotated
- * handlers, requests arrive over real HTTP, and the exchange events are observed on the configured
- * logger. Covers what the mock-exchange tests cannot: the DataBuffer tee on real Netty buffers (pooled,
- * reference-counted), the handler pattern recorded by real WebFlux dispatch, and the commit-deferred
- * error emission against Boot's real error handler (the event must carry the RENDERED 500).
+ * End-to-end test of the AUTO-SELECTED filter against a REAL Netty server: the shipped auto-configuration
+ * pair registers exactly one filter (reactive condition), and because this module's test classpath
+ * carries the coroutine libraries, that filter is the [CoRequestLoggingWebFilter] - the majority
+ * consumer configuration without those libraries, the Reactor variant [RequestLoggingWebFilter], is
+ * pinned per server by [ServerContract]. WebFlux dispatches to real annotated handlers, requests arrive
+ * over real HTTP, and the exchange events are observed on the configured logger. Covers what the
+ * mock-exchange tests cannot: the DataBuffer tee on real Netty buffers (pooled, reference-counted), the
+ * handler pattern recorded by real WebFlux dispatch, and the commit-deferred error emission against
+ * Boot's real error handler (the event must carry the RENDERED 500).
  *
  * Determinism: pinned time and id beans (auto-configured defaults back off); event arrival awaited via
  * the semaphore-based [AwaitingAppender], never a sleep. FLAT class with an inner static configuration -

@@ -115,6 +115,11 @@ class CapturingRequestWrapper(
 
             override fun isReady(): Boolean = real.isReady
 
+            // Delegated, not inherited: InputStream's default answers a constant 0, which would make a
+            // parser probing the stream behave differently the moment body capture is switched on -
+            // the one thing a passive tee must never do.
+            override fun available(): Int = real.available()
+
             override fun setReadListener(listener: ReadListener?) = real.setReadListener(listener)
 
             override fun close() = real.close()

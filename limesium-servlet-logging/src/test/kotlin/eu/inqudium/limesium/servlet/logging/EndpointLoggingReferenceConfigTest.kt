@@ -10,7 +10,7 @@ import org.springframework.boot.context.properties.source.ConfigurationPropertyS
 import org.springframework.boot.env.YamlPropertySourceLoader
 import org.springframework.core.env.EnumerablePropertySource
 import org.springframework.core.env.MapPropertySource
-import org.springframework.core.io.FileSystemResource
+import org.springframework.core.io.ClassPathResource
 
 /**
  * Lockstep between the repository-shared `/docs/endpoint-logging-reference.yml` and [RequestLoggingProperties]: the reference
@@ -20,8 +20,10 @@ import org.springframework.core.io.FileSystemResource
  * docs show is what an application.yml would do.
  */
 class EndpointLoggingReferenceConfigTest {
+    // The shared reference reaches this module's test classpath through the declared test resource in
+    // the POM (like the reactive twin) - no dependency on the working directory of the test run.
     private val referenceSources =
-        YamlPropertySourceLoader().load("reference", FileSystemResource("../docs/endpoint-logging-reference.yml"))
+        YamlPropertySourceLoader().load("reference", ClassPathResource("endpoint-logging-reference.yml"))
 
     @Test
     fun `should bind the reference configuration to exactly the built-in defaults`() {

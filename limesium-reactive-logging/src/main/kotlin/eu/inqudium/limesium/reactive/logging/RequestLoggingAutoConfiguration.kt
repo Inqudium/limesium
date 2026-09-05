@@ -89,6 +89,9 @@ class RequestLoggingAutoConfiguration {
          * active (handler MDC natively via `MDCContext`) or a host filter of another type, nothing here
          * applies and a startup warning would be false noise. Resolved at initialization time rather than by
          * `@ConditionalOnBean`, whose evaluation order against the sibling bean methods is not guaranteed.
+         * Resolved over ALL filter beans (`stream()`), never through `getIfAvailable()`: that call throws
+         * `NoUniqueBeanDefinitionException` for two host-defined filters - a constellation the module
+         * otherwise permits - and would fail the context start from a logging library.
          */
         @Bean
         fun endpointMdcContextPropagationInitializer(
@@ -96,7 +99,7 @@ class RequestLoggingAutoConfiguration {
             activeFilter: ObjectProvider<EndpointLoggingFilter>,
         ): InitializingBean =
             InitializingBean {
-                if (activeFilter.getIfAvailable() is RequestLoggingWebFilter) {
+                if (activeFilter.stream().anyMatch { it is RequestLoggingWebFilter }) {
                     EndpointMdcContextPropagation.registerAccessors()
                     EndpointMdcContextPropagation.warnUnlessAutomaticPropagation(
                         environment.getProperty(EndpointMdcContextPropagation.PROPAGATION_MODE_PROPERTY),

@@ -36,6 +36,7 @@ class HeaderMaskingFuzzTest {
         //   masked value in plaintext or an unexpected selection fails the run.
         // Why it matters: header names and values are peer- and operator-controlled input on every
         //   exchange; a plaintext leak through an unforeseen name shape is a secret in the logs.
+        // Given: fuzzed include/exclude/masked/unmasked lists and a fuzzed header map
         List<String> includes = consumeNames(data);
         List<String> excludes = consumeNames(data);
         List<String> masked = consumeNames(data);
@@ -61,8 +62,12 @@ class HeaderMaskingFuzzTest {
             }
         }
 
+        // When: the section selects and masks
         List<kotlin.Pair<String, String>> selected =
                 properties.select(headers.keySet(), HeaderValueMasker.Companion.getDEFAULT(), headers::get);
+
+        // Then: every masked name renders as a fingerprint and never as its plaintext; the default masker
+        //   is deterministic and keeps its shape
 
         boolean maskAll = masked.contains(HeaderLogProperties.WILDCARD);
         for (kotlin.Pair<String, String> entry : selected) {

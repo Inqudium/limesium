@@ -33,6 +33,9 @@ class TraceparentFuzzTest {
         // Why it matters: the header is caller-controlled; a throw would break a request on the
         //   fail-open path, a false accept would join the event to a foreign trace, a false reject
         //   would drop it.
+        // Given: the fuzzed input, split by its first boolean into the positive and the negative oracle
+        // When: the parser runs on the constructed or the raw value
+        // Then: the oracle of that branch holds, or the run fails with the offending input
         if (data.consumeBoolean()) {
             // Positive oracle: a conformant version-00 header must parse.
             String traceId = hex(data, 32, true);
