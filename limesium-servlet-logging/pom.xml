@@ -129,6 +129,24 @@
     <build>
         <sourceDirectory>${project.basedir}/src/main/kotlin</sourceDirectory>
         <testSourceDirectory>${project.basedir}/src/test/kotlin</testSourceDirectory>
+        <!-- The cross-stack contract files (configuration reference, ELK component template) live in
+             the repository-shared /docs; the lockstep tests read them from the TEST CLASSPATH, so the
+             dependency on the shared docs is declared HERE, in the build, rather than hidden in a
+             working-directory-relative path inside a test (the reactive twin's arrangement, applied
+             here by the code analysis of 2026-09-05, finding 7). A missing checkout fails at resource
+             processing with a clear message, not as a contract violation. -->
+        <testResources>
+            <testResource>
+                <directory>${project.basedir}/src/test/resources</directory>
+            </testResource>
+            <testResource>
+                <directory>${project.basedir}/../docs</directory>
+                <includes>
+                    <include>endpoint-logging-reference.yml</include>
+                    <include>elk/limesium-servlet-logging-fields.component-template.json</include>
+                </includes>
+            </testResource>
+        </testResources>
         <plugins>
             <plugin>
                 <groupId>org.jetbrains.kotlin</groupId>
