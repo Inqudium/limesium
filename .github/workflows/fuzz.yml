@@ -60,3 +60,15 @@ jobs:
             **/src/test/resources/**/*Inputs/**
             **/target/surefire-reports/**
           if-no-files-found: warn
+
+      # The corpus the run grew (jazzer-junit writes it to .cifuzz-corpus/ in
+      # the module directory, git-ignored). Kept on success too, so an input
+      # that reached a branch the seeds do not can be promoted into the seed
+      # directory by hand - see CONTRIBUTING.md.
+      - name: Upload grown corpus
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: fuzz-corpus-${{ matrix.target }}
+          path: "**/.cifuzz-corpus/**"
+          if-no-files-found: ignore
