@@ -12,6 +12,7 @@ class BodyLogModeTest {
         // Success criteria: NEVER false, ON_FAILURE and ALWAYS true.
         // Why it matters: on-failure needs the bytes although it may discard them; a mode that
         //   captured nothing would log an empty body on the one line an operator wants it.
+        // Given/When/Then: the three modes against their capture answer
         assertThat(BodyLogMode.NEVER.captures).isFalse()
         assertThat(BodyLogMode.ON_FAILURE.captures).isTrue()
         assertThat(BodyLogMode.ALWAYS.captures).isTrue()
@@ -22,6 +23,7 @@ class BodyLogModeTest {
         // What is tested: the one decision the emitters delegate - on-failure discards a success.
         // Success criteria: true for a failed exchange (outcome not success, or a 4xx), false otherwise.
         // Why it matters: this single predicate is the volume switch of ADR-0006.
+        // Given/When/Then: on-failure against a clean and a failed exchange
         assertThat(BodyLogMode.ON_FAILURE.logs(failed = false)).isFalse()
         assertThat(BodyLogMode.ON_FAILURE.logs(failed = true)).isTrue()
     }
@@ -33,6 +35,7 @@ class BodyLogModeTest {
         // Success criteria: ALWAYS true for both outcomes, NEVER false for both.
         // Why it matters: only ON_FAILURE is outcome-gated (ADR-0006); the other two must not
         //   silently pick up a gate through a shared code path.
+        // Given/When/Then: the two unconditional modes against both outcomes
         assertThat(BodyLogMode.ALWAYS.logs(failed = false)).isTrue()
         assertThat(BodyLogMode.ALWAYS.logs(failed = true)).isTrue()
         assertThat(BodyLogMode.NEVER.logs(failed = false)).isFalse()

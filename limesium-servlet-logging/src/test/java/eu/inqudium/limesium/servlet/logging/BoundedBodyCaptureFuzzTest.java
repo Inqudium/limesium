@@ -34,10 +34,12 @@ class BoundedBodyCaptureFuzzTest {
         // Why it matters: the capture bounds memory on every request; a counting drift or a missing
         //   note would misreport payload sizes and truncation to the operator without another
         //   symptom.
+        // Given: a capture with a fuzzed cap
         int maxBytes = data.consumeInt(0, 1 << 16);
         BoundedBodyCapture capture = new BoundedBodyCapture(maxBytes);
         long expectedTotal = 0;
 
+        // When: a fuzzed sequence of captures, marks and clears runs against it
         int ops = data.consumeInt(0, 64);
         for (int i = 0; i < ops && data.remainingBytes() > 0; i++) {
             switch (data.consumeInt(0, 4)) {
@@ -62,6 +64,7 @@ class BoundedBodyCaptureFuzzTest {
             }
         }
 
+        // Then: the count, the null contract and the truncation note hold
         if (capture.getTotalBytes() != expectedTotal) {
             throw new IllegalStateException(
                     "totalBytes drifted: expected " + expectedTotal + ", got " + capture.getTotalBytes());

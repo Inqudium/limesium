@@ -475,6 +475,7 @@ class RequestLoggingMetricsTest {
             // Why it matters: an endpoint silently ignoring its payload looks identical to a bodyless
             //   request in every other signal of this module.
             // Given: a chain that ignores the request entirely
+            // When: the exchange runs to destruction
             handle(postWithBody(), MockHttpServletResponse(), FilterChain { _, _ -> })
 
             // Then: unread counted, no size sample at all
