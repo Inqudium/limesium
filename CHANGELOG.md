@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Server-agnostic reactive twin, pinned: one `ServerContract` runs the Reactor variant
+  against every reactive server Boot 4 ships - Reactor Netty, Tomcat and Jetty (the
+  latter two through Spring's `HttpHandler` adapters) - for the single active filter, a
+  real round trip with both bodies teed on the server's own buffers, the
+  commit-deferred emission behind the server's error rendering, a later commit
+  action's status and header, and the handler pattern of a real dispatch. Undertow
+  left Boot with 4.0 and is not part of the matrix.
 - Injectable `HeaderValueMasker`: the rendering of masked header values is a
   `@ConditionalOnMissingBean` bean (`eu.inqudium.limesium.common.HeaderValueMasker`)
   shared by both twins and both reactive variants - the built-in default is the

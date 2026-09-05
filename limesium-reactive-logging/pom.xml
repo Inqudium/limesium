@@ -95,6 +95,22 @@
             <artifactId>reactor-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- The other two reactive servers Boot 4 ships (Undertow left Boot with 4.0), for the per-server
+             integration suites (ServerContract): the filter is server-agnostic by construction (WebFilter,
+             DataBuffer tee), and the suites pin that the tee, the commit-deferred emission and the
+             commit-action ordering hold on Tomcat's and Jetty's HttpHandler adapters as they do on
+             Reactor Netty. Each suite declares its ReactiveWebServerFactory explicitly and asserts it,
+             so the choice never depends on which server module Boot detects first. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-tomcat</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jetty</artifactId>
+            <scope>test</scope>
+        </dependency>
         <!-- Real Micrometer Tracing (Brave bridge) for the tracing integration test. Unlike the servlet
              twin, this module does NOT read the bridge's MDC - it parses the caller's traceparent - so
              the test pins the two things that design promises against a real bridge: the logged traceId

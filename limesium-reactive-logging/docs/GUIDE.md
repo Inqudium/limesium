@@ -873,14 +873,16 @@ lists every test with its rationale):
 |---|---|
 | Unit suites (`RequestLoggingWebFilterTest`, `CoRequestLoggingWebFilterTest`, `…BodyAndHeaderTest`, `…MetricsTest`, `BoundedBodyCaptureTest`, `MdcContextPropagationTest`, `RequestLoggingAutoConfigurationTest`, …) | mock-exchange driven, deterministic; both filter variants against the shared lifecycle |
 | `RequestLoggingWebFilterIntegrationTest` | end-to-end on real embedded **Netty** with the auto-selected (coroutine) variant: DataBuffer tee on pooled buffers, real WebFlux dispatch, commit-deferred error emission |
-| `RequestLoggingWebFilterReactorIntegrationTest` | the **Reactor variant** on real Netty (coroutine auto-configuration excluded) — the majority consumer configuration without the optional coroutine libraries |
+| Server suites (`ServerContract` run as `ReactorNettyServerIntegrationTest`, `TomcatServerIntegrationTest`, `JettyServerIntegrationTest`) | the **Reactor variant** (coroutine auto-configuration excluded — the majority consumer configuration) on every reactive server Boot 4 ships: the single active filter, a real round trip with both bodies teed on the server's own buffers, the commit-deferred emission behind the server's error rendering, a later commit action's status and header as the server orders the actions, the handler pattern of a real dispatch |
 | `CoRequestLoggingWebFilterCoroutineIntegrationTest` | the **coroutine variant**'s `MDCContext` handler-MDC parity across real dispatcher hops |
 | `RequestLoggingWebFilterTracingIntegrationTest` | ADR-0002 trace contract beside a real Brave bridge on Netty: header-parse join, identity decision, the documented no-`traceparent` boundary, the commit-deferred error path |
 | Lockstep/contract tests (`TwinContractTest`, `EndpointLogFieldTest`, `EndpointLoggingReferenceConfigTest`, `HandlerMappingAttributeTest`) | pin the twin/wire/config contracts against the servlet twin and the shared reference YAML |
 
-Fuzzing of the shared `Traceparent` parser and header masking lives in limesium-common; this module's engine matrix is a
-single one (Netty) - WebFlux has no per-container WAR story, unlike the servlet twin's
-Tomcat/Jetty/Undertow suites.
+Fuzzing of the shared `Traceparent` parser and header masking lives in limesium-common. This module's
+engine matrix is the three reactive servers Boot 4 ships - Reactor Netty natively, Tomcat and Jetty
+through Spring's `HttpHandler` adapters over a servlet async cycle; Undertow left Boot with 4.0 and has
+no reactive factory to run against. WebFlux has no per-container WAR story, so the matrix is one of
+embedded servers, not of deployment targets like the servlet twin's.
 
 ### 7.2 Related documents
 

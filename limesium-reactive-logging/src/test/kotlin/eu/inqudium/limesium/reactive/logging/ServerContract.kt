@@ -18,6 +18,7 @@ import org.springframework.boot.SpringBootConfiguration
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.web.server.LocalServerPort
+import org.springframework.boot.web.server.reactive.ReactiveWebServerFactory
 import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Bean
 import org.springframework.core.Ordered
@@ -38,24 +39,31 @@ import java.net.http.HttpResponse
 import java.time.Duration
 
 /**
- * The REACTOR variant ([RequestLoggingWebFilter]) against a real Netty server. The module's test
- * classpath carries the coroutine libraries, so the shipped auto-configuration selects the coroutine
- * variant in [RequestLoggingWebFilterIntegrationTest]; this class excludes the coroutine
- * auto-configuration at context discovery, which leaves the Reactor filter as the active bean - the
- * majority consumer configuration, where the optional coroutine dependencies are absent. Proves
- * the Reactor-specific `Mono.defer`/`doFinally`
- * lifecycle, the DataBuffer tee on real Netty buffers, and the commit-deferred error emission.
+ * The server-agnosticism contract of the reactive twin, run once per reactive server Spring Boot 4 ships
+ * (Reactor Netty, Tomcat and Jetty through their `HttpHandler` adapters; Undertow left Boot with 4.0):
+ * the REACTOR variant ([RequestLoggingWebFilter]) as the single active filter, a real round trip with
+ * both bodies teed on the server's own buffers (Netty `ByteBuf`s, the servlet adapters' pooled
+ * `DataBuffer`s), the commit-deferred error emission behind the server's error rendering, a later commit
+ * action's status and header as the server orders the actions, and the handler pattern of a real
+ * dispatch. A subclass supplies the `ReactiveWebServerFactory`; every scenario, assertion and expected
+ * line is the same.
  *
- * Determinism: pinned time and id beans; events awaited via [AwaitingAppender]. FLAT class with an inner
- * static configuration - see the Spring Boot test isolation caveat. The Reactor variant's
+ * The module's test classpath carries the coroutine libraries, so the shipped auto-configuration selects
+ * the coroutine variant in [RequestLoggingWebFilterIntegrationTest]; this contract excludes the coroutine
+ * auto-configuration at context discovery, which leaves the Reactor filter as the active bean - the
+ * majority consumer configuration, where the optional coroutine dependencies are absent. Boot still
+ * deduces a REACTIVE application with Tomcat's and Jetty's servlet APIs on the classpath (no
+ * `DispatcherServlet` there), so nothing needs pinning beyond the factory bean each subclass declares.
+ *
+ * Determinism: pinned time and id beans; events awaited via [AwaitingAppender]. The Reactor variant's
  * initializer writes the accessors into the JVM-global ContextRegistry at context start; the class-level
  * guard takes them out again afterwards.
  */
 @SpringBootTest(
-    classes = [RequestLoggingWebFilterReactorIntegrationTest.ItApp::class],
+    classes = [ServerContract.ItApp::class],
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = [
-        "endpoint-logging.logger-name=endpoint-http-exchange-reactor-integration-test",
+        "endpoint-logging.logger-name=endpoint-http-exchange-server-contract",
         "endpoint-logging.log-request-body=always",
         "endpoint-logging.log-response-body=always",
         "endpoint-logging.response-headers.includes=X-Late",
@@ -63,7 +71,10 @@ import java.time.Duration
         "spring.autoconfigure.exclude=eu.inqudium.limesium.reactive.logging.CoRequestLoggingAutoConfiguration",
     ],
 )
-class RequestLoggingWebFilterReactorIntegrationTest {
+abstract class ServerContract {
+    /** The factory type this suite's server bean must have - the pin that the intended engine is running. */
+    protected abstract val server: Class<out ReactiveWebServerFactory>
+
     @LocalServerPort
     private var port: Int = 0
 
@@ -76,7 +87,7 @@ class RequestLoggingWebFilterReactorIntegrationTest {
 
     @BeforeEach
     fun setUp() {
-        logger = LoggerFactory.getLogger("endpoint-http-exchange-reactor-integration-test") as Logger
+        logger = LoggerFactory.getLogger("endpoint-http-exchange-server-contract") as Logger
         appender = AwaitingAppender().apply { start() }
         logger.addAppender(appender)
         logger.level = Level.INFO
@@ -103,8 +114,19 @@ class RequestLoggingWebFilterReactorIntegrationTest {
     private fun keyValues(event: ILoggingEvent): Map<String, Any?> = event.keyValuePairs?.associate { it.key to it.value } ?: emptyMap()
 
     @Test
-    fun `should run the reactor variant as the single active filter`() {
-        // Given/When: the application started with the coroutine auto-configuration excluded
+    fun `should run on this server`() {
+        // What is tested: the ReactiveWebServerFactory bean the context started the application with.
+        // Success criteria: exactly the factory type this suite declares - Boot's own server
+        //   auto-configuration backed off behind the explicit bean.
+        // Why it matters: with three servers on the test classpath, a suite that silently ran on the
+        //   wrong one would pin nothing about the engine it is named after.
+        // Given/When/Then
+        assertThat(context.getBean(ReactiveWebServerFactory::class.java)).isInstanceOf(server)
+    }
+
+    @Test
+    fun `should run the reactor variant as the single active filter on this server`() {
+        // Given/When: the application started on this server with the coroutine auto-configuration excluded
         // Then: the Reactor filter owns the slot; the coroutine variant is absent
         assertThat(context.getBeansOfType(EndpointLoggingFilter::class.java).values)
             .singleElement()
@@ -113,8 +135,8 @@ class RequestLoggingWebFilterReactorIntegrationTest {
     }
 
     @Test
-    fun `should log a real round trip with both bodies through the reactor lifecycle`() {
-        // Given/When: the real Netty application; a real POST whose handler reads the body and echoes it
+    fun `should log a real round trip with both bodies through this server`() {
+        // Given/When: the real application on this server; a real POST whose handler reads the body and echoes it
         val request =
             HttpRequest
                 .newBuilder(URI.create("http://localhost:$port/rx/echo"))
@@ -141,14 +163,14 @@ class RequestLoggingWebFilterReactorIntegrationTest {
     }
 
     @Test
-    fun `should log the rendered 500 via the commit-deferred emission of the reactor variant`() {
+    fun `should log the rendered 500 via the commit-deferred emission on this server`() {
         // What is tested: the Reactor-specific error path - the ERROR signal passes doOnError/doFinally
         //   before Boot's error handler renders; the emission must wait for the commit callback.
         // Success criteria: the client sees 500, the single ERROR event carries 500, outcome failure
         //   and the cause, and the correlation echo survives onto the error response.
-        // Why it matters: until now this path was proven only in a mock exchange; a real container
-        //   orders the signals, not the test.
-        // Given/When: the real Netty application; a real GET hits a throwing handler
+        // Why it matters: a real server orders the signals, not the test - and each server renders the
+        //   error on its own path.
+        // Given/When: the real application on this server; a real GET hits a throwing handler
         val response = get("/rx/boom", "X-Correlation-Id" to "rx-corr-boom")
 
         // Then
@@ -164,7 +186,7 @@ class RequestLoggingWebFilterReactorIntegrationTest {
     }
 
     @Test
-    fun `should log the status and header a later commit action applies on a real error response`() {
+    fun `should log the status and header a later commit action applies on this server's error response`() {
         // What is tested: the commit-action ordering against a REAL container - a downstream WebFilter
         //   registers a beforeCommit action that
         //   turns Boot's rendered 500 into a 503 and adds a header; the module's callback, registered at
@@ -172,8 +194,8 @@ class RequestLoggingWebFilterReactorIntegrationTest {
         // Success criteria: the client receives 503 plus the header, and the single ERROR event carries
         //   503 and the header - what the response applied, not the pre-action 500.
         // Why it matters: security/session filters register their header writers exactly this way; the
-        //   real container, not the test, orders the actions.
-        // Given/When: the real Netty application; a real GET hits the throwing handler behind the late filter
+        //   real server, not the test, orders the actions.
+        // Given/When: the real application on this server; a real GET hits the throwing handler behind the late filter
         val response = get("/rx/boom-late")
 
         // Then: the client sees the mutated response, the event agrees with it
@@ -187,8 +209,8 @@ class RequestLoggingWebFilterReactorIntegrationTest {
     }
 
     @Test
-    fun `should record the handler pattern of a real dispatch`() {
-        // Given/When: the real Netty application; a GET against a templated route
+    fun `should record the handler pattern of a real dispatch on this server`() {
+        // Given/When: the real application on this server; a GET against a templated route
         val response = get("/rx/things/42")
 
         // Then

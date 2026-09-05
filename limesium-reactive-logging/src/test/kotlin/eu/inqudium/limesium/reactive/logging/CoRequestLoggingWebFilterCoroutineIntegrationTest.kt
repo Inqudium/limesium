@@ -23,6 +23,7 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.web.server.LocalServerPort
 import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Import
 import org.springframework.core.Ordered
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
@@ -71,6 +72,8 @@ import java.time.Duration
         "endpoint-logging.response-headers.unmasked=X-Late",
     ],
 )
+// Netty explicitly: with three servers on the test classpath Boot would otherwise start Jetty (see Servers.kt).
+@Import(NettyServer::class)
 class CoRequestLoggingWebFilterCoroutineIntegrationTest {
     @LocalServerPort
     private var port: Int = 0

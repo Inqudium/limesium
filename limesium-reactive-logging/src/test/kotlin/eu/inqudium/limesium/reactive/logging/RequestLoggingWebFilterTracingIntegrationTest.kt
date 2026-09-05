@@ -18,6 +18,7 @@ import org.springframework.boot.autoconfigure.EnableAutoConfiguration
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.web.server.LocalServerPort
 import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Import
 import org.springframework.http.server.reactive.observation.ServerRequestObservationContext
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -68,6 +69,8 @@ import java.time.Duration
         "management.tracing.sampling.probability=1.0",
     ],
 )
+// Netty explicitly: with three servers on the test classpath Boot would otherwise start Jetty (see Servers.kt).
+@Import(NettyServer::class)
 class RequestLoggingWebFilterTracingIntegrationTest {
     @LocalServerPort
     private var port: Int = 0
