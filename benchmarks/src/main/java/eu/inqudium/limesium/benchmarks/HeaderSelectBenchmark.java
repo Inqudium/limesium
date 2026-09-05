@@ -23,8 +23,9 @@ import org.openjdk.jmh.annotations.Warmup;
  * Finding #1 of PERF_ANALYSIS-2026-08-29T22-31-30 (plan M3), CONFIRMED AND ADOPTED: at the time
  * of the recorded runs {@code HeaderLogProperties.select} rebuilt the lowercased exclude/mask sets
  * and intermediate collections on every call; production has since derived them once at
- * construction (the "Derived ONCE" block in {@code RequestLoggingProperties}), so the baseline
- * below now measures the ADOPTED implementation, not the finding.
+ * construction (the "Derived ONCE" block in {@code HeaderLogProperties}, the one shared class both
+ * twins inline since ADR-0003's amendment of 2026-08-31), so the baseline below now measures the
+ * ADOPTED implementation, not the finding.
  *
  * <p>Baseline: the production {@code select} as currently shipped (precomputation included).
  * Candidate: {@link PrecomputedHeaderSelect}, the original standalone sketch the adoption was
