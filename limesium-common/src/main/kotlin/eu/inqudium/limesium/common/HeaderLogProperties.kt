@@ -3,7 +3,8 @@ package eu.inqudium.limesium.common
 /**
  * One header section (`request-headers` / `response-headers`): which header names are logged, and which
  * of the logged values appear in plaintext. Shared by both endpoint-logging twins (ADR-0003 amendment):
- * selection semantics are a cross-twin contract.
+ * selection semantics are a cross-twin contract, and THIS KDoc is its normative text - the reference
+ * YAML names the keys and defaults and points here (CONTRIBUTING, "one normative source").
  *
  * MASKED BY DEFAULT (ADR-0005): a logged header's value is replaced by the [HeaderValueMasker]'s
  * rendering unless its name is explicitly allowed in plaintext. The two lists that widen the selection
@@ -13,16 +14,16 @@ package eu.inqudium.limesium.common
  * - [includes] names the headers to log; empty means NONE (the safe default). The entry `*` includes
  *   every header the message carries.
  * - [excludes] removes names from the included set - meaningful mainly together with the `*` include;
- *   an exclude always wins over an include. The `*` wildcard is NOT supported here and rejected at
- *   binding time - an empty [includes] already logs nothing, so a wildcard exclude could only be a
- *   misconfiguration that would otherwise fail silently.
+ *   an exclude always wins over an include. A `*` here is rejected by `init` (binding time) - an empty
+ *   [includes] already logs nothing, so a wildcard exclude could only be a misconfiguration that would
+ *   otherwise fail silently.
  * - [masked] names the logged headers whose VALUE is replaced by the masker's rendering; the default
  *   `["*"]` masks every logged header. Narrowing it to explicit names is possible but rarely what is
  *   wanted - prefer [unmasked]. An empty list switches masking off wholesale: an explicit, visible
  *   decision, never the accidental result of another list.
  * - [unmasked] names the logged headers that appear in PLAINTEXT although [masked] covers them - the
  *   allowlist of harmless names (`Content-Type`, `Accept`, a correlation id). An unmasked name always
- *   wins over a masked one. The `*` wildcard is rejected here: the plaintext set is an explicit list of
+ *   wins over a masked one. A `*` here is rejected by `init`: the plaintext set is an explicit list of
  *   names by design; to log everything in plaintext, empty [masked] instead.
  *
  * Masking (and unmasking) only affects headers that are logged at all - listing a name in [masked] or

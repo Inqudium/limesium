@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * those of an undecorated exchange (the reactive counterpart of the servlet module's tee streams: a
  * passive copy, never a pre-read or replay). Transient allocation is bounded by
  * [RequestLoggingProperties.maxBodyBytes], not by the buffer size, and count-only captures (limit 0)
- * copy nothing at all - previously every buffer was cloned in full regardless of the cap.
+ * copy nothing at all.
  */
 private fun tee(
     capture: BoundedBodyCapture,
@@ -89,7 +89,7 @@ internal class CapturingRequestDecorator(
  * bypass this tee. The exchange event still carries the rendered status (the commit callback observes
  * the shared delegate), but `endpoint_response_body` and the response-size sample stay absent for
  * globally rendered error responses; locally handled controller/advice responses traverse the tee
- * normally. Documented as a capture boundary and pinned by the error-path integration test.
+ * normally. Documented as a capture boundary and pinned by `RequestLoggingWebFilterIntegrationTest`.
  */
 internal class CapturingResponseDecorator(
     delegate: ServerHttpResponse,

@@ -22,7 +22,8 @@ import org.openjdk.jmh.annotations.Warmup;
 
 /**
  * Finding #2 of PERF_ANALYSIS-2026-08-29T22-31-30 (plan M2), CONFIRMED AND PARTIALLY ADOPTED: at
- * the time of the recorded runs {@code HeaderLogProperties.mask} rendered the 8 digest bytes
+ * the time of the recorded runs the masking (then a method of {@code HeaderLogProperties}, today
+ * {@code HeaderValueMasker.DEFAULT} in limesium-common) rendered the 8 digest bytes
  * through eight {@code String.format("%02x")} calls (plus byte-boxing via {@code take(8)}).
  * Production has since adopted candidate (a): it renders via {@link HexFormat} and keeps the
  * per-value {@code MessageDigest.getInstance} lookup, so the baseline below now measures the
