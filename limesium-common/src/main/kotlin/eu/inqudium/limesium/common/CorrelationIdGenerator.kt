@@ -90,14 +90,11 @@ internal class CountingCorrelationIdGenerator(
     counterStart: Long = 0L,
 ) : CorrelationIdGenerator {
     /**
-     * `toUnsignedString` rather than `toString`: half of all long values are negative, and a
-     * leading minus sign would both lengthen the id and put a non-alphanumeric character into
-     * it. Reinterpreting the same bit pattern as unsigned is a bijection — no entropy is lost.
+     * Rendered UNSIGNED (`toULong`): half of all long values are negative, and a leading minus sign
+     * would both lengthen the id and put a non-alphanumeric character into it. Reinterpreting the
+     * same bit pattern as unsigned is a bijection - no entropy is lost.
      */
-    private val prefix: String =
-        java.lang.Long
-            .toUnsignedString(prefixSeed, 36)
-            .padStart(PREFIX_WIDTH, '0')
+    private val prefix: String = prefixSeed.toULong().toString(36).padStart(PREFIX_WIDTH, '0')
 
     /**
      * An [AtomicLong], deliberately not a thread-local counter. Under virtual threads a
@@ -109,8 +106,10 @@ internal class CountingCorrelationIdGenerator(
 
     override fun nextCorrelationId(): String =
         prefix +
-            java.lang.Long
-                .toUnsignedString(counter.getAndIncrement(), 36)
+            counter
+                .getAndIncrement()
+                .toULong()
+                .toString(36)
                 .padStart(COUNTER_WIDTH, '0')
 
     private companion object {
