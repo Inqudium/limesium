@@ -29,7 +29,7 @@ import java.nio.charset.Charset
  * half-way - is invisible in the byte count alone. The request tee marks the start of consumption and
  * the end of the stream; the emitter turns the state into the `endpoint.request.body.read` counter.
  */
-class BoundedBodyCapture(
+internal class BoundedBodyCapture(
     private val maxBytes: Int,
 ) : MeasuredBody {
     private val buffer = ByteArrayOutputStream()

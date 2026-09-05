@@ -47,7 +47,7 @@ import java.nio.charset.Charset
  * flowed - `PrintWriter` suppresses the failure before any tee can see it; `checkError()` is the signal
  * the servlet API offers, and it is preserved.
  */
-class CapturingResponseWrapper(
+internal class CapturingResponseWrapper(
     response: HttpServletResponse,
     private val capture: BoundedBodyCapture,
 ) : HttpServletResponseWrapper(response) {

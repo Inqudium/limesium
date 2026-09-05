@@ -37,7 +37,7 @@ import java.nio.charset.StandardCharsets
  * raw async cycle reads/writes flow beside the tee and are logged as absent - a documented contract
  * boundary, pinned by integration test.
  */
-class CapturingRequestWrapper(
+internal class CapturingRequestWrapper(
     request: HttpServletRequest,
     private val capture: BoundedBodyCapture,
 ) : HttpServletRequestWrapper(request) {
