@@ -5,10 +5,15 @@ auto-configured `WebFilter` that logs one structured `endpoint_*` line per HTTP 
 **identical message format, identical field family, identical `endpoint-logging.*` configuration and the
 identical meters**. A dashboard, alert, or index mapping must not care which stack produced an event.
 
-The long-form guide — introduction, architecture, integration into a foreign project, configuration,
-metrics and the stack-specific behaviours — is [`docs/GUIDE.md`](docs/GUIDE.md); what the module does
-and deliberately does not do is its [§1.1](docs/GUIDE.md#11-what-the-module-does) and
-[§1.2](docs/GUIDE.md#12-what-the-module-deliberately-does-not-do).
+The long-form documentation is split in two. The [common guide](../docs/GUIDE.md) holds everything
+both twins share — the exchange line, the shared architecture, dependency and encoder setup, the
+configuration namespace, the field family, the meters and the trace contract; what the modules do
+and deliberately do not do is its [§1.1](../docs/GUIDE.md#11-what-the-modules-do) and
+[§1.2](../docs/GUIDE.md#12-what-the-modules-deliberately-do-not-do). [`docs/GUIDE.md`](docs/GUIDE.md)
+holds what the **reactive stack decides** — the two filter variants, the terminal signal with the
+commit-deferred error path, the Reactor context and handler-side MDC, the `DataBuffer` tee, and the
+reactive-only edge cases; its [§1.1](docs/GUIDE.md#11-what-is-specific-to-the-reactive-stack) is the
+summary.
 
 The servlet module is the reference implementation; its documentation applies here too:
 
@@ -17,16 +22,16 @@ The servlet module is the reference implementation; its documentation applies he
   namespace plus the one reactive-only `variant` key) — this module's
   `EndpointLoggingReferenceConfigTest` **binds both files against this module's properties class** and
   pins the key parity, so neither reference can drift from the code or from its twin. The properties
-  are explained in the guide's [§4](docs/GUIDE.md#4-configuration).
+  are explained in the common guide's [§4](../docs/GUIDE.md#4-configuration).
 - **Index mapping:** the one component template for both stacks is the repository-shared
   [`/docs/elk/`](../docs/elk/README.md) — this module's `EndpointLogFieldTest`
   locks this module's field enum against that same template across the reactor. The field table is
-  the guide's [§5.1](docs/GUIDE.md#51-log-fields).
+  the common guide's [§5.1](../docs/GUIDE.md#51-log-fields).
 - **Metrics:** the same six meters (`endpoint.logging.failopen`, `endpoint.logging.events`,
   `endpoint.logging.exchanges.open`, `endpoint.logging.correlation.id`, `endpoint.request/response.body.size`,
   `endpoint.request.body.read`),
-  consumed from the host's `MeterRegistry`, never exported. The meter table is the guide's
-  [§5.4](docs/GUIDE.md#54-meters).
+  consumed from the host's `MeterRegistry`, never exported. The meter table is the common guide's
+  [§5.4](../docs/GUIDE.md#54-meters).
 
 ## Deliberate stack differences
 
@@ -44,7 +49,7 @@ level/outcome decoupling, slow escalation, header sections with `includes`/`excl
 the arrival line (`log-request-start`), count-only body measuring, path activation, the identity
 contract of ADR-0002 (a conformant `traceparent`'s trace id **is** the request id, the wire stays
 untouched; only a traceless exchange adopts or generates an `X-Correlation-Id` and echoes it back) —
-behaves exactly as documented in the servlet twin's README and guide.
+behaves exactly as documented once in the [common guide](../docs/GUIDE.md).
 
 ## The shared layer
 
@@ -70,9 +75,10 @@ The host must be a **Spring Boot 4.x reactive web application** on Java 21 with 
 the server (Reactor Netty by default) comes with the host's WebFlux starter, the module forces none.
 Two optional libraries change the wiring rather than the output: `kotlinx-coroutines-reactor` with
 `kotlinx-coroutines-slf4j` select the coroutine filter variant, and `io.micrometer:context-propagation`
-enables handler-side MDC for the Reactor variant. The full list with the reasons is the guide's
-[prerequisites table](docs/GUIDE.md#31-prerequisites); how the `endpoint_*` fields become visible in the
-log output is [§3.8](docs/GUIDE.md#38-logging-backend-and-structured-output).
+enables handler-side MDC for the Reactor variant. The stack-specific list with the reasons is the
+guide's [prerequisites table](docs/GUIDE.md#31-prerequisites), the shared requirements are the common
+guide's [§3.1](../docs/GUIDE.md#31-prerequisites); how the `endpoint_*` fields become visible in the log
+output is the common guide's [§3.5](../docs/GUIDE.md#35-logging-backend-and-structured-output).
 
 ```xml
 <dependency>
@@ -90,7 +96,7 @@ the other stays inert; keep them at the same version, both jars inline the same 
 
 ### Automatic wiring
 
-The long form is the guide's [§3.3](docs/GUIDE.md#33-automatic-wiring).
+The long form is the guide's [§3.2](docs/GUIDE.md#32-automatic-wiring).
 
 In a reactive web application (`@ConditionalOnWebApplication(type = REACTIVE)`) the auto-configuration
 registers exactly **one `EndpointLoggingFilter` bean**, and that is the whole wiring: WebFlux collects
@@ -132,7 +138,7 @@ identity rides the Reactor context, the emission-scope MDC and the message inlin
 ### Manual wiring
 
 The long form — including the Boot-context variant with the auto-configuration switched off and the
-rules for a hand-wired filter — is the guide's [§3.4](docs/GUIDE.md#34-manual-wiring).
+rules for a hand-wired filter — is the guide's [§3.3](docs/GUIDE.md#33-manual-wiring).
 
 The filter bean exists in every enabled reactive context; only its *pickup* depends on WebFlux
 collecting `WebFilter` beans from a Boot application context. Add it yourself when the HTTP handler is
@@ -162,10 +168,11 @@ val httpHandler = RouterFunctions.toHttpHandler(
 
 Reuse one filter per `MeterRegistry` rather than constructing several: the meters are identified by
 name, so all filters on one registry share one metrics owner and the `endpoint.logging.exchanges.open`
-gauge reports the total across them ([§6.7](docs/GUIDE.md#67-one-metrics-instance-per-registry)).
+gauge reports the total across them (common guide
+[§6.2](../docs/GUIDE.md#62-one-metrics-instance-per-registry)).
 Replacing the filter inside a Boot context is a different thing: a host-defined bean of **either**
 variant satisfies the missing-bean condition, both auto-configurations back off, and WebFlux picks the
-host's bean up like any other ([§3.7](docs/GUIDE.md#37-overriding-beans)) — as it does for the other
+host's bean up like any other ([§3.6](docs/GUIDE.md#36-replacing-the-filter-bean)) — as it does for the other
 overridable beans, `NanoTimeSource`, `CorrelationIdGenerator` and `HeaderValueMasker` (how masked header
 values render — a keyed HMAC, a fixed `***`). The context-propagation accessors are installed only while
 a `RequestLoggingWebFilter` owns the slot.
@@ -211,9 +218,9 @@ echoed it to the client as `X-Correlation-Id`. A cancelled exchange logs `endpoi
 with `-> -` and no status field when the response was never committed. There is no `endpoint_async`
 field on this stack. Optional fields (`endpoint_url_query`, `endpoint_slow`, the header and body
 sections) are present only when they apply. Which encoder produces which shape — and why the default
-console pattern shows none of the fields — is the guide's
-[§3.8](docs/GUIDE.md#38-logging-backend-and-structured-output); the field family itself is documented
-once, in the guide's [§5.1](docs/GUIDE.md#51-log-fields), and mapped by the component template in
+console pattern shows none of the fields — is the common guide's
+[§3.5](../docs/GUIDE.md#35-logging-backend-and-structured-output); the field family itself is documented
+once, in the common guide's [§5.1](../docs/GUIDE.md#51-log-fields), and mapped by the component template in
 [`/docs/elk/`](../docs/elk/README.md).
 
 ## Configuration (`endpoint-logging.*`)
@@ -223,9 +230,10 @@ construction plus this module's one `variant` key. The complete, commented refer
 its default is this module's [`docs/endpoint-logging-reference.yml`](docs/endpoint-logging-reference.yml)
 — copy the block and change only what you need; `EndpointLoggingReferenceConfigTest` binds it and the
 repository-shared reference against the properties class and fails the build on any drift. The
-properties are explained in the guide's [§4](docs/GUIDE.md#4-configuration): the property reference,
-header sections, body logging and measuring, path activation, logger levels, validation at startup, and
-example configurations. `endpoint-logging.enabled=false` removes the module without touching the
+properties are explained in the common guide's [§4](../docs/GUIDE.md#4-configuration): the property
+reference, header sections, body logging and measuring, path activation, logger levels, validation at
+startup, and example configurations; what the reactive stack adds to individual properties — `variant`
+first of all — is this module's guide's [§4](docs/GUIDE.md#4-configuration-on-the-reactive-stack). `endpoint-logging.enabled=false` removes the module without touching the
 classpath.
 
 ## Metrics
@@ -241,10 +249,11 @@ header, or generated — a rising `generated` share means the gateway or sidecar
 Rates, latencies and status distributions are deliberately left to Boot's own `http.server.requests`
 and to the structured log fields.
 
-Every meter with its type, tags and meaning is the guide's [§5.4](docs/GUIDE.md#54-meters); how to read
-them together, with a suggested alert set, is [§5.5](docs/GUIDE.md#55-reading-the-meters-together). The
-names are identical in both twins and pinned by `TwinContractTest`; the `outcome` tag of the events
-counter carries this stack's `cancelled`.
+Every meter with its type, tags and meaning is the common guide's [§5.4](../docs/GUIDE.md#54-meters);
+how to read them together, with a suggested alert set, is its
+[§5.5](../docs/GUIDE.md#55-reading-the-meters-together). The names are identical in both twins and pinned
+by `TwinContractTest`; the `outcome` tag of the events counter carries this stack's `cancelled`
+([§5.4](docs/GUIDE.md#54-meters) of this module's guide).
 
 ## Kotlin coroutines
 

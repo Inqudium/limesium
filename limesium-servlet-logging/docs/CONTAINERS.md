@@ -5,8 +5,9 @@ behavior**: when the container fires request destruction (the emission point), h
 what it hands to a raw async cycle, and which ambient MDC the emission thread carries. This guide
 documents each servlet engine individually — what the module relies on, how the engine actually behaves
 at those spec corners, which integration suite pins it, and the per-engine deviations worth knowing in
-production. The module-side mechanics themselves live in the [main guide](GUIDE.md); this document is
-the per-container view on top of it.
+production. The module-side mechanics themselves live in the [servlet guide](GUIDE.md) — and what both
+twins share in the [common guide](../../docs/GUIDE.md); this document is the per-container view on top
+of them.
 
 ---
 
@@ -155,7 +156,7 @@ tested; the server is not.
   well; `requestDestroyed` is Servlet-spec (2.4). The open-exchanges gauge is the liveness signal if a
   container's destruction behavior surprises.
 - **Filter order** stays at `HIGHEST_PRECEDENCE + 10` on every engine
-  ([§3.5](GUIDE.md#35-filter-order-and-other-filters), [§6.9](GUIDE.md#69-the--10-order-is-load-bearing)).
+  ([§3.4](GUIDE.md#34-filter-order-and-other-filters), [§6.8](GUIDE.md#68-the--10-order-is-load-bearing)).
 - **Path activation** matches the path WITHIN the application on every engine — a configured context
   path is stripped before matching ([§4.4](GUIDE.md#44-path-activation)).
 - The generated [test-evidence page](https://inqudium.github.io/limesium/tests/test-evidence/) lists

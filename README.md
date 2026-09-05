@@ -69,12 +69,17 @@ guides, Elasticsearch mapping, generated [test evidence](https://inqudium.github
 [API](https://inqudium.github.io/limesium/api/limesium-servlet-logging/)
 [references](https://inqudium.github.io/limesium/api/limesium-reactive-logging/).
 
-- [Servlet guide](limesium-servlet-logging/docs/GUIDE.md) — the long-form guide of the
-  reference implementation: architecture, integration, configuration, metrics.
+- [Common guide](docs/GUIDE.md) — everything both modules share: the exchange line, the shared
+  architecture, dependency and encoder setup, the configuration namespace, the field family, the
+  meters, the trace contract, and the table of deliberate stack differences.
+- [Servlet guide](limesium-servlet-logging/docs/GUIDE.md) — what the servlet stack decides in the
+  reference implementation: the filter and its two registrations, request destruction as the
+  emission point, async exchanges, the chain-wide MDC, the servlet-only edge cases.
 - [Container guide](limesium-servlet-logging/docs/CONTAINERS.md) — Tomcat, Jetty and Undertow
   documented individually: destruction models, error paths, pinned per-engine deviations.
-- [Reactive guide](limesium-reactive-logging/docs/GUIDE.md) — the twin's guide, including
-  the deliberate stack differences and the coroutine variant.
+- [Reactive guide](limesium-reactive-logging/docs/GUIDE.md) — what the reactive stack decides:
+  the two filter variants, the commit-deferred emission, the Reactor context and handler-side
+  MDC, the reactive-only edge cases.
 - [Configuration reference](docs/endpoint-logging-reference.yml) —
   every `endpoint-logging.*` key with its default, contract-tested against both twins.
 - [Elasticsearch mapping](docs/elk/README.md) — the ready-made

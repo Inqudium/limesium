@@ -60,6 +60,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `HeaderValueMasker` to `select`. The filter constructors gain an optional
   trailing `HeaderValueMasker` parameter (the default when omitted) - existing
   host-built filter beans compile unchanged.
+- Documentation: the two module guides are split into a common guide
+  (`docs/GUIDE.md` - everything both twins share: the exchange line, the
+  shared architecture, dependency and encoder setup, the configuration
+  namespace, the field family, the meters, the trace contract, and the one
+  table of deliberate stack differences) and two stack-specific guides
+  (`<module>/docs/GUIDE.md` - only what the stack decides). Section numbers
+  of the module guides changed; the READMEs, the container guide and the
+  docs site link the new sections.
 
 ## [2.0.0] - 2026-08-31
 

@@ -68,12 +68,18 @@ copy the block and change only what you need.
 
 ## Documentation
 
+- **[Common guide](GUIDE.md)** — everything both modules share: the
+  exchange line, the shared architecture, dependency and encoder setup,
+  the configuration namespace, the field family, the meters, the trace
+  contract, and the table of deliberate stack differences.
 - **[Servlet guide](https://github.com/Inqudium/limesium/blob/main/limesium-servlet-logging/docs/GUIDE.md)** —
-  the long-form guide of the reference implementation: architecture,
-  integration, configuration, metrics.
+  what the servlet stack decides in the reference implementation: the
+  filter and its two registrations, request destruction as the emission
+  point, async exchanges, the chain-wide MDC, the servlet-only edge cases.
 - **[Reactive guide](https://github.com/Inqudium/limesium/blob/main/limesium-reactive-logging/docs/GUIDE.md)** —
-  the twin's guide, including the deliberate stack differences and the
-  coroutine variant.
+  what the reactive stack decides: the two filter variants, the
+  commit-deferred emission, the Reactor context and handler-side MDC, the
+  reactive-only edge cases.
 - **[Elasticsearch mapping](elk/README.md)** — the ready-made component
   template for the `endpoint_*` fields.
 - **[Test evidence](https://inqudium.github.io/limesium/tests/test-evidence/)** —

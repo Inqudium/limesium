@@ -8,10 +8,15 @@ identity in the MDC while the request is handled. Message format, field family, 
 configuration and meters are **identical** in both twins: a dashboard, alert, or index mapping must not
 care which stack produced an event.
 
-The long-form guide — introduction, architecture, integration into a foreign project, configuration,
-metrics and the stack-specific behaviours — is [`docs/GUIDE.md`](docs/GUIDE.md); what the module does
-and deliberately does not do (no body masking transformers, no per-key response sampling) is its
-[§1.1](docs/GUIDE.md#11-what-the-module-does) and [§1.2](docs/GUIDE.md#12-what-the-module-deliberately-does-not-do).
+The long-form documentation is split in two. The [common guide](../docs/GUIDE.md) holds everything
+both twins share — the exchange line, the shared architecture, dependency and encoder setup, the
+configuration namespace, the field family, the meters and the trace contract; what the modules do
+and deliberately do not do (no body masking transformers, no per-key response sampling) is its
+[§1.1](../docs/GUIDE.md#11-what-the-modules-do) and [§1.2](../docs/GUIDE.md#12-what-the-modules-deliberately-do-not-do).
+[`docs/GUIDE.md`](docs/GUIDE.md) holds what the **servlet stack decides** — the filter and its two
+registrations, request destruction as the emission point, async exchanges, the chain-wide MDC, the
+stream and writer tees, and the servlet-only edge cases; its
+[§1.1](docs/GUIDE.md#11-what-is-specific-to-the-servlet-stack) is the summary.
 
 This module is the reference implementation; the documentation shared by both twins is bound to the
 code it inlines:
@@ -21,14 +26,14 @@ code it inlines:
   `EndpointLoggingReferenceConfigTest` against this module's properties class (the reactive twin binds
   the same file plus its one `variant` key against its own), so the namespace cannot drift from the
   code, and the twins cannot drift from each other by construction. The properties are explained in
-  the guide's [§4](docs/GUIDE.md#4-configuration).
+  the common guide's [§4](../docs/GUIDE.md#4-configuration).
 - **Index mapping:** the one component template for both stacks is the repository-shared
   [`/docs/elk/`](../docs/elk/README.md) — bound by `EndpointLogFieldTest` against this module's field
-  enum. The field table is the guide's [§5.1](docs/GUIDE.md#51-log-fields).
+  enum. The field table is the common guide's [§5.1](../docs/GUIDE.md#51-log-fields).
 - **Metrics:** the same six meters (`endpoint.logging.failopen`, `endpoint.logging.events`,
   `endpoint.logging.exchanges.open`, `endpoint.logging.correlation.id`, `endpoint.request/response.body.size`,
   `endpoint.request.body.read`), consumed from the host's `MeterRegistry`, never exported. The meter
-  table is the guide's [§5.4](docs/GUIDE.md#54-meters).
+  table is the common guide's [§5.4](../docs/GUIDE.md#54-meters).
 
 ## Deliberate stack differences
 
@@ -50,7 +55,7 @@ level/outcome decoupling, slow escalation, header sections with `includes`/`excl
 the arrival line (`log-request-start`), count-only body measuring, path activation, the identity contract
 of ADR-0002 (a conformant `traceparent`'s trace id **is** the request id, the wire stays untouched; only
 a traceless exchange adopts or generates an `X-Correlation-Id` and echoes it back) — is the one contract
-both twins ship, documented here and in this module's guide.
+both twins ship, documented once in the [common guide](../docs/GUIDE.md).
 
 ## The shared layer
 
@@ -75,9 +80,10 @@ The host must be a **Spring Boot 4.x servlet web application** on Java 21 — em
 Jetty 12.1+, which supply the Jakarta Servlet API the module declares as `provided` — with an SLF4J 2.x
 binding. Spring MVC is optional (without it there is no `endpoint_url_template`, no async pass and no
 worker-thread MDC). Undertow, and therefore WildFly, is unsupported on this stack: see
-[container support](#container-support). The full list with the reasons is the guide's
-[prerequisites table](docs/GUIDE.md#31-prerequisites); how the `endpoint_*` fields become visible in the
-log output is [§3.7](docs/GUIDE.md#37-logging-backend-and-structured-output).
+[container support](#container-support). The stack-specific list with the reasons is the guide's
+[prerequisites table](docs/GUIDE.md#31-prerequisites), the shared requirements are the common guide's
+[§3.1](../docs/GUIDE.md#31-prerequisites); how the `endpoint_*` fields become visible in the log output
+is the common guide's [§3.5](../docs/GUIDE.md#35-logging-backend-and-structured-output).
 
 ```xml
 <dependency>
@@ -95,7 +101,7 @@ the other stays inert; keep them at the same version, both jars inline the same 
 
 ### Automatic wiring
 
-The long form is the guide's [§3.3](docs/GUIDE.md#33-automatic-wiring).
+The long form is the guide's [§3.2](docs/GUIDE.md#32-automatic-wiring).
 
 In a servlet web application (`@ConditionalOnWebApplication(type = SERVLET)`) the auto-configuration
 registers the filter bean **and** the two registrations that make it work: a `FilterRegistrationBean`
@@ -127,12 +133,12 @@ The order is early but not first: Boot's `ServerHttpObservationFilter` at `HIGHE
 wraps this filter, so the exchange event stays within the server span's timing, and everything ordered
 after `+ 10` — Spring Security, the application's own filters, the `DispatcherServlet` — runs inside
 the chain-wide MDC scope and sees `endpoint_request_id`
-([§6.9](docs/GUIDE.md#69-the--10-order-is-load-bearing)).
+([§6.8](docs/GUIDE.md#68-the--10-order-is-load-bearing)).
 
 ### Manual wiring
 
 The long form — including the Boot-context variant with the auto-configuration switched off — is the
-guide's [§3.4](docs/GUIDE.md#34-manual-wiring).
+guide's [§3.3](docs/GUIDE.md#33-manual-wiring).
 
 The filter bean `RequestLoggingFilter` exists in every enabled servlet context; only its *registration*
 depends on Boot's servlet auto-configuration. Register it yourself when that auto-configuration is not
@@ -144,7 +150,7 @@ in charge:
 - **A different order or mapping** — the auto-configured registration is fixed at
   `HIGHEST_PRECEDENCE + 10` for every path. A host that must place the filter elsewhere switches the
   auto-configuration off (`endpoint-logging.enabled=false`) and registers by hand — mindful that
-  [§6.9](docs/GUIDE.md#69-the--10-order-is-load-bearing) explains why the `+ 10` is load-bearing.
+  [§6.8](docs/GUIDE.md#68-the--10-order-is-load-bearing) explains why the `+ 10` is load-bearing.
 - **Outside a Spring context** — a bare embedded container in an integration test, a servlet
   application without Spring. The filter is constructed directly; every default is public.
 
@@ -171,10 +177,11 @@ class EndpointLoggingInitializer : WebApplicationInitializer {
 
 Reuse one filter per `MeterRegistry` rather than constructing several: the meters are identified by
 name, so all filters on one registry share one metrics owner and the `endpoint.logging.exchanges.open`
-gauge reports the total across them ([§6.10](docs/GUIDE.md#610-one-metrics-instance-per-registry)).
+gauge reports the total across them (common guide
+[§6.2](../docs/GUIDE.md#62-one-metrics-instance-per-registry)).
 Replacing the filter itself (a host-defined `RequestLoggingFilter` bean) is a different thing: the
 automatic wiring still registers the replacement and its listener around it, so the emission point stays
-intact ([§3.6](docs/GUIDE.md#36-overriding-beans)) — as it does for the other overridable beans,
+intact ([§3.5](docs/GUIDE.md#35-replacing-the-filter-bean)) — as it does for the other overridable beans,
 `NanoTimeSource`, `CorrelationIdGenerator` and `HeaderValueMasker` (how masked header values render — a
 keyed HMAC, a fixed `***`).
 
@@ -220,9 +227,9 @@ echoed it to the client as `X-Correlation-Id`. When the chain throws, a short WA
 module's own logger the moment it happens, and the ERROR event with the rendered status follows at
 request destruction. Optional fields (`endpoint_url_query`, `endpoint_slow`, the header and body
 sections) are present only when they apply. Which encoder produces which shape — and why the default
-console pattern shows none of the fields — is the guide's
-[§3.7](docs/GUIDE.md#37-logging-backend-and-structured-output); the field family itself is documented
-once, in the guide's [§5.1](docs/GUIDE.md#51-log-fields), and mapped by the component template in
+console pattern shows none of the fields — is the common guide's
+[§3.5](../docs/GUIDE.md#35-logging-backend-and-structured-output); the field family itself is documented
+once, in the common guide's [§5.1](../docs/GUIDE.md#51-log-fields), and mapped by the component template in
 [`/docs/elk/`](../docs/elk/README.md).
 
 ## Configuration (`endpoint-logging.*`)
@@ -232,9 +239,11 @@ Every property lives under the `endpoint-logging.*` namespace, identical in both
 default is the repository-shared
 [`/docs/endpoint-logging-reference.yml`](../docs/endpoint-logging-reference.yml) — copy the block and
 change only what you need; `EndpointLoggingReferenceConfigTest` fails the build on any drift between
-that file and the properties class. The properties are explained in the guide's
-[§4](docs/GUIDE.md#4-configuration): the property reference, header sections, body logging and
-measuring, path activation, logger levels, validation at startup, and example configurations.
+that file and the properties class. The properties are explained in the common guide's
+[§4](../docs/GUIDE.md#4-configuration): the property reference, header sections, body logging and
+measuring, path activation, logger levels, validation at startup, and example configurations; what
+the servlet stack adds to individual properties is this module's guide's
+[§4](docs/GUIDE.md#4-configuration-on-the-servlet-stack).
 `endpoint-logging.enabled=false` removes the module without touching the classpath.
 
 ## Metrics
@@ -250,10 +259,11 @@ were and how far the application actually read the request body. Rates, latencie
 distributions are deliberately left to Boot's own `http.server.requests` and to the structured log
 fields.
 
-Every meter with its type, tags and meaning is the guide's [§5.4](docs/GUIDE.md#54-meters); how to read
-them together, with a suggested alert set, is [§5.5](docs/GUIDE.md#55-reading-the-meters-together). The
-names are identical in both twins and pinned by `TwinContractTest`; the `outcome` tag of the events
-counter carries this stack's `timeout`.
+Every meter with its type, tags and meaning is the common guide's [§5.4](../docs/GUIDE.md#54-meters);
+how to read them together, with a suggested alert set, is its
+[§5.5](../docs/GUIDE.md#55-reading-the-meters-together). The names are identical in both twins and pinned
+by `TwinContractTest`; the `outcome` tag of the events counter carries this stack's `timeout`
+([§5.4](docs/GUIDE.md#54-meters) of this module's guide).
 
 ## Container support
 
