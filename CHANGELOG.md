@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Code-style audit of 2026-09-05 (`docs/assessment/CODE_STYLE-2026-09-05T17-08-39.md`),
+  all findings fixed. Host-visible: the servlet tee classes `BoundedBodyCapture`,
+  `CapturingRequestWrapper` and `CapturingResponseWrapper` are `internal` like their
+  reactive counterparts (finding 1 - they were never documented as API; a host that
+  constructed them directly must stop, the filter wires them); the `masking-key`
+  property binds to the new `MaskingKey` value (`RequestLoggingProperties.maskingKey`,
+  finding 5) whose own `toString` redacts the secret, so both properties classes keep
+  their generated `toString` - the YAML/environment binding is unchanged, hand-written
+  `RequestLoggingProperties(maskingKey = "...")` calls become `MaskingKey("...")`; the
+  companion defaults `HeaderValueMasker.DEFAULT`/`keyed`/`forKey`, `NanoTimeSource.SYSTEM`
+  and `CorrelationIdGenerator.DEFAULT` carry `@JvmField`/`@JvmStatic`, so Java hosts call
+  them without `Companion` (finding 2). Internal: `Traceparent.parse` returns a named
+  `TraceContext` instead of a `Pair` (finding 6), the reactive `Exchange` and the servlet
+  emission guard encapsulate their transitions like the servlet `CompletionState`
+  (finding 15), the shared `reportFailOpen` replaces fifteen copies of the fail-open
+  reporting block (pattern S1), the loggers, `require`, catch parameters, member order
+  and file names follow the house pattern (findings 3, 4, 7-11), and the tests share the
+  `CapturedLogger` fixture and `keyValues()` extension from the common test-jar instead
+  of 24 Logback fixture copies (pattern S2, findings 12-14).
 - Shared core widened (ADR-0003 amendment of 2026-09-05, architecture review findings 1
   and 3): the field enum `EndpointLogField`, the meters `EndpointLoggingMetrics`
   (parameterized with the stack's third outcome) and the stack-neutral core of the

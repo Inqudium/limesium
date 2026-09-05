@@ -151,3 +151,12 @@ shaded). What deliberately stays duplicated: the filters and lifecycles,
 the exchange state, the per-stack classification, the properties, the body
 captures - and the ENGINE-specific test infrastructure (`ServerContract`,
 `EndpointAccessorRegistryGuard`, `UndertowTestServer`).
+
+The code-style audit of the same day (`CODE_STYLE-2026-09-05T17-08-39.md`)
+added two more residents by the same routes: `MaskingKey`, the secret-bearing
+value the `masking-key` property binds to (finding 5), and the JUnit 5 fixture
+`CapturedLogger` with the `ILoggingEvent.keyValues()` extension in the test-jar
+(pattern S2 - the per-class Logback fixture had been copied into 24 test
+classes). It also closed the twins' visibility gap: the servlet tee classes
+(`BoundedBodyCapture`, both wrappers) are `internal` like their reactive
+counterparts (finding 1).
