@@ -17,7 +17,6 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.slf4j.LoggerFactory
 import org.slf4j.MDC
-import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.SpringBootConfiguration
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration
 import org.springframework.boot.test.context.SpringBootTest
@@ -30,6 +29,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.test.context.TestConstructor
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
@@ -75,13 +75,11 @@ import java.time.Duration
 )
 // Netty explicitly: with three servers on the test classpath Boot would otherwise start Jetty (see Servers.kt).
 @Import(NettyServer::class)
-class CoRequestLoggingWebFilterCoroutineIntegrationTest {
-    @LocalServerPort
-    private var port: Int = 0
-
-    @Autowired
-    private lateinit var context: ApplicationContext
-
+@TestConstructor(autowireMode = TestConstructor.AutowireMode.ALL)
+class CoRequestLoggingWebFilterCoroutineIntegrationTest(
+    @param:LocalServerPort private val port: Int,
+    private val context: ApplicationContext,
+) {
     private val http: HttpClient = HttpClient.newBuilder().connectTimeout(REQUEST_TIMEOUT).build()
     private lateinit var exchangeLogger: Logger
     private lateinit var exchangeAppender: AwaitingAppender

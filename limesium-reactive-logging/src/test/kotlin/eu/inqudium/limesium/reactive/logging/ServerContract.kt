@@ -14,7 +14,6 @@ import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.slf4j.LoggerFactory
-import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.SpringBootConfiguration
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration
 import org.springframework.boot.test.context.SpringBootTest
@@ -27,6 +26,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.test.context.TestConstructor
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
@@ -72,15 +72,13 @@ import java.time.Duration
         "spring.autoconfigure.exclude=eu.inqudium.limesium.reactive.logging.CoRequestLoggingAutoConfiguration",
     ],
 )
-abstract class ServerContract {
+@TestConstructor(autowireMode = TestConstructor.AutowireMode.ALL)
+abstract class ServerContract(
+    @param:LocalServerPort private val port: Int,
+    private val context: ApplicationContext,
+) {
     /** The factory type this suite's server bean must have - the pin that the intended engine is running. */
     protected abstract val server: Class<out ReactiveWebServerFactory>
-
-    @LocalServerPort
-    private var port: Int = 0
-
-    @Autowired
-    private lateinit var context: ApplicationContext
 
     private val http: HttpClient = HttpClient.newBuilder().connectTimeout(REQUEST_TIMEOUT).build()
     private lateinit var logger: Logger
