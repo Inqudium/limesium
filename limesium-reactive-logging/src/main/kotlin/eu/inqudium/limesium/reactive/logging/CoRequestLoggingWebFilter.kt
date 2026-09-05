@@ -5,6 +5,7 @@ import eu.inqudium.limesium.common.HeaderValueMasker
 import eu.inqudium.limesium.common.MdcKeys
 import eu.inqudium.limesium.common.MdcScope
 import eu.inqudium.limesium.common.NanoTimeSource
+import eu.inqudium.limesium.common.reportFailOpen
 import eu.inqudium.limesium.common.reportQuietly
 import io.micrometer.core.instrument.MeterRegistry
 import kotlinx.coroutines.CancellationException
@@ -12,6 +13,7 @@ import kotlinx.coroutines.slf4j.MDCContext
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import org.slf4j.MDC
+import org.slf4j.event.Level
 import org.springframework.core.Ordered
 import org.springframework.web.server.CoWebFilter
 import org.springframework.web.server.CoWebFilterChain
@@ -125,16 +127,17 @@ class CoRequestLoggingWebFilter
                 try {
                     MDC.getCopyOfContextMap() ?: emptyMap()
                 } catch (e: Exception) {
-                    reportQuietly {
-                        lifecycle.metrics.wiringFailure()
-                        internalLog.warn(
-                            "Ambient MDC could not be read for {} {} (requestId={}) - the handler runs without endpoint MDC: {}",
-                            ex.method,
-                            ex.path,
-                            ex.requestId,
-                            e.toString(),
-                        )
-                    }
+                    reportFailOpen(
+                        lifecycle.metrics::wiringFailure,
+                        internalLog,
+                        Level.WARN,
+                        null,
+                        "Ambient MDC could not be read for {} {} (requestId={}) - the handler runs without endpoint MDC: {}",
+                        ex.method,
+                        ex.path,
+                        ex.requestId,
+                        e.toString(),
+                    )
                     return null
                 }
             return MDCContext(

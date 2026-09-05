@@ -8,9 +8,11 @@ import eu.inqudium.limesium.common.MdcKeys
 import eu.inqudium.limesium.common.NanoTimeSource
 import eu.inqudium.limesium.common.Traceparent
 import eu.inqudium.limesium.common.failOpen
+import eu.inqudium.limesium.common.reportFailOpen
 import eu.inqudium.limesium.common.reportQuietly
 import io.micrometer.core.instrument.MeterRegistry
 import org.slf4j.LoggerFactory
+import org.slf4j.event.Level
 import org.springframework.http.HttpHeaders
 import org.springframework.http.InvalidMediaTypeException
 import org.springframework.http.server.PathContainer
@@ -86,16 +88,16 @@ internal class ExchangeLifecycle(
         try {
             wireExchange(webExchange)
         } catch (e: Exception) {
-            reportQuietly {
-                metrics.wiringFailure()
-                internalLog.error(
-                    "Request logging could not be wired for {} {} - continuing without logging: {}",
-                    webExchange.request.method,
-                    webExchange.request.uri.rawPath,
-                    e.toString(),
-                    e,
-                )
-            }
+            reportFailOpen(
+                metrics::wiringFailure,
+                internalLog,
+                Level.ERROR,
+                e,
+                "Request logging could not be wired for {} {} - continuing without logging: {}",
+                webExchange.request.method,
+                webExchange.request.uri.rawPath,
+                e.toString(),
+            )
             null
         }
 
@@ -163,7 +165,7 @@ internal class ExchangeLifecycle(
                         },
                     ) {
                         exchange.committedStatus = webExchange.response.statusCode?.value()
-                        if (exchange.state.get() == ExchangeState.AWAITING_COMMIT) {
+                        if (exchange.state == ExchangeState.AWAITING_COMMIT) {
                             complete(exchange)
                         }
                     }
@@ -209,7 +211,7 @@ internal class ExchangeLifecycle(
                     // unarmed, the event completes right below with the then-readable status.
                     registerCommitCallback(webExchange, exchange)
                     if (exchange.commitCallbackArmed) {
-                        exchange.state.compareAndSet(ExchangeState.OPEN, ExchangeState.AWAITING_COMMIT)
+                        exchange.awaitCommit()
                         // Race with a commit starting concurrently: doCommit goes COMMITTING (isCommitted)
                         // BEFORE it snapshots the action list, so a registration that still saw
                         // isCommitted = false is in the snapshot; otherwise this side completes itself and
@@ -227,26 +229,29 @@ internal class ExchangeLifecycle(
         } catch (e: InterruptedException) {
             // Restore what the JVM cleared when it threw, so the interrupt still reaches its addressee.
             Thread.currentThread().interrupt()
-            reportQuietly {
-                metrics.wiringFailure()
-                internalLog.debug("Interrupted in the terminal callback", e)
-            }
-            if (exchange.state.get() != ExchangeState.AWAITING_COMMIT) {
+            reportFailOpen(
+                metrics::wiringFailure,
+                internalLog,
+                Level.DEBUG,
+                e,
+                "Interrupted in the terminal callback",
+            )
+            if (exchange.state != ExchangeState.AWAITING_COMMIT) {
                 complete(exchange)
             }
         } catch (e: Exception) {
-            reportQuietly {
-                metrics.wiringFailure()
-                internalLog.warn(
-                    "Request logging failed for {} {} (requestId={}): {}",
-                    exchange.method,
-                    exchange.path,
-                    exchange.requestId,
-                    e.toString(),
-                    e,
-                )
-            }
-            if (exchange.state.get() != ExchangeState.AWAITING_COMMIT) {
+            reportFailOpen(
+                metrics::wiringFailure,
+                internalLog,
+                Level.WARN,
+                e,
+                "Request logging failed for {} {} (requestId={}): {}",
+                exchange.method,
+                exchange.path,
+                exchange.requestId,
+                e.toString(),
+            )
+            if (exchange.state != ExchangeState.AWAITING_COMMIT) {
                 complete(exchange)
             }
         }
@@ -254,7 +259,7 @@ internal class ExchangeLifecycle(
 
     /** Exactly-once: closes the gauge and emits, whichever of the terminal/commit callbacks wins the transition. */
     fun complete(exchange: Exchange) {
-        if (exchange.state.getAndSet(ExchangeState.COMPLETED) == ExchangeState.COMPLETED) {
+        if (!exchange.tryComplete()) {
             return
         }
         metrics.exchangeCompleted()
@@ -273,7 +278,7 @@ internal class ExchangeLifecycle(
             } else {
                 null
             }
-        val requestId = trace?.first ?: headerCorrelationId ?: correlationIds.nextCorrelationId()
+        val requestId = trace?.traceId ?: headerCorrelationId ?: correlationIds.nextCorrelationId()
         // Guarded inside the metrics: a throwing host counter must not turn the request into an
         // unlogged pass-through.
         metrics.requestId(
@@ -335,8 +340,8 @@ internal class ExchangeLifecycle(
                 requestCharset = request.headers.declaredCharsetOrUtf8(),
                 response = webExchange.response,
                 startNanos = nanoTime.nanoTime(),
-                traceId = trace?.first,
-                parentSpanId = trace?.second,
+                traceId = trace?.traceId,
+                parentSpanId = trace?.parentSpanId,
             )
         metrics.exchangeOpened()
         return Wiring(exchange, mutatedExchange)
@@ -364,6 +369,6 @@ internal class ExchangeLifecycle(
 internal fun HttpHeaders.declaredCharsetOrUtf8(): Charset =
     try {
         contentType?.charset
-    } catch (e: InvalidMediaTypeException) {
+    } catch (_: InvalidMediaTypeException) {
         null
     } ?: StandardCharsets.UTF_8

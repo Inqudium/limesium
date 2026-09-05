@@ -8,6 +8,7 @@ import ch.qos.logback.classic.turbo.TurboFilter
 import ch.qos.logback.core.read.ListAppender
 import ch.qos.logback.core.spi.FilterReply
 import eu.inqudium.limesium.common.BodyLogMode
+import eu.inqudium.limesium.common.CapturedLogger
 import eu.inqudium.limesium.common.EndpointLoggingMetrics
 import io.micrometer.core.instrument.Counter
 import io.micrometer.core.instrument.Gauge
@@ -19,6 +20,7 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.RegisterExtension
 import org.slf4j.LoggerFactory
 import org.springframework.core.io.buffer.DefaultDataBufferFactory
 import org.springframework.http.HttpStatus
@@ -44,22 +46,9 @@ class RequestLoggingWebFilterMetricsTest {
     private val filter =
         RequestLoggingWebFilter(properties, { ticker.get() }, { "generated-42" }, meterRegistry)
 
-    private lateinit var logger: Logger
-    private lateinit var appender: ListAppender<ILoggingEvent>
-
-    @BeforeEach
-    fun setUp() {
-        logger = LoggerFactory.getLogger(properties.loggerName) as Logger
-        appender = ListAppender<ILoggingEvent>().apply { start() }
-        logger.addAppender(appender)
-        logger.level = Level.INFO
-    }
-
-    @AfterEach
-    fun tearDown() {
-        logger.detachAppender(appender)
-        appender.stop()
-    }
+    @JvmField
+    @RegisterExtension
+    val exchangeLog = CapturedLogger(properties.loggerName)
 
     private fun eventCount(outcome: String): Double =
         meterRegistry
@@ -152,7 +141,7 @@ class RequestLoggingWebFilterMetricsTest {
 
             // Then: still open, nothing emitted
             assertThat(openExchanges()).isEqualTo(1.0)
-            assertThat(appender.list).isEmpty()
+            assertThat(exchangeLog.events).isEmpty()
 
             // When: the upstream handler renders and the response commits
             exchange.response.statusCode = HttpStatus.INTERNAL_SERVER_ERROR
@@ -160,7 +149,7 @@ class RequestLoggingWebFilterMetricsTest {
 
             // Then: closed and emitted
             assertThat(openExchanges()).isEqualTo(0.0)
-            assertThat(appender.list).hasSize(1)
+            assertThat(exchangeLog.events).hasSize(1)
         }
     }
 
@@ -195,7 +184,7 @@ class RequestLoggingWebFilterMetricsTest {
             // Then: served unlogged, counted
             assertThat(chainRan).isTrue()
             assertThat(stageCount("wiring")).isEqualTo(1.0)
-            assertThat(appender.list).isEmpty()
+            assertThat(exchangeLog.events).isEmpty()
         }
 
         @Test
@@ -233,7 +222,7 @@ class RequestLoggingWebFilterMetricsTest {
                 ).block()
 
             // Then: the event was emitted with the body, and the host's own meters are untouched
-            val event = appender.list.single()
+            val event = exchangeLog.events.single()
             assertThat(event.keyValuePairs?.associate { it.key to it.value }).containsEntry("endpoint_response_body", "payload")
             assertThat(hostRegistry.find(EndpointLoggingMetrics.FAIL_OPEN_METER).gauge()).isNotNull()
             assertThat(hostRegistry.find(EndpointLoggingMetrics.RESPONSE_BODY_SIZE_METER).counter()).isNotNull()
@@ -294,7 +283,7 @@ class RequestLoggingWebFilterMetricsTest {
 
             // Then: logged, nothing escaped, the lost sample counted as wiring
             assertThat(thrown).isNull()
-            assertThat(appender.list).singleElement().satisfies({ assertThat(it.formattedMessage).contains("-> 200") })
+            assertThat(exchangeLog.events).singleElement().satisfies({ assertThat(it.formattedMessage).contains("-> 200") })
             assertThat(
                 registry
                     .get(EndpointLoggingMetrics.FAIL_OPEN_METER)
@@ -335,7 +324,7 @@ class RequestLoggingWebFilterMetricsTest {
                 ).block()
 
             // Then: emitted, not counted as lost
-            assertThat(appender.list).singleElement().satisfies({ assertThat(it.formattedMessage).contains("-> 200") })
+            assertThat(exchangeLog.events).singleElement().satisfies({ assertThat(it.formattedMessage).contains("-> 200") })
             assertThat(
                 registry
                     .get(EndpointLoggingMetrics.FAIL_OPEN_METER)
@@ -427,7 +416,7 @@ class RequestLoggingWebFilterMetricsTest {
                 ).block()
 
             // Then: confined and counted
-            assertThat(appender.list).isEmpty()
+            assertThat(exchangeLog.events).isEmpty()
             assertThat(stageCount("emission")).isEqualTo(1.0)
         }
 
@@ -458,7 +447,7 @@ class RequestLoggingWebFilterMetricsTest {
 
             // Then: confined, counted, and the event survived
             assertThat(stageCount("wiring")).isEqualTo(1.0)
-            assertThat(appender.list).hasSize(1)
+            assertThat(exchangeLog.events).hasSize(1)
         }
 
         @Test
@@ -485,7 +474,7 @@ class RequestLoggingWebFilterMetricsTest {
 
             // Then: the commit went through, the lost emission is counted
             assertThat(stageCount("emission")).isEqualTo(1.0)
-            assertThat(appender.list).isEmpty()
+            assertThat(exchangeLog.events).isEmpty()
         }
 
         @Test
@@ -509,7 +498,7 @@ class RequestLoggingWebFilterMetricsTest {
             // Then: surfaced as an error signal, exchange open and deferred - not leaked
             assertThat(thrown).isInstanceOf(IllegalStateException::class.java).hasMessage("sync boom")
             assertThat(openExchanges()).isEqualTo(1.0)
-            assertThat(appender.list).isEmpty()
+            assertThat(exchangeLog.events).isEmpty()
 
             // When: the upstream handler renders and the response commits
             exchange.response.statusCode = HttpStatus.INTERNAL_SERVER_ERROR
@@ -517,7 +506,7 @@ class RequestLoggingWebFilterMetricsTest {
 
             // Then: gauge closed, one ERROR event with the rendered status
             assertThat(openExchanges()).isEqualTo(0.0)
-            val event = appender.list.single()
+            val event = exchangeLog.events.single()
             assertThat(event.level).isEqualTo(Level.ERROR)
         }
 
@@ -548,7 +537,7 @@ class RequestLoggingWebFilterMetricsTest {
 
             // Then: failed commit, nothing logged, exchange still open
             assertThat(commit).hasMessage("commit action boom")
-            assertThat(appender.list).isEmpty()
+            assertThat(exchangeLog.events).isEmpty()
             assertThat(openExchanges()).isEqualTo(1.0)
         }
 
@@ -593,7 +582,7 @@ class RequestLoggingWebFilterMetricsTest {
             assertThat(chainRan).isTrue()
             assertThat(thrown).hasMessage("boom")
             assertThat(stageCount("wiring")).isEqualTo(1.0)
-            assertThat(appender.list).hasSize(1)
+            assertThat(exchangeLog.events).hasSize(1)
             assertThat(openExchanges()).isEqualTo(0.0)
         }
 

@@ -5,13 +5,16 @@ import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.classic.spi.IThrowableProxy
 import eu.inqudium.limesium.common.AwaitingAppender
+import eu.inqudium.limesium.common.CapturedLogger
 import eu.inqudium.limesium.common.CorrelationIdGenerator
 import eu.inqudium.limesium.common.MdcKeys
 import eu.inqudium.limesium.common.NanoTimeSource
+import eu.inqudium.limesium.common.keyValues
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.RegisterExtension
 import org.slf4j.LoggerFactory
 import org.slf4j.MDC
 import org.springframework.boot.SpringBootConfiguration
@@ -38,7 +41,7 @@ import java.time.Duration
  * carries the coroutine libraries, that filter is the [CoRequestLoggingWebFilter] - the majority
  * consumer configuration without those libraries, the Reactor variant [RequestLoggingWebFilter], is
  * pinned per server by [ServerContract]. WebFlux dispatches to real annotated handlers, requests arrive
- * over real HTTP, and the exchange events are observed on the configured logger. Covers what the
+ * over real HTTP, and the exchange events are observed on the configured exchange logger. Covers what the
  * mock-exchange tests cannot: the DataBuffer tee on real Netty buffers (pooled, reference-counted), the
  * handler pattern recorded by real WebFlux dispatch, and the commit-deferred error emission against
  * Boot's real error handler (the event must carry the RENDERED 500).
@@ -69,21 +72,13 @@ class RequestLoggingWebFilterIntegrationTest {
     // test, not a hung executor. The appender's
     // wait is a SEPARATE bound for the post-response emission.
     private val http: HttpClient = HttpClient.newBuilder().connectTimeout(REQUEST_TIMEOUT).build()
-    private lateinit var logger: Logger
-    private lateinit var appender: AwaitingAppender
 
-    @BeforeEach
-    fun setUp() {
-        logger = LoggerFactory.getLogger("endpoint-http-exchange-reactive-integration-test") as Logger
-        appender = AwaitingAppender().apply { start() }
-        logger.addAppender(appender)
-        logger.level = Level.INFO
-    }
+    @JvmField
+    @RegisterExtension
+    final val exchangeLog = CapturedLogger("endpoint-http-exchange-reactive-integration-test")
 
     @AfterEach
     fun tearDown() {
-        logger.detachAppender(appender)
-        appender.stop()
         // The JDK client is AutoCloseable (Java 21+); JUnit creates one instance per test method,
         // so each client - selector thread, sockets, buffers - must end with its test.
         http.close()
@@ -97,8 +92,6 @@ class RequestLoggingWebFilterIntegrationTest {
         headers.forEach { (name, value) -> request.header(name, value) }
         return http.send(request.build(), HttpResponse.BodyHandlers.ofString())
     }
-
-    private fun keyValues(event: ILoggingEvent): Map<String, Any?> = event.keyValuePairs?.associate { it.key to it.value } ?: emptyMap()
 
     private fun causeMessages(proxy: IThrowableProxy?): List<String> = generateSequence(proxy) { it.cause }.mapNotNull { it.message }.toList()
 
@@ -119,10 +112,10 @@ class RequestLoggingWebFilterIntegrationTest {
         assertThat(response.headers().firstValue("X-Correlation-Id")).contains("it-corr-1")
 
         // And: one INFO event with the full family
-        val event = appender.awaitEvents(1).single()
+        val event = exchangeLog.awaitEvents(1).single()
         assertThat(event.level).isEqualTo(Level.INFO)
         assertThat(event.formattedMessage).isEqualTo("Endpoint http exchange GET /it/things/7 -> 200 [endpoint_request_id=it-corr-1]")
-        assertThat(keyValues(event))
+        assertThat(event.keyValues())
             .containsEntry("endpoint_outcome", "success")
             .containsEntry("endpoint_url_path", "/it/things/7")
             .containsEntry("endpoint_url_template", "/it/things/{id}")
@@ -152,8 +145,8 @@ class RequestLoggingWebFilterIntegrationTest {
 
         // Then: both tees captured what actually flowed through Netty's buffers
         assertThat(response.body()).isEqualTo("echo:hello reactive")
-        val event = appender.awaitEvents(1).single()
-        assertThat(keyValues(event))
+        val event = exchangeLog.awaitEvents(1).single()
+        assertThat(event.keyValues())
             .containsEntry("endpoint_request_body", "hello reactive")
             .containsEntry("endpoint_response_body", "echo:hello reactive")
     }
@@ -173,10 +166,10 @@ class RequestLoggingWebFilterIntegrationTest {
         // Then: rendered 500 with the echo, and the event carries the final status
         assertThat(response.statusCode()).isEqualTo(500)
         assertThat(response.headers().firstValue("X-Correlation-Id")).contains("it-corr-boom")
-        val event = appender.awaitEvents(1).single()
+        val event = exchangeLog.awaitEvents(1).single()
         assertThat(event.level).isEqualTo(Level.ERROR)
         assertThat(event.formattedMessage).contains("-> 500")
-        assertThat(keyValues(event))
+        assertThat(event.keyValues())
             .containsEntry("endpoint_outcome", "failure")
             .containsEntry("endpoint_response_status_code", 500)
         assertThat(causeMessages(event.throwableProxy)).anySatisfy { assertThat(it).contains("it boom") }
@@ -187,7 +180,7 @@ class RequestLoggingWebFilterIntegrationTest {
         //   log-response-body is enabled class-wide. This pin keeps the boundary a conscious contract:
         //   whoever moves capture to a boundary that also sees outer error rendering must flip it.
         assertThat(response.body()).isNotEmpty()
-        assertThat(keyValues(event)).doesNotContainKey("endpoint_response_body")
+        assertThat(event.keyValues()).doesNotContainKey("endpoint_response_body")
     }
 
     @Test
@@ -201,7 +194,7 @@ class RequestLoggingWebFilterIntegrationTest {
 
         // Then: the event carries the trace id as an MDC field and inline
         assertThat(response.statusCode()).isEqualTo(200)
-        val event = appender.awaitEvents(1).single()
+        val event = exchangeLog.awaitEvents(1).single()
         assertThat(event.mdcPropertyMap).containsEntry("traceId", "0af7651916cd43dd8448eb211c80319c")
         assertThat(event.formattedMessage).contains(" traceId=0af7651916cd43dd8448eb211c80319c")
     }
@@ -222,7 +215,7 @@ class RequestLoggingWebFilterIntegrationTest {
         // Then: the handler saw the identity in ITS thread-local MDC
         assertThat(response.statusCode()).isEqualTo(200)
         assertThat(response.body()).isEqualTo("it-co-mdc")
-        appender.awaitEvents(1)
+        exchangeLog.awaitEvents(1)
     }
 
     @Test
@@ -238,9 +231,9 @@ class RequestLoggingWebFilterIntegrationTest {
         // Then: both served, one event
         assertThat(excluded.statusCode()).isEqualTo(200)
         assertThat(regular.statusCode()).isEqualTo(200)
-        val events = appender.awaitEvents(1)
+        val events = exchangeLog.awaitEvents(1)
         assertThat(events).hasSize(1)
-        assertThat(keyValues(events.single())).containsEntry("endpoint_url_path", "/it/things/2")
+        assertThat(events.single().keyValues()).containsEntry("endpoint_url_path", "/it/things/2")
     }
 
     /** Minimal reactive application: the module's auto-configuration plus pinned beans and handlers. */

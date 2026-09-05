@@ -77,11 +77,11 @@ public class ServletTwinSpotCheckBenchmark {
 
     @Benchmark
     public List<Pair<String, String>> servletSelectExplicit8Excl4() {
-        return selectProps.select(availableNames, HeaderValueMasker.Companion.getDEFAULT(), headers::get);
+        return selectProps.select(availableNames, HeaderValueMasker.DEFAULT, headers::get);
     }
 
     @Benchmark
     public String servletMaskLength64() {
-        return HeaderValueMasker.Companion.getDEFAULT().mask(maskValues[next++ & (POOL - 1)]);
+        return HeaderValueMasker.DEFAULT.mask(maskValues[next++ & (POOL - 1)]);
     }
 }

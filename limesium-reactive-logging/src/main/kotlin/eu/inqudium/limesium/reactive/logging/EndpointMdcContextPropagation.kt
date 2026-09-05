@@ -49,7 +49,7 @@ internal object EndpointMdcContextPropagation {
     /** Boot's property deciding whether thread-locals are restored around EVERY Reactor operator. */
     const val PROPAGATION_MODE_PROPERTY = "spring.reactor.context-propagation"
 
-    private val log = LoggerFactory.getLogger(EndpointMdcContextPropagation::class.java)
+    private val internalLog = LoggerFactory.getLogger(EndpointMdcContextPropagation::class.java)
 
     fun registerAccessors(registry: ContextRegistry = ContextRegistry.getInstance()) {
         KEYS.forEach { key ->
@@ -70,7 +70,7 @@ internal object EndpointMdcContextPropagation {
      */
     fun warnUnlessAutomaticPropagation(configuredMode: String?) {
         if (!"auto".equals(configuredMode, ignoreCase = true)) {
-            log.warn(
+            internalLog.warn(
                 "endpoint-logging registered the endpoint_* MDC accessors, but {}={} does not enable " +
                     "automatic context propagation - handler-side MDC will not be restored around " +
                     "ordinary Reactor operators. Set {}=auto (or call " +

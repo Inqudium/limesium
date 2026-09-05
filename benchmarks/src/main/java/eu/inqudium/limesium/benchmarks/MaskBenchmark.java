@@ -81,7 +81,7 @@ public class MaskBenchmark {
         }
         // Output-equality gate across all three implementations.
         for (int i = 0; i < POOL; i++) {
-            String expected = HeaderValueMasker.Companion.getDEFAULT().mask(values[i]);
+            String expected = HeaderValueMasker.DEFAULT.mask(values[i]);
             if (!expected.equals(maskHexFormat(values[i])) || !expected.equals(maskCachedDigest(values[i]))) {
                 throw new IllegalStateException("candidate output differs for " + values[i]);
             }
@@ -94,7 +94,7 @@ public class MaskBenchmark {
 
     @Benchmark
     public String baseline() {
-        return HeaderValueMasker.Companion.getDEFAULT().mask(value());
+        return HeaderValueMasker.DEFAULT.mask(value());
     }
 
     @Benchmark

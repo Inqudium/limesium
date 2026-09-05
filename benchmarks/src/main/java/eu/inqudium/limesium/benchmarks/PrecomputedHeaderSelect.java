@@ -71,7 +71,7 @@ final class PrecomputedHeaderSelect {
                 continue;
             }
             if (maskAll || maskedLower.contains(lower)) {
-                value = HeaderValueMasker.Companion.getDEFAULT().mask(value);
+                value = HeaderValueMasker.DEFAULT.mask(value);
             }
             result.add(new Pair<>(name, value));
         }

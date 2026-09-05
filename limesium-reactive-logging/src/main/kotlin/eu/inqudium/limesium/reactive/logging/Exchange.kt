@@ -38,12 +38,25 @@ internal class Exchange(
 ) : LoggedExchange {
     /**
      * The lifecycle state - ONE atomic value instead of independent flags, so the legal transitions are
-     * enumerable: `OPEN` from wiring;
-     * `AWAITING_COMMIT` when the chain erred on an uncommitted response and the emission waits for the
-     * commit callback; `COMPLETED` exactly once, by whichever of the terminal/commit callbacks wins the
-     * transition - gauge-close and emission ride that single transition.
+     * enumerable and live HERE, behind [awaitCommit] and [tryComplete] (the servlet twin's
+     * `CompletionState` shape): `OPEN` from wiring; `AWAITING_COMMIT` when the chain erred on an
+     * uncommitted response and the emission waits for the commit callback; `COMPLETED` exactly once, by
+     * whichever of the terminal/commit callbacks wins the transition - gauge-close and emission ride that
+     * single transition.
      */
-    val state = AtomicReference(ExchangeState.OPEN)
+    private val lifecycle = AtomicReference(ExchangeState.OPEN)
+
+    /** The current lifecycle state. */
+    val state: ExchangeState
+        get() = lifecycle.get()
+
+    /** The error path's deferral to the commit callback: `OPEN` -> `AWAITING_COMMIT`, a no-op from any other state. */
+    fun awaitCommit() {
+        lifecycle.compareAndSet(ExchangeState.OPEN, ExchangeState.AWAITING_COMMIT)
+    }
+
+    /** The exactly-once completion transition: true for the one caller that wins it. */
+    fun tryComplete(): Boolean = lifecycle.getAndSet(ExchangeState.COMPLETED) != ExchangeState.COMPLETED
 
     @Volatile
     var failure: Throwable? = null

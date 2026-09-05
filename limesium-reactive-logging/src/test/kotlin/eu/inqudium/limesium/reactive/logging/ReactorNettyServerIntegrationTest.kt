@@ -1,7 +1,9 @@
 package eu.inqudium.limesium.reactive.logging
 
 import org.springframework.boot.reactor.netty.NettyReactiveWebServerFactory
+import org.springframework.boot.test.web.server.LocalServerPort
 import org.springframework.boot.web.server.reactive.ReactiveWebServerFactory
+import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Import
 
 /**
@@ -11,6 +13,9 @@ import org.springframework.context.annotation.Import
  * carries all three.
  */
 @Import(NettyServer::class)
-class ReactorNettyServerIntegrationTest : ServerContract() {
+class ReactorNettyServerIntegrationTest(
+    @LocalServerPort port: Int,
+    context: ApplicationContext,
+) : ServerContract(port, context) {
     override val server: Class<out ReactiveWebServerFactory> = NettyReactiveWebServerFactory::class.java
 }

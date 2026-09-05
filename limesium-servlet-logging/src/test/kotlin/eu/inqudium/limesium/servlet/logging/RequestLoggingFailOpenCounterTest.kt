@@ -8,6 +8,7 @@ import ch.qos.logback.classic.turbo.TurboFilter
 import ch.qos.logback.core.read.ListAppender
 import ch.qos.logback.core.spi.FilterReply
 import eu.inqudium.limesium.common.BodyLogMode
+import eu.inqudium.limesium.common.CapturedLogger
 import eu.inqudium.limesium.common.CorrelationIdGenerator
 import eu.inqudium.limesium.common.EndpointLoggingMetrics
 import eu.inqudium.limesium.common.HeaderLogProperties
@@ -24,6 +25,7 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.RegisterExtension
 import org.slf4j.LoggerFactory
 import org.slf4j.Marker
 import org.springframework.mock.web.MockHttpServletRequest
@@ -54,22 +56,9 @@ class RequestLoggingFailOpenCounterTest {
             meterRegistry,
         )
 
-    private lateinit var logger: Logger
-    private lateinit var appender: ListAppender<ILoggingEvent>
-
-    @BeforeEach
-    fun setUp() {
-        logger = LoggerFactory.getLogger(properties.loggerName) as Logger
-        appender = ListAppender<ILoggingEvent>().apply { start() }
-        logger.addAppender(appender)
-        logger.level = Level.INFO
-    }
-
-    @AfterEach
-    fun tearDown() {
-        logger.detachAppender(appender)
-        appender.stop()
-    }
+    @JvmField
+    @RegisterExtension
+    val exchangeLog = CapturedLogger(properties.loggerName)
 
     private fun stageCount(stage: String): Double =
         meterRegistry
@@ -99,7 +88,7 @@ class RequestLoggingFailOpenCounterTest {
             handle(MockHttpServletRequest("GET", "/api/things"), MockHttpServletResponse())
 
             // Then: one event, no fail-open occurrences
-            assertThat(appender.list).hasSize(1)
+            assertThat(exchangeLog.events).hasSize(1)
             assertThat(stageCount("emission")).isEqualTo(0.0)
             assertThat(stageCount("arrival")).isEqualTo(0.0)
             assertThat(stageCount("wiring")).isEqualTo(0.0)
@@ -126,7 +115,7 @@ class RequestLoggingFailOpenCounterTest {
             handle(MockHttpServletRequest("GET", "/api/things"), brokenResponse)
 
             // Then: the event is lost, counted, and nothing propagated
-            assertThat(appender.list).isEmpty()
+            assertThat(exchangeLog.events).isEmpty()
             assertThat(stageCount("emission")).isEqualTo(1.0)
             assertThat(stageCount("arrival")).isEqualTo(0.0)
             assertThat(stageCount("wiring")).isEqualTo(0.0)
@@ -150,7 +139,7 @@ class RequestLoggingFailOpenCounterTest {
             handle(MockHttpServletRequest("GET", "/api/things"), brokenStatusResponse)
 
             // Then: confined and counted
-            assertThat(appender.list).isEmpty()
+            assertThat(exchangeLog.events).isEmpty()
             assertThat(stageCount("emission")).isEqualTo(1.0)
         }
 
@@ -172,7 +161,7 @@ class RequestLoggingFailOpenCounterTest {
             handle(MockHttpServletRequest("GET", "/api/things"), interruptingResponse)
 
             // Then: dropped, counted, and the flag is set (read-and-clear so the test thread leaves clean)
-            assertThat(appender.list).isEmpty()
+            assertThat(exchangeLog.events).isEmpty()
             assertThat(stageCount("emission")).isEqualTo(1.0)
             assertThat(Thread.interrupted()).isTrue()
         }
@@ -206,7 +195,7 @@ class RequestLoggingFailOpenCounterTest {
             // Then: the request was served unlogged, counted as a wiring failure
             assertThat(chainRan).isTrue()
             assertThat(stageCount("wiring")).isEqualTo(1.0)
-            assertThat(appender.list).isEmpty()
+            assertThat(exchangeLog.events).isEmpty()
         }
 
         @Test
@@ -245,7 +234,7 @@ class RequestLoggingFailOpenCounterTest {
             conflicting.exchangeCompletionListener().requestDestroyed(ServletRequestEvent(request.servletContext, request))
 
             // Then: the event was emitted with the body; host meters untouched; success counter in the host registry
-            val event = appender.list.single()
+            val event = exchangeLog.events.single()
             assertThat(event.keyValuePairs?.associate { it.key to it.value }).containsEntry("endpoint_response_body", "payload")
             assertThat(hostRegistry.find(EndpointLoggingMetrics.FAIL_OPEN_METER).gauge()).isNotNull()
             assertThat(hostRegistry.find(EndpointLoggingMetrics.RESPONSE_BODY_SIZE_METER).summary()).isNull()
@@ -311,7 +300,7 @@ class RequestLoggingFailOpenCounterTest {
 
             // Then: logged, nothing escaped, the lost sample counted as wiring
             assertThat(thrown).isNull()
-            assertThat(appender.list).singleElement().satisfies({ assertThat(it.formattedMessage).contains("-> 200") })
+            assertThat(exchangeLog.events).singleElement().satisfies({ assertThat(it.formattedMessage).contains("-> 200") })
             assertThat(stageCount(registry, "wiring")).isEqualTo(1.0)
             assertThat(stageCount(registry, "emission")).isEqualTo(0.0)
         }
@@ -340,7 +329,7 @@ class RequestLoggingFailOpenCounterTest {
             filter.exchangeCompletionListener().requestDestroyed(ServletRequestEvent(request.servletContext, request))
 
             // Then: emitted, not counted as lost
-            assertThat(appender.list).singleElement().satisfies({ assertThat(it.formattedMessage).contains("-> 200") })
+            assertThat(exchangeLog.events).singleElement().satisfies({ assertThat(it.formattedMessage).contains("-> 200") })
             assertThat(stageCount(registry, "emission")).isEqualTo(0.0)
             assertThat(stageCount(registry, "wiring")).isEqualTo(1.0)
         }
@@ -405,7 +394,7 @@ class RequestLoggingFailOpenCounterTest {
             // Then: wiring counted once, and the event was still emitted at destruction
             assertThat(stageCount("wiring")).isEqualTo(1.0)
             assertThat(stageCount("emission")).isEqualTo(0.0)
-            assertThat(appender.list).hasSize(1)
+            assertThat(exchangeLog.events).hasSize(1)
         }
 
         @Test
@@ -438,7 +427,7 @@ class RequestLoggingFailOpenCounterTest {
             assertThat(chainRan).isTrue()
             assertThat(stageCount("wiring")).isEqualTo(1.0)
             assertThat(stageCount("emission")).isEqualTo(0.0)
-            assertThat(appender.list).hasSize(1)
+            assertThat(exchangeLog.events).hasSize(1)
         }
     }
 

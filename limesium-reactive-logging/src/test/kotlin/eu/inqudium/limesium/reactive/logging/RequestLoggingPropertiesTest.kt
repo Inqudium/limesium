@@ -1,5 +1,6 @@
 package eu.inqudium.limesium.reactive.logging
 
+import eu.inqudium.limesium.common.MaskingKey
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.catchThrowable
 import org.junit.jupiter.api.Nested
@@ -62,10 +63,10 @@ class RequestLoggingPropertiesTest {
             // Success criteria: whitespace fails construction naming the property; the empty default binds.
             // Why it matters: a whitespace key would silently key the fingerprint with a worthless secret.
             // Given/When/Then
-            assertThat(catchThrowable { RequestLoggingProperties(maskingKey = "  ") })
+            assertThat(catchThrowable { RequestLoggingProperties(maskingKey = MaskingKey("  ")) })
                 .isInstanceOf(IllegalArgumentException::class.java)
                 .hasMessageContaining("maskingKey")
-            assertThat(RequestLoggingProperties().maskingKey).isEmpty()
+            assertThat(RequestLoggingProperties().maskingKey).isEqualTo(MaskingKey.NONE)
         }
 
         @Test
@@ -76,7 +77,7 @@ class RequestLoggingPropertiesTest {
             // Why it matters: data-class toString would otherwise leak the secret into every context
             //   that prints the bean.
             // Given/When/Then
-            assertThat(RequestLoggingProperties(maskingKey = "pepper").toString()).contains("maskingKey=<redacted>").doesNotContain("pepper")
+            assertThat(RequestLoggingProperties(maskingKey = MaskingKey("pepper")).toString()).contains("maskingKey=<redacted>").doesNotContain("pepper")
         }
     }
 

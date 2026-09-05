@@ -64,7 +64,7 @@ class HeaderMaskingFuzzTest {
 
         // When: the section selects and masks
         List<kotlin.Pair<String, String>> selected =
-                properties.select(headers.keySet(), HeaderValueMasker.Companion.getDEFAULT(), headers::get);
+                properties.select(headers.keySet(), HeaderValueMasker.DEFAULT, headers::get);
 
         // Then: every masked name renders as a fingerprint and never as its plaintext; the default masker
         //   is deterministic and keeps its shape
@@ -96,8 +96,8 @@ class HeaderMaskingFuzzTest {
         }
 
         String probe = data.consumeRemainingAsString();
-        String fingerprint = HeaderValueMasker.Companion.getDEFAULT().mask(probe);
-        if (!fingerprint.equals(HeaderValueMasker.Companion.getDEFAULT().mask(probe))) {
+        String fingerprint = HeaderValueMasker.DEFAULT.mask(probe);
+        if (!fingerprint.equals(HeaderValueMasker.DEFAULT.mask(probe))) {
             throw new IllegalStateException("mask() is not deterministic for: " + probe);
         }
         if (!FINGERPRINT.matcher(fingerprint).matches()) {

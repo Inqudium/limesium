@@ -1,6 +1,7 @@
 package eu.inqudium.limesium.common
 
 import org.slf4j.Logger
+import org.slf4j.event.Level
 
 /**
  * What the shared emission core needs to know about one exchange - the request-side coordinates both
@@ -165,15 +166,16 @@ internal object ExchangeLine {
                 responseCapture?.let { metrics.responseBodySize(template, it.totalBytes) }
             }
         } catch (e: Exception) {
-            reportQuietly {
-                metrics.wiringFailure()
-                internalLog.warn(
-                    "Body size could not be recorded for {} {} - the event follows without it: {}",
-                    exchange.method,
-                    exchange.path,
-                    e.toString(),
-                )
-            }
+            reportFailOpen(
+                metrics::wiringFailure,
+                internalLog,
+                Level.WARN,
+                null,
+                "Body size could not be recorded for {} {} - the event follows without it: {}",
+                exchange.method,
+                exchange.path,
+                e.toString(),
+            )
         }
     }
 }

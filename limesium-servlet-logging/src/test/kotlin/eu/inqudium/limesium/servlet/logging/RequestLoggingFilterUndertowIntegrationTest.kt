@@ -5,10 +5,13 @@ import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.classic.spi.IThrowableProxy
 import eu.inqudium.limesium.common.AwaitingAppender
+import eu.inqudium.limesium.common.CapturedLogger
+import eu.inqudium.limesium.common.keyValues
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.RegisterExtension
 import org.slf4j.LoggerFactory
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.web.server.LocalServerPort
@@ -58,21 +61,13 @@ class RequestLoggingFilterUndertowIntegrationTest {
     // failing test, not a hung executor. The appender's wait is a SEPARATE bound for the post-response
     // emission.
     private val http: HttpClient = HttpClient.newBuilder().connectTimeout(REQUEST_TIMEOUT).build()
-    private lateinit var logger: Logger
-    private lateinit var appender: AwaitingAppender
 
-    @BeforeEach
-    fun setUp() {
-        logger = LoggerFactory.getLogger("endpoint-http-exchange-undertow-integration-test") as Logger
-        appender = AwaitingAppender().apply { start() }
-        logger.addAppender(appender)
-        logger.level = Level.INFO
-    }
+    @JvmField
+    @RegisterExtension
+    final val exchangeLog = CapturedLogger("endpoint-http-exchange-undertow-integration-test")
 
     @AfterEach
     fun tearDown() {
-        logger.detachAppender(appender)
-        appender.stop()
         // The JDK client is AutoCloseable (Java 21+); JUnit creates one instance per test method,
         // so each client - selector thread, sockets, buffers - must end with its test.
         http.close()
@@ -102,8 +97,6 @@ class RequestLoggingFilterUndertowIntegrationTest {
             HttpResponse.BodyHandlers.ofString(),
         )
 
-    private fun keyValues(event: ILoggingEvent): Map<String, Any?> = event.keyValuePairs?.associate { it.key to it.value } ?: emptyMap()
-
     private fun causeMessages(proxy: IThrowableProxy?): List<String> = generateSequence(proxy) { it.cause }.mapNotNull { it.message }.toList()
 
     @Test
@@ -121,9 +114,9 @@ class RequestLoggingFilterUndertowIntegrationTest {
         // Then: served normally, and the single event carries both teed bodies
         assertThat(response.statusCode()).isEqualTo(200)
         assertThat(response.body()).isEqualTo("echo:hello undertow")
-        val event = appender.awaitEvents(1).single()
+        val event = exchangeLog.awaitEvents(1).single()
         assertThat(event.level).isEqualTo(Level.INFO)
-        assertThat(keyValues(event))
+        assertThat(event.keyValues())
             .containsEntry("endpoint_outcome", "success")
             .containsEntry("endpoint_request_body", "hello undertow")
             .containsEntry("endpoint_response_body", "echo:hello undertow")
@@ -144,9 +137,9 @@ class RequestLoggingFilterUndertowIntegrationTest {
         // Then: error rendering reached the client, the discarded bytes never prefix the body
         assertThat(response.statusCode()).isEqualTo(503)
         assertThat(response.body()).doesNotStartWith("partial")
-        val event = appender.awaitEvents(1).single()
+        val event = exchangeLog.awaitEvents(1).single()
         assertThat(event.level).isEqualTo(Level.WARN)
-        assertThat(keyValues(event))
+        assertThat(event.keyValues())
             .containsEntry("endpoint_outcome", "failure")
             .containsEntry("endpoint_response_status_code", 503)
             .doesNotContainKey("endpoint_response_body")
@@ -166,10 +159,10 @@ class RequestLoggingFilterUndertowIntegrationTest {
 
         // Then
         assertThat(response.statusCode()).isEqualTo(500)
-        val event = appender.awaitEvents(1).single()
+        val event = exchangeLog.awaitEvents(1).single()
         assertThat(event.level).isEqualTo(Level.ERROR)
         assertThat(event.formattedMessage).contains("-> 500")
-        assertThat(keyValues(event))
+        assertThat(event.keyValues())
             .containsEntry("endpoint_outcome", "failure")
             .containsEntry("endpoint_response_status_code", 500)
             .doesNotContainKey("endpoint_response_body")
@@ -194,8 +187,8 @@ class RequestLoggingFilterUndertowIntegrationTest {
         // Then: served, event present - and the body captured, because the tee sat in the async context
         assertThat(response.statusCode()).isEqualTo(200)
         assertThat(response.body()).isEqualTo("raw-async")
-        val event = appender.awaitEvents(1).single()
-        assertThat(keyValues(event)).containsEntry("endpoint_response_body", "raw-async")
+        val event = exchangeLog.awaitEvents(1).single()
+        assertThat(event.keyValues()).containsEntry("endpoint_response_body", "raw-async")
     }
 
     @Test
@@ -213,9 +206,9 @@ class RequestLoggingFilterUndertowIntegrationTest {
         // Then: worker and render dispatch both saw the identity, and the event is complete and final
         assertThat(response.statusCode()).isEqualTo(200)
         assertThat(response.body()).isEqualTo("async-done:it-generated|render:it-generated")
-        val event = appender.awaitEvents(1).single()
+        val event = exchangeLog.awaitEvents(1).single()
         assertThat(event.level).isEqualTo(Level.INFO)
-        assertThat(keyValues(event))
+        assertThat(event.keyValues())
             .containsEntry("endpoint_outcome", "success")
             .containsEntry("endpoint_async", true)
             .containsEntry("endpoint_response_status_code", 200)
@@ -235,9 +228,9 @@ class RequestLoggingFilterUndertowIntegrationTest {
 
         // Then
         assertThat(response.statusCode()).isEqualTo(500)
-        val event = appender.awaitEvents(1).single()
+        val event = exchangeLog.awaitEvents(1).single()
         assertThat(event.level).isEqualTo(Level.ERROR)
-        assertThat(keyValues(event))
+        assertThat(event.keyValues())
             .containsEntry("endpoint_outcome", "failure")
             .containsEntry("endpoint_async", true)
             .containsEntry("endpoint_response_status_code", 500)
@@ -256,9 +249,9 @@ class RequestLoggingFilterUndertowIntegrationTest {
 
         // Then: same classification as on Tomcat and Jetty
         assertThat(response.statusCode()).isEqualTo(500)
-        val event = appender.awaitEvents(1).single()
+        val event = exchangeLog.awaitEvents(1).single()
         assertThat(event.level).isEqualTo(Level.ERROR)
-        assertThat(keyValues(event))
+        assertThat(event.keyValues())
             .containsEntry("endpoint_outcome", "failure")
             .containsEntry("endpoint_async", true)
         assertThat(causeMessages(event.throwableProxy)).anySatisfy { assertThat(it).contains("deferred boom") }
@@ -283,7 +276,7 @@ class RequestLoggingFilterUndertowIntegrationTest {
         // Then: echo on the happy wire, none on the rebuilt error response - both events logged
         assertThat(ok.headers().firstValue("X-Correlation-Id")).contains("it-generated")
         assertThat(boom.headers().firstValue("X-Correlation-Id")).isEmpty()
-        val events = appender.awaitEvents(2)
+        val events = exchangeLog.awaitEvents(2)
         assertThat(events).allSatisfy { assertThat(it.mdcPropertyMap["endpoint_request_id"]).isEqualTo("it-generated") }
     }
 

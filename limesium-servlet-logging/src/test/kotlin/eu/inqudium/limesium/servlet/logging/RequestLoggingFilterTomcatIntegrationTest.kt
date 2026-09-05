@@ -5,9 +5,11 @@ import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.classic.spi.IThrowableProxy
 import eu.inqudium.limesium.common.AwaitingAppender
+import eu.inqudium.limesium.common.CapturedLogger
 import eu.inqudium.limesium.common.CorrelationIdGenerator
 import eu.inqudium.limesium.common.MdcKeys
 import eu.inqudium.limesium.common.NanoTimeSource
+import eu.inqudium.limesium.common.keyValues
 import jakarta.servlet.http.HttpServlet
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
@@ -15,6 +17,7 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.RegisterExtension
 import org.slf4j.LoggerFactory
 import org.slf4j.MDC
 import org.springframework.boot.SpringBootConfiguration
@@ -47,7 +50,7 @@ import java.util.concurrent.Callable
 /**
  * End-to-end test of the auto-configured [RequestLoggingFilter] against a REAL embedded Tomcat: the
  * auto-configuration registers the filter, Spring MVC dispatches to real controllers, requests arrive over
- * real HTTP (JDK [HttpClient]), and the exchange events are observed on the configured logger.
+ * real HTTP (JDK [HttpClient]), and the exchange events are observed on the configured exchange logger.
  *
  * This covers what the servlet-mock tests cannot: the tee wrappers under Tomcat's real request/response
  * streams, the handler-pattern attribute recorded by real MVC dispatch, the genuine async lifecycle of a
@@ -92,21 +95,13 @@ class RequestLoggingFilterTomcatIntegrationTest {
     // failing test, not a hung executor. The
     // appender's wait is a SEPARATE bound for the post-response emission.
     private val http: HttpClient = HttpClient.newBuilder().connectTimeout(REQUEST_TIMEOUT).build()
-    private lateinit var logger: Logger
-    private lateinit var appender: AwaitingAppender
 
-    @BeforeEach
-    fun setUp() {
-        logger = LoggerFactory.getLogger("endpoint-http-exchange-integration-test") as Logger
-        appender = AwaitingAppender().apply { start() }
-        logger.addAppender(appender)
-        logger.level = Level.INFO
-    }
+    @JvmField
+    @RegisterExtension
+    final val exchangeLog = CapturedLogger("endpoint-http-exchange-integration-test")
 
     @AfterEach
     fun tearDown() {
-        logger.detachAppender(appender)
-        appender.stop()
         // The JDK client is AutoCloseable (Java 21+); JUnit creates one instance per test method,
         // so each client - selector thread, sockets, buffers - must end with its test.
         http.close()
@@ -134,8 +129,6 @@ class RequestLoggingFilterTomcatIntegrationTest {
         return http.send(request.build(), HttpResponse.BodyHandlers.ofString())
     }
 
-    private fun keyValues(event: ILoggingEvent): Map<String, Any?> = event.keyValuePairs?.associate { it.key to it.value } ?: emptyMap()
-
     private fun causeMessages(proxy: IThrowableProxy?): List<String> = generateSequence(proxy) { it.cause }.mapNotNull { it.message }.toList()
 
     @Test
@@ -156,10 +149,10 @@ class RequestLoggingFilterTomcatIntegrationTest {
         assertThat(response.headers().firstValue("X-Correlation-Id")).contains("it-corr-1")
 
         // And: exactly one INFO event with the full field family
-        val event = appender.awaitEvents(1).single()
+        val event = exchangeLog.awaitEvents(1).single()
         assertThat(event.level).isEqualTo(Level.INFO)
         assertThat(event.formattedMessage).isEqualTo("Endpoint http exchange GET /it/things/7 -> 200 [endpoint_request_id=it-corr-1]")
-        assertThat(keyValues(event))
+        assertThat(event.keyValues())
             .containsEntry("endpoint_outcome", "success")
             .containsEntry("endpoint_request_method", "GET")
             .containsEntry("endpoint_url_path", "/it/things/7")
@@ -169,7 +162,7 @@ class RequestLoggingFilterTomcatIntegrationTest {
             .containsEntry("endpoint_async", false)
             .containsEntry("endpoint_request_headers", "[Accept:\"text/plain\"]")
             .containsEntry("endpoint_response_body", "thing-7")
-        assertThat(keyValues(event)["endpoint_response_headers"].toString()).contains("Content-Type")
+        assertThat(event.keyValues()["endpoint_response_headers"].toString()).contains("Content-Type")
         assertThat(event.mdcPropertyMap)
             .containsEntry(MdcKeys.REQUEST_ID, "it-corr-1")
             .containsEntry(MdcKeys.REQUEST_METHOD, "GET")
@@ -190,8 +183,8 @@ class RequestLoggingFilterTomcatIntegrationTest {
         // Then: the exchange worked and both tees captured what actually flowed through Tomcat's streams
         assertThat(response.statusCode()).isEqualTo(200)
         assertThat(response.body()).isEqualTo("echo:hello integration")
-        val event = appender.awaitEvents(1).single()
-        assertThat(keyValues(event))
+        val event = exchangeLog.awaitEvents(1).single()
+        assertThat(event.keyValues())
             .containsEntry("endpoint_request_body", "hello integration")
             .containsEntry("endpoint_response_body", "echo:hello integration")
     }
@@ -207,7 +200,7 @@ class RequestLoggingFilterTomcatIntegrationTest {
 
         // Then: the pinned generator's id is echoed on the wire and carried in the event's MDC
         assertThat(response.headers().firstValue("X-Correlation-Id")).contains("it-generated")
-        val event = appender.awaitEvents(1).single()
+        val event = exchangeLog.awaitEvents(1).single()
         assertThat(event.mdcPropertyMap).containsEntry(MdcKeys.REQUEST_ID, "it-generated")
     }
 
@@ -229,9 +222,9 @@ class RequestLoggingFilterTomcatIntegrationTest {
         // Then: the worker saw the identity in ITS thread-local MDC, and the event is complete
         assertThat(response.statusCode()).isEqualTo(200)
         assertThat(response.body()).isEqualTo("async-done:it-generated|render:it-generated")
-        val event = appender.awaitEvents(1).single()
+        val event = exchangeLog.awaitEvents(1).single()
         assertThat(event.level).isEqualTo(Level.INFO)
-        assertThat(keyValues(event))
+        assertThat(event.keyValues())
             .containsEntry("endpoint_outcome", "success")
             .containsEntry("endpoint_async", true)
             .containsEntry("endpoint_response_status_code", 200)
@@ -253,7 +246,7 @@ class RequestLoggingFilterTomcatIntegrationTest {
 
         // Then: worker-side and render-side MDC both observed
         assertThat(response.body()).isEqualTo("async-done:it-generated|render:it-generated")
-        appender.awaitEvents(1)
+        exchangeLog.awaitEvents(1)
     }
 
     @Test
@@ -268,9 +261,9 @@ class RequestLoggingFilterTomcatIntegrationTest {
 
         // Then
         assertThat(response.statusCode()).isEqualTo(500)
-        val event = appender.awaitEvents(1).single()
+        val event = exchangeLog.awaitEvents(1).single()
         assertThat(event.level).isEqualTo(Level.ERROR)
-        assertThat(keyValues(event))
+        assertThat(event.keyValues())
             .containsEntry("endpoint_outcome", "failure")
             .containsEntry("endpoint_async", true)
             .containsEntry("endpoint_response_status_code", 500)
@@ -290,9 +283,9 @@ class RequestLoggingFilterTomcatIntegrationTest {
 
         // Then: same classification as the Callable failure
         assertThat(response.statusCode()).isEqualTo(500)
-        val event = appender.awaitEvents(1).single()
+        val event = exchangeLog.awaitEvents(1).single()
         assertThat(event.level).isEqualTo(Level.ERROR)
-        assertThat(keyValues(event))
+        assertThat(event.keyValues())
             .containsEntry("endpoint_outcome", "failure")
             .containsEntry("endpoint_async", true)
         assertThat(causeMessages(event.throwableProxy)).anySatisfy { assertThat(it).contains("deferred boom") }
@@ -314,8 +307,8 @@ class RequestLoggingFilterTomcatIntegrationTest {
         // Then: served through the original response, event present, body absent by documented contract
         assertThat(response.statusCode()).isEqualTo(200)
         assertThat(response.body()).isEqualTo("raw-async")
-        val event = appender.awaitEvents(1).single()
-        assertThat(keyValues(event)).doesNotContainKey("endpoint_response_body")
+        val event = exchangeLog.awaitEvents(1).single()
+        assertThat(event.keyValues()).doesNotContainKey("endpoint_response_body")
     }
 
     @Test
@@ -337,9 +330,9 @@ class RequestLoggingFilterTomcatIntegrationTest {
         //   error JSON legitimately contains the request PATH, so the check pins the body START)
         assertThat(response.statusCode()).isEqualTo(503)
         assertThat(response.body()).doesNotStartWith("partial").contains("\"status\":503")
-        val event = appender.awaitEvents(1).single()
+        val event = exchangeLog.awaitEvents(1).single()
         assertThat(event.level).isEqualTo(Level.WARN)
-        assertThat(keyValues(event))
+        assertThat(event.keyValues())
             .containsEntry("endpoint_outcome", "failure")
             .containsEntry("endpoint_response_status_code", 503)
             .doesNotContainKey("endpoint_response_body")
@@ -358,7 +351,7 @@ class RequestLoggingFilterTomcatIntegrationTest {
         // Then: the container answered 500 and the echo survived the error dispatch
         assertThat(response.statusCode()).isEqualTo(500)
         assertThat(response.headers().firstValue("X-Correlation-Id")).contains("it-corr-boom")
-        appender.awaitEvents(1)
+        exchangeLog.awaitEvents(1)
     }
 
     @Test
@@ -377,10 +370,10 @@ class RequestLoggingFilterTomcatIntegrationTest {
         //   AND the FINAL status - emission at request destruction runs after the error dispatch, so the
         //   event carries the 500 the client really received, not the pre-dispatch 200
         assertThat(response.statusCode()).isEqualTo(500)
-        val event = appender.awaitEvents(1).single()
+        val event = exchangeLog.awaitEvents(1).single()
         assertThat(event.level).isEqualTo(Level.ERROR)
         assertThat(event.formattedMessage).contains("-> 500")
-        assertThat(keyValues(event))
+        assertThat(event.keyValues())
             .containsEntry("endpoint_outcome", "failure")
             .containsEntry("endpoint_response_status_code", 500)
         assertThat(causeMessages(event.throwableProxy)).anySatisfy { assertThat(it).contains("it boom") }
@@ -391,7 +384,7 @@ class RequestLoggingFilterTomcatIntegrationTest {
         //   log-response-body is enabled class-wide. Whoever routes error rendering through an
         //   equivalent capture must flip this pin consciously.
         assertThat(response.body()).isNotEmpty()
-        assertThat(keyValues(event)).doesNotContainKey("endpoint_response_body")
+        assertThat(event.keyValues()).doesNotContainKey("endpoint_response_body")
     }
 
     @Test
@@ -407,9 +400,9 @@ class RequestLoggingFilterTomcatIntegrationTest {
         // Then: both were served, but only the regular exchange produced an event
         assertThat(excluded.statusCode()).isEqualTo(200)
         assertThat(regular.statusCode()).isEqualTo(200)
-        val events = appender.awaitEvents(1)
+        val events = exchangeLog.awaitEvents(1)
         assertThat(events).hasSize(1)
-        assertThat(keyValues(events.single())).containsEntry("endpoint_url_path", "/it/things/2")
+        assertThat(events.single().keyValues()).containsEntry("endpoint_url_path", "/it/things/2")
     }
 
     @Test
@@ -436,8 +429,8 @@ class RequestLoggingFilterTomcatIntegrationTest {
         // Then: served from the parsed field, event present, request body absent by documented contract
         assertThat(response.statusCode()).isEqualTo(200)
         assertThat(response.body()).isEqualTo("form:form-value")
-        val event = appender.awaitEvents(1).single()
-        assertThat(keyValues(event))
+        val event = exchangeLog.awaitEvents(1).single()
+        assertThat(event.keyValues())
             .doesNotContainKey("endpoint_request_body")
             .containsEntry("endpoint_response_body", "form:form-value")
     }

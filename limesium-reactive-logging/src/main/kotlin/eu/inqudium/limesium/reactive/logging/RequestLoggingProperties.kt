@@ -2,6 +2,7 @@ package eu.inqudium.limesium.reactive.logging
 
 import eu.inqudium.limesium.common.BodyLogMode
 import eu.inqudium.limesium.common.HeaderLogProperties
+import eu.inqudium.limesium.common.MaskingKey
 import org.springframework.boot.context.properties.ConfigurationProperties
 import java.time.Duration
 
@@ -60,8 +61,8 @@ data class RequestLoggingProperties(
     val measureResponseBodySize: Boolean = false,
     /** Capture limit per body in bytes; bounds memory, never the exchange - `max-body-bytes`. */
     val maxBodyBytes: Int = 16384,
-    /** Keys the masking fingerprint (HMAC-SHA256); a secret, redacted by `toString` - `masking-key`. */
-    val maskingKey: String = "",
+    /** Keys the masking fingerprint (HMAC-SHA256) - a [MaskingKey], the secret its own `toString` redacts - `masking-key`. */
+    val maskingKey: MaskingKey = MaskingKey.NONE,
 ) {
     init {
         require(loggerName.isNotBlank()) { "loggerName must not be blank" }
@@ -70,7 +71,6 @@ data class RequestLoggingProperties(
             "correlationIdHeader must be a valid HTTP field name (RFC 9110 token), got: '$correlationIdHeader'"
         }
         require(maxBodyBytes > 0) { "maxBodyBytes must be positive, got: $maxBodyBytes" }
-        require(maskingKey.isEmpty() || maskingKey.isNotBlank()) { "maskingKey must not be blank (leave it empty for the unkeyed fingerprint)" }
         require(slowRequestThreshold.toMillis() >= 1) {
             "slowRequestThreshold must be at least 1 millisecond, got: $slowRequestThreshold"
         }
@@ -81,11 +81,6 @@ data class RequestLoggingProperties(
             "excludePathPrefixes contains blank entries: $excludePathPrefixes"
         }
     }
-
-    /** The data-class rendering minus the secret: a properties dump must never print the masking key. */
-    override fun toString(): String = copy(maskingKey = if (maskingKey.isEmpty()) "" else "<redacted>").render()
-
-    private fun render(): String = "RequestLoggingProperties(enabled=$enabled, variant=$variant, loggerName=$loggerName, correlationIdHeader=$correlationIdHeader, includeQueryString=$includeQueryString, logRequestStart=$logRequestStart, includePathPatterns=$includePathPatterns, excludePathPrefixes=$excludePathPrefixes, slowRequestThreshold=$slowRequestThreshold, requestHeaders=$requestHeaders, responseHeaders=$responseHeaders, logRequestBody=$logRequestBody, logResponseBody=$logResponseBody, measureRequestBodySize=$measureRequestBodySize, measureResponseBodySize=$measureResponseBodySize, maxBodyBytes=$maxBodyBytes, maskingKey=$maskingKey)"
 
     companion object {
         /**

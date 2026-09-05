@@ -24,7 +24,7 @@ internal class EndpointAccessorRegistryGuard(
     private fun registeredKeys(): Set<String> =
         registry.threadLocalAccessors
             .map { it.key() }
+            .filterIsInstance<String>()
             .filter { it in EndpointMdcContextPropagation.KEYS }
-            .map { it as String }
             .toSet()
 }

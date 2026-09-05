@@ -97,7 +97,7 @@ public class HeaderSelectBenchmark {
 
     @Benchmark
     public List<Pair<String, String>> baseline() {
-        return baselineProps.select(availableNames, HeaderValueMasker.Companion.getDEFAULT(), headers::get);
+        return baselineProps.select(availableNames, HeaderValueMasker.DEFAULT, headers::get);
     }
 
     @Benchmark

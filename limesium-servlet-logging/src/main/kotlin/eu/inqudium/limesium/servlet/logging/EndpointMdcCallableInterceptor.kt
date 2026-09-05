@@ -2,8 +2,10 @@ package eu.inqudium.limesium.servlet.logging
 
 import eu.inqudium.limesium.common.EndpointLoggingMetrics
 import eu.inqudium.limesium.common.MdcScope
+import eu.inqudium.limesium.common.reportFailOpen
 import eu.inqudium.limesium.common.reportQuietly
 import org.slf4j.LoggerFactory
+import org.slf4j.event.Level
 import org.springframework.web.context.request.NativeWebRequest
 import org.springframework.web.context.request.async.CallableProcessingInterceptor
 import java.util.concurrent.Callable
@@ -42,10 +44,13 @@ internal class EndpointMdcCallableInterceptor(
             scope.set(MdcScope(exchange.requestId, exchange.method, exchange.path))
         } catch (e: Exception) {
             scope.remove()
-            reportQuietly {
-                metrics.wiringFailure()
-                log.debug("Endpoint MDC could not be installed on the async worker; handler logs lose the identity", e)
-            }
+            reportFailOpen(
+                metrics::wiringFailure,
+                internalLog,
+                Level.DEBUG,
+                e,
+                "Endpoint MDC could not be installed on the async worker; handler logs lose the identity",
+            )
         }
     }
 
@@ -57,16 +62,19 @@ internal class EndpointMdcCallableInterceptor(
         try {
             scope.get()?.close()
         } catch (e: Exception) {
-            reportQuietly {
-                metrics.wiringFailure()
-                log.debug("Endpoint MDC could not be restored on the async worker", e)
-            }
+            reportFailOpen(
+                metrics::wiringFailure,
+                internalLog,
+                Level.DEBUG,
+                e,
+                "Endpoint MDC could not be restored on the async worker",
+            )
         } finally {
             scope.remove()
         }
     }
 
-    private companion object {
-        val log = LoggerFactory.getLogger(EndpointMdcCallableInterceptor::class.java)
+    companion object {
+        private val internalLog = LoggerFactory.getLogger(EndpointMdcCallableInterceptor::class.java)
     }
 }

@@ -4,9 +4,11 @@ import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
+import eu.inqudium.limesium.common.CapturedLogger
 import eu.inqudium.limesium.common.CorrelationIdGenerator
 import eu.inqudium.limesium.common.MdcKeys
 import eu.inqudium.limesium.common.NanoTimeSource
+import eu.inqudium.limesium.common.keyValues
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import jakarta.servlet.FilterChain
 import jakarta.servlet.ServletRequestEvent
@@ -17,6 +19,7 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.RegisterExtension
 import org.slf4j.LoggerFactory
 import org.slf4j.MDC
 import org.springframework.mock.web.MockFilterChain
@@ -47,26 +50,19 @@ class RequestLoggingFilterTest {
             SimpleMeterRegistry(),
         )
 
-    private lateinit var logger: Logger
-    private lateinit var appender: ListAppender<ILoggingEvent>
+    @JvmField
+    @RegisterExtension
+    val exchangeLog = CapturedLogger(properties.loggerName)
 
     @BeforeEach
     fun setUp() {
-        logger = LoggerFactory.getLogger(properties.loggerName) as Logger
-        appender = ListAppender<ILoggingEvent>().apply { start() }
-        logger.addAppender(appender)
-        logger.level = Level.INFO
         MDC.clear()
     }
 
     @AfterEach
     fun tearDown() {
-        logger.detachAppender(appender)
-        appender.stop()
         MDC.clear()
     }
-
-    private fun keyValues(event: ILoggingEvent): Map<String, Any?> = event.keyValuePairs?.associate { it.key to it.value } ?: emptyMap()
 
     /**
      * Drives the full production sequence by hand: the filter pass, then the request destruction the
@@ -87,7 +83,7 @@ class RequestLoggingFilterTest {
         }
     }
 
-    private fun singleEvent(): ILoggingEvent = appender.list.single()
+    private fun singleEvent(): ILoggingEvent = exchangeLog.events.single()
 
     @Nested
     inner class `The exchange line` {
@@ -116,7 +112,7 @@ class RequestLoggingFilterTest {
             assertThat(event.level).isEqualTo(Level.INFO)
             assertThat(event.formattedMessage)
                 .isEqualTo("Endpoint http exchange GET /api/things -> 200 [endpoint_request_id=generated-42]")
-            assertThat(keyValues(event))
+            assertThat(event.keyValues())
                 .containsEntry("endpoint_outcome", "success")
                 .containsEntry("endpoint_request_method", "GET")
                 .containsEntry("endpoint_url_path", "/api/things")
@@ -142,7 +138,7 @@ class RequestLoggingFilterTest {
 
             // Then: the query rides its own field so grouping by path is not defeated by varying queries
             val event = singleEvent()
-            assertThat(keyValues(event))
+            assertThat(event.keyValues())
                 .containsEntry("endpoint_url_path", "/api/things")
                 .containsEntry("endpoint_url_query", "page=2")
         }
@@ -166,7 +162,7 @@ class RequestLoggingFilterTest {
             handle(request, MockHttpServletResponse(), chain)
 
             // Then: the low-cardinality template accompanies the expanded path
-            assertThat(keyValues(singleEvent()))
+            assertThat(singleEvent().keyValues())
                 .containsEntry("endpoint_url_path", "/api/things/7")
                 .containsEntry("endpoint_url_template", "/api/things/{id}")
         }
@@ -189,7 +185,7 @@ class RequestLoggingFilterTest {
             // Then: the query string appears nowhere in the event
             val event = singleEvent()
             assertThat(event.formattedMessage).doesNotContain("secret=1")
-            assertThat(keyValues(event)).doesNotContainKey("endpoint_url_query")
+            assertThat(event.keyValues()).doesNotContainKey("endpoint_url_query")
         }
     }
 
@@ -216,7 +212,7 @@ class RequestLoggingFilterTest {
             var eventsAtChainTime = listOf<String>()
             val request = MockHttpServletRequest("GET", "/api/things")
             request.queryString = "page=2"
-            val chain = FilterChain { _, _ -> eventsAtChainTime = appender.list.map { it.formattedMessage } }
+            val chain = FilterChain { _, _ -> eventsAtChainTime = exchangeLog.events.map { it.formattedMessage } }
 
             // When: the filter handles the exchange
             handle(request, MockHttpServletResponse(), chain, startLoggingFilter)
@@ -226,9 +222,9 @@ class RequestLoggingFilterTest {
                 .containsExactly("Endpoint http exchange started GET /api/things [endpoint_request_id=generated-42]")
 
             // And: the start line carries the request-side fields but no outcome; the completion line has it
-            assertThat(appender.list).hasSize(2)
-            val start = appender.list.first()
-            assertThat(keyValues(start))
+            assertThat(exchangeLog.events).hasSize(2)
+            val start = exchangeLog.events.first()
+            assertThat(start.keyValues())
                 .containsEntry("endpoint_request_method", "GET")
                 .containsEntry("endpoint_url_path", "/api/things")
                 .containsEntry("endpoint_url_query", "page=2")
@@ -236,7 +232,7 @@ class RequestLoggingFilterTest {
                 .doesNotContainKey("endpoint_response_status_code")
                 .doesNotContainKey("endpoint_duration_ms")
             assertThat(start.mdcPropertyMap).containsEntry(MdcKeys.REQUEST_ID, "generated-42")
-            assertThat(keyValues(appender.list.last())).containsEntry("endpoint_outcome", "success")
+            assertThat(exchangeLog.events.last().keyValues()).containsEntry("endpoint_outcome", "success")
         }
 
         @Test
@@ -249,8 +245,8 @@ class RequestLoggingFilterTest {
             handle(MockHttpServletRequest("GET", "/api/things"), MockHttpServletResponse(), FilterChain { _, _ -> })
 
             // Then: only the completion event exists
-            assertThat(appender.list).hasSize(1)
-            assertThat(appender.list.single().formattedMessage).doesNotContain("started")
+            assertThat(exchangeLog.events).hasSize(1)
+            assertThat(exchangeLog.events.single().formattedMessage).doesNotContain("started")
         }
     }
 
@@ -271,7 +267,7 @@ class RequestLoggingFilterTest {
             // Then: the line is WARN and the outcome field says failure - severity and semantic decoupled
             val event = singleEvent()
             assertThat(event.level).isEqualTo(Level.WARN)
-            assertThat(keyValues(event))
+            assertThat(event.keyValues())
                 .containsEntry("endpoint_response_status_code", 503)
                 .containsEntry("endpoint_outcome", "failure")
         }
@@ -292,7 +288,7 @@ class RequestLoggingFilterTest {
             //   severity, it does not turn a completed exchange into a failure
             val event = singleEvent()
             assertThat(event.level).isEqualTo(Level.WARN)
-            assertThat(keyValues(event))
+            assertThat(event.keyValues())
                 .containsEntry("endpoint_slow", true)
                 .containsEntry("endpoint_duration_ms", 200L)
                 .containsEntry("endpoint_outcome", "success")
@@ -315,14 +311,14 @@ class RequestLoggingFilterTest {
                 )
 
             fun slowFlagAfter(elapsedNanos: Long): Boolean {
-                appender.list.clear()
+                exchangeLog.clear()
                 val request = MockHttpServletRequest("GET", "/api/things")
                 try {
                     precise.doFilterInternal(request, MockHttpServletResponse(), FilterChain { _, _ -> ticker.addAndGet(elapsedNanos) })
                 } finally {
                     precise.exchangeCompletionListener().requestDestroyed(ServletRequestEvent(request.servletContext, request))
                 }
-                return keyValues(singleEvent()).containsKey("endpoint_slow")
+                return singleEvent().keyValues().containsKey("endpoint_slow")
             }
 
             // When/Then: just below is not slow, exactly at is slow
@@ -352,7 +348,7 @@ class RequestLoggingFilterTest {
                 catchThrowable { filter.doFilterInternal(request, MockHttpServletResponse(), FilterChain { _, _ -> throw boom }) }
 
                 // Then: the breadcrumb is already there while the exchange logger is still silent
-                assertThat(appender.list).isEmpty()
+                assertThat(exchangeLog.events).isEmpty()
                 val breadcrumb = moduleAppender.list.single()
                 assertThat(breadcrumb.level).isEqualTo(Level.WARN)
                 assertThat(breadcrumb.formattedMessage)
@@ -389,7 +385,7 @@ class RequestLoggingFilterTest {
             val event = singleEvent()
             assertThat(event.level).isEqualTo(Level.ERROR)
             assertThat(event.throwableProxy?.message).isEqualTo("boom")
-            assertThat(keyValues(event)).containsEntry("endpoint_outcome", "failure")
+            assertThat(event.keyValues()).containsEntry("endpoint_outcome", "failure")
         }
     }
 
@@ -458,8 +454,8 @@ class RequestLoggingFilterTest {
             // Then: generated and echoed, the caller's values nowhere
             assertThat(overLongResponse.getHeader(properties.correlationIdHeader)).isEqualTo("generated-42")
             assertThat(withSpaceResponse.getHeader(properties.correlationIdHeader)).isEqualTo("generated-42")
-            assertThat(appender.list).hasSize(2)
-            assertThat(appender.list).allSatisfy { event ->
+            assertThat(exchangeLog.events).hasSize(2)
+            assertThat(exchangeLog.events).allSatisfy { event ->
                 assertThat(event.mdcPropertyMap).containsEntry(MdcKeys.REQUEST_ID, "generated-42")
                 assertThat(event.formattedMessage).doesNotContain("xxxxxxxx").doesNotContain("id with space")
             }
@@ -539,7 +535,7 @@ class RequestLoggingFilterTest {
             excludingFilter.exchangeCompletionListener().requestDestroyed(ServletRequestEvent(request.servletContext, request))
 
             // Then: no exchange line is emitted - the destruction callback finds no exchange to log
-            assertThat(appender.list).isEmpty()
+            assertThat(exchangeLog.events).isEmpty()
         }
 
         @Test
@@ -573,7 +569,7 @@ class RequestLoggingFilterTest {
             scoped.exchangeCompletionListener().requestDestroyed(ServletRequestEvent(excluded.servletContext, excluded))
 
             // Then: exactly the included exchange is logged, under its full (context-path-keeping) path
-            val event = appender.list.single()
+            val event = exchangeLog.events.single()
             assertThat(event.formattedMessage).contains("GET /app/api/things")
         }
 
@@ -605,8 +601,8 @@ class RequestLoggingFilterTest {
             includingFilter.exchangeCompletionListener().requestDestroyed(ServletRequestEvent(other.servletContext, other))
 
             // Then: only the matching exchange was logged and echoed
-            assertThat(appender.list).hasSize(1)
-            assertThat(keyValues(appender.list.single())).containsEntry("endpoint_url_path", "/api/things")
+            assertThat(exchangeLog.events).hasSize(1)
+            assertThat(exchangeLog.events.single().keyValues()).containsEntry("endpoint_url_path", "/api/things")
             assertThat(matchingResponse.getHeader(properties.correlationIdHeader)).isEqualTo("generated-42")
             assertThat(otherResponse.getHeader(properties.correlationIdHeader)).isNull()
         }
@@ -632,7 +628,7 @@ class RequestLoggingFilterTest {
             filterUnderTest.exchangeCompletionListener().requestDestroyed(ServletRequestEvent(request.servletContext, request))
 
             // Then: the exclude won
-            assertThat(appender.list).isEmpty()
+            assertThat(exchangeLog.events).isEmpty()
         }
 
         @Test
@@ -676,7 +672,7 @@ class RequestLoggingFilterTest {
             excludingFilter.exchangeCompletionListener().requestDestroyed(ServletRequestEvent(request.servletContext, request))
 
             // Then: excluded
-            assertThat(appender.list).isEmpty()
+            assertThat(exchangeLog.events).isEmpty()
         }
 
         @Test
@@ -702,7 +698,7 @@ class RequestLoggingFilterTest {
             includingFilter.exchangeCompletionListener().requestDestroyed(ServletRequestEvent(request.servletContext, request))
 
             // Then
-            assertThat(keyValues(singleEvent())).containsEntry("endpoint_url_path", "/%61pi/things")
+            assertThat(singleEvent().keyValues()).containsEntry("endpoint_url_path", "/%61pi/things")
         }
 
         @Test
@@ -720,7 +716,7 @@ class RequestLoggingFilterTest {
             excludingFilter.exchangeCompletionListener().requestDestroyed(ServletRequestEvent(request.servletContext, request))
 
             // Then: the exchange is logged
-            assertThat(appender.list).hasSize(1)
+            assertThat(exchangeLog.events).hasSize(1)
         }
     }
 }

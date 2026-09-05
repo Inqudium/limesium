@@ -37,7 +37,7 @@ import java.nio.charset.StandardCharsets
  * raw async cycle reads/writes flow beside the tee and are logged as absent - a documented contract
  * boundary, pinned by integration test.
  */
-class CapturingRequestWrapper(
+internal class CapturingRequestWrapper(
     request: HttpServletRequest,
     private val capture: BoundedBodyCapture,
 ) : HttpServletRequestWrapper(request) {
@@ -152,7 +152,7 @@ class CapturingRequestWrapper(
         fun charsetOrDefault(name: String?): Charset =
             try {
                 name?.let { Charset.forName(it) }
-            } catch (e: IllegalArgumentException) {
+            } catch (_: IllegalArgumentException) {
                 // IllegalCharsetNameException / UnsupportedCharsetException: an undeclared-or-broken
                 // encoding only affects the log rendering, never the application's reader.
                 null

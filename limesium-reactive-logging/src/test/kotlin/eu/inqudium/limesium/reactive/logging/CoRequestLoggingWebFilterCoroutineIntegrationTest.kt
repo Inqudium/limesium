@@ -5,9 +5,11 @@ import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.classic.spi.IThrowableProxy
 import eu.inqudium.limesium.common.AwaitingAppender
+import eu.inqudium.limesium.common.CapturedLogger
 import eu.inqudium.limesium.common.CorrelationIdGenerator
 import eu.inqudium.limesium.common.MdcKeys
 import eu.inqudium.limesium.common.NanoTimeSource
+import eu.inqudium.limesium.common.keyValues
 import io.micrometer.context.ContextRegistry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -15,9 +17,9 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.RegisterExtension
 import org.slf4j.LoggerFactory
 import org.slf4j.MDC
-import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.SpringBootConfiguration
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration
 import org.springframework.boot.test.context.SpringBootTest
@@ -27,6 +29,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
 import org.springframework.core.Ordered
 import org.springframework.http.HttpStatus
+import org.springframework.test.context.TestConstructor
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -75,37 +78,23 @@ import java.time.Duration
 )
 // Netty explicitly: with three servers on the test classpath Boot would otherwise start Jetty (see Servers.kt).
 @Import(NettyServer::class)
-class CoRequestLoggingWebFilterCoroutineIntegrationTest {
-    @LocalServerPort
-    private var port: Int = 0
-
-    @Autowired
-    private lateinit var context: ApplicationContext
-
+@TestConstructor(autowireMode = TestConstructor.AutowireMode.ALL)
+class CoRequestLoggingWebFilterCoroutineIntegrationTest(
+    @param:LocalServerPort private val port: Int,
+    private val context: ApplicationContext,
+) {
     private val http: HttpClient = HttpClient.newBuilder().connectTimeout(REQUEST_TIMEOUT).build()
-    private lateinit var exchangeLogger: Logger
-    private lateinit var exchangeAppender: AwaitingAppender
-    private lateinit var handlerLogger: Logger
-    private lateinit var handlerAppender: AwaitingAppender
 
-    @BeforeEach
-    fun setUp() {
-        exchangeLogger = LoggerFactory.getLogger("endpoint-http-exchange-coroutine-integration-test") as Logger
-        exchangeAppender = AwaitingAppender().apply { start() }
-        exchangeLogger.addAppender(exchangeAppender)
-        exchangeLogger.level = Level.INFO
-        handlerLogger = LoggerFactory.getLogger(HANDLER_LOGGER) as Logger
-        handlerAppender = AwaitingAppender().apply { start() }
-        handlerLogger.addAppender(handlerAppender)
-        handlerLogger.level = Level.INFO
-    }
+    @JvmField
+    @RegisterExtension
+    final val exchangeLog = CapturedLogger("endpoint-http-exchange-coroutine-integration-test")
+
+    @JvmField
+    @RegisterExtension
+    final val handlerLog = CapturedLogger(HANDLER_LOGGER)
 
     @AfterEach
     fun tearDown() {
-        exchangeLogger.detachAppender(exchangeAppender)
-        exchangeAppender.stop()
-        handlerLogger.detachAppender(handlerAppender)
-        handlerAppender.stop()
         // The JDK client is AutoCloseable (Java 21+); JUnit creates one instance per test method,
         // so each client - selector thread, sockets, buffers - must end with its test.
         http.close()
@@ -119,8 +108,6 @@ class CoRequestLoggingWebFilterCoroutineIntegrationTest {
         headers.forEach { (name, value) -> request.header(name, value) }
         return http.send(request.build(), HttpResponse.BodyHandlers.ofString())
     }
-
-    private fun keyValues(event: ILoggingEvent): Map<String, Any?> = event.keyValuePairs?.associate { it.key to it.value } ?: emptyMap()
 
     private fun causeMessages(proxy: IThrowableProxy?): List<String> = generateSequence(proxy) { it.cause }.mapNotNull { it.message }.toList()
 
@@ -167,10 +154,10 @@ class CoRequestLoggingWebFilterCoroutineIntegrationTest {
         assertThat(response.statusCode()).isEqualTo(200)
         assertThat(response.body()).isEqualTo("echo:hello coroutine")
         assertThat(response.headers().firstValue("X-Correlation-Id")).contains("co-corr-1")
-        val event = exchangeAppender.awaitEvents(1).single()
+        val event = exchangeLog.awaitEvents(1).single()
         assertThat(event.level).isEqualTo(Level.INFO)
         assertThat(event.formattedMessage).isEqualTo("Endpoint http exchange POST /co/echo -> 200 [endpoint_request_id=co-corr-1]")
-        assertThat(keyValues(event))
+        assertThat(event.keyValues())
             .containsEntry("endpoint_outcome", "success")
             .containsEntry("endpoint_url_template", "/co/echo")
             .containsEntry("endpoint_request_body", "hello coroutine")
@@ -198,13 +185,13 @@ class CoRequestLoggingWebFilterCoroutineIntegrationTest {
         assertThat(response.body()).isEqualTo("co-hop")
 
         // And: the handler's log line carries the full identity, written from the hopped thread
-        val handlerEvent = handlerAppender.awaitEvents(1).single()
+        val handlerEvent = handlerLog.awaitEvents(1).single()
         assertThat(handlerEvent.formattedMessage).isEqualTo("inside suspend handler after hop")
         assertThat(handlerEvent.mdcPropertyMap)
             .containsEntry(MdcKeys.REQUEST_ID, "co-hop")
             .containsEntry(MdcKeys.REQUEST_METHOD, "GET")
             .containsEntry(MdcKeys.ROUTE, "/co/hop/9")
-        assertThat(handlerEvent.threadName).isNotEqualTo(exchangeAppender.awaitEvents(1).single().threadName)
+        assertThat(handlerEvent.threadName).isNotEqualTo(exchangeLog.awaitEvents(1).single().threadName)
     }
 
     @Test
@@ -222,10 +209,10 @@ class CoRequestLoggingWebFilterCoroutineIntegrationTest {
         // Then
         assertThat(response.statusCode()).isEqualTo(500)
         assertThat(response.headers().firstValue("X-Correlation-Id")).contains("co-corr-boom")
-        val event = exchangeAppender.awaitEvents(1).single()
+        val event = exchangeLog.awaitEvents(1).single()
         assertThat(event.level).isEqualTo(Level.ERROR)
         assertThat(event.formattedMessage).contains("-> 500")
-        assertThat(keyValues(event))
+        assertThat(event.keyValues())
             .containsEntry("endpoint_outcome", "failure")
             .containsEntry("endpoint_response_status_code", 500)
         assertThat(causeMessages(event.throwableProxy)).anySatisfy { assertThat(it).contains("co boom") }
@@ -247,11 +234,11 @@ class CoRequestLoggingWebFilterCoroutineIntegrationTest {
         // Then: the client sees the mutated response, the event agrees with it
         assertThat(response.statusCode()).isEqualTo(503)
         assertThat(response.headers().firstValue("X-Late")).contains("late")
-        val event = exchangeAppender.awaitEvents(1).single()
+        val event = exchangeLog.awaitEvents(1).single()
         assertThat(event.level).isEqualTo(Level.ERROR)
         assertThat(event.formattedMessage).contains("-> 503")
-        assertThat(keyValues(event)).containsEntry("endpoint_response_status_code", 503)
-        assertThat(keyValues(event)["endpoint_response_headers"].toString()).contains("X-Late:\"late\"")
+        assertThat(event.keyValues()).containsEntry("endpoint_response_status_code", 503)
+        assertThat(event.keyValues()["endpoint_response_headers"].toString()).contains("X-Late:\"late\"")
     }
 
     @Test
@@ -267,8 +254,8 @@ class CoRequestLoggingWebFilterCoroutineIntegrationTest {
 
         // Then
         assertThat(response.body()).isEqualTo("thing-42")
-        val event = exchangeAppender.awaitEvents(1).single()
-        assertThat(keyValues(event))
+        val event = exchangeLog.awaitEvents(1).single()
+        assertThat(event.keyValues())
             .containsEntry("endpoint_url_path", "/co/things/42")
             .containsEntry("endpoint_url_template", "/co/things/{id}")
     }
