@@ -180,10 +180,8 @@ class RequestLoggingFilter
                 filterAsyncDispatch(request, response, filterChain)
                 return
             }
-            // The WIRING is fail-open too, not only the emission: identity resolution and the time source
-            // are host-provided beans, and header enumeration touches container edges - an exception in any of
-            // them must degrade this filter to a plain pass-through, never fail the request (the documented
-            // fail-open contract used to start only at the chain call below).
+            // Wiring is fail-open like the emission (class KDoc, "Fail-open, including the wiring"): a
+            // failure here degrades this filter to a plain pass-through, never the request.
             val exchange: Exchange? =
                 try {
                     wireExchange(request, response)
@@ -209,8 +207,7 @@ class RequestLoggingFilter
             registerAsyncMdcPropagation(request, exchange)
 
             // The chain-wide MDC scope is logging-owned work and therefore fail-open too: a throwing MDC
-            // adapter degrades the identity feature, never the request (construction used to run
-            // unguarded before the chain try).
+            // adapter degrades the identity feature, never the request.
             // MdcScope itself rolls back a partial install before rethrowing, so the pooled thread never
             // keeps half an identity.
             val mdcScope: MdcScope? =
@@ -254,10 +251,8 @@ class RequestLoggingFilter
                         request.asyncContext.addListener(AsyncOutcomeMarker(exchange, ::completeExchange))
                         exchange.markAsyncArmed()
                     }
-                    // Immediate breadcrumb at the failure site: the full ERROR event follows only at request
-                    // destruction, after the container's error dispatch (which is what makes its status
-                    // final). Short on purpose - the exception's toString, no stack trace; the full event
-                    // carries the cause. See the class KDoc for why WARN and why the module's own logger.
+                    // The breadcrumb (class KDoc): visible at the failure site, short, on the module's own
+                    // logger - the full ERROR event with the cause follows at request destruction.
                     exchange.failure?.let {
                         internalLog.warn(
                             "Endpoint http exchange failed: {} {} - {} [{}={}]",
