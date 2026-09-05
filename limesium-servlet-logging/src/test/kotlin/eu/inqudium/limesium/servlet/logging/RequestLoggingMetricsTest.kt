@@ -5,6 +5,7 @@ import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
 import eu.inqudium.limesium.common.BodyLogMode
+import eu.inqudium.limesium.common.CapturedLogger
 import eu.inqudium.limesium.common.CorrelationIdGenerator
 import eu.inqudium.limesium.common.EndpointLoggingMetrics
 import eu.inqudium.limesium.common.NanoTimeSource
@@ -19,6 +20,7 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.RegisterExtension
 import org.slf4j.LoggerFactory
 import org.springframework.mock.web.MockHttpServletRequest
 import org.springframework.mock.web.MockHttpServletResponse
@@ -49,22 +51,9 @@ class RequestLoggingMetricsTest {
             meterRegistry,
         )
 
-    private lateinit var logger: Logger
-    private lateinit var appender: ListAppender<ILoggingEvent>
-
-    @BeforeEach
-    fun setUp() {
-        logger = LoggerFactory.getLogger(properties.loggerName) as Logger
-        appender = ListAppender<ILoggingEvent>().apply { start() }
-        logger.addAppender(appender)
-        logger.level = Level.INFO
-    }
-
-    @AfterEach
-    fun tearDown() {
-        logger.detachAppender(appender)
-        appender.stop()
-    }
+    @JvmField
+    @RegisterExtension
+    val exchangeLog = CapturedLogger(properties.loggerName)
 
     private fun handle(
         request: MockHttpServletRequest,
@@ -137,13 +126,13 @@ class RequestLoggingMetricsTest {
             // Why it matters: if the counter kept counting suppressed events, every reconciliation
             //   against the index would report phantom pipeline loss on any host that gates at WARN.
             // Given: the exchange logger gated to ERROR
-            logger.level = Level.ERROR
+            exchangeLog.logger.level = Level.ERROR
 
             // When: a clean exchange runs
             handle(MockHttpServletRequest("GET", "/api/things"), MockHttpServletResponse())
 
             // Then: no event, no count
-            assertThat(appender.list).isEmpty()
+            assertThat(exchangeLog.events).isEmpty()
             assertThat(eventCount("success")).isEqualTo(0.0)
         }
     }
@@ -219,7 +208,7 @@ class RequestLoggingMetricsTest {
 
             // Then: the exchange hangs open, unlogged
             assertThat(openExchanges()).isEqualTo(1.0)
-            assertThat(appender.list).isEmpty()
+            assertThat(exchangeLog.events).isEmpty()
         }
     }
 
@@ -358,7 +347,7 @@ class RequestLoggingMetricsTest {
             // Why it matters: hosts routinely gate the exchange stream at WARN in production - the size
             //   signal must not vanish with it.
             // Given: the exchange logger gated to ERROR
-            logger.level = Level.ERROR
+            exchangeLog.logger.level = Level.ERROR
             val response = MockHttpServletResponse()
             val chain = FilterChain { _, res -> (res as HttpServletResponse).outputStream.write("data".toByteArray()) }
 
@@ -366,7 +355,7 @@ class RequestLoggingMetricsTest {
             handle(MockHttpServletRequest("GET", "/api/plain"), response, chain)
 
             // Then: no event, but a recorded sample
-            assertThat(appender.list).isEmpty()
+            assertThat(exchangeLog.events).isEmpty()
             val responseSummary = summaryFor(EndpointLoggingMetrics.RESPONSE_BODY_SIZE_METER, EndpointLoggingMetrics.UNTEMPLATED_URI)
             assertThat(responseSummary.totalAmount()).isEqualTo(4.0)
         }
@@ -388,7 +377,7 @@ class RequestLoggingMetricsTest {
 
             // Then: measured, but no body keys on the event
             val keyValues =
-                appender.list
+                exchangeLog.events
                     .single()
                     .keyValuePairs
                     ?.associate { it.key to it.value } ?: emptyMap()

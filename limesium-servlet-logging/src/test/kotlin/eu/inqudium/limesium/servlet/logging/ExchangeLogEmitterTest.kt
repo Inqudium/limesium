@@ -4,9 +4,11 @@ import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
+import eu.inqudium.limesium.common.CapturedLogger
 import eu.inqudium.limesium.common.EndpointLoggingMetrics
 import eu.inqudium.limesium.common.HeaderValueMasker
 import eu.inqudium.limesium.common.NanoTimeSource
+import eu.inqudium.limesium.common.keyValues
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import jakarta.servlet.AsyncEvent
 import org.assertj.core.api.Assertions.assertThat
@@ -14,6 +16,7 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.RegisterExtension
 import org.slf4j.LoggerFactory
 import org.springframework.mock.web.MockAsyncContext
 import org.springframework.mock.web.MockHttpServletRequest
@@ -40,22 +43,9 @@ class ExchangeLogEmitterTest {
     private val metrics = EndpointLoggingMetrics.forRegistry(meterRegistry, EndpointLoggingMetrics.OUTCOME_TIMEOUT)
     private val emitter = ExchangeLogEmitter(properties, NanoTimeSource { ticker.get() }, metrics, HeaderValueMasker.DEFAULT)
 
-    private lateinit var logger: Logger
-    private lateinit var appender: ListAppender<ILoggingEvent>
-
-    @BeforeEach
-    fun setUp() {
-        logger = LoggerFactory.getLogger(properties.loggerName) as Logger
-        appender = ListAppender<ILoggingEvent>().apply { start() }
-        logger.addAppender(appender)
-        logger.level = Level.INFO
-    }
-
-    @AfterEach
-    fun tearDown() {
-        logger.detachAppender(appender)
-        appender.stop()
-    }
+    @JvmField
+    @RegisterExtension
+    val exchangeLog = CapturedLogger(properties.loggerName)
 
     private fun exchange(status: Int = 200): Exchange =
         Exchange(
@@ -74,8 +64,6 @@ class ExchangeLogEmitterTest {
 
     /** A real (mock) async context: the servlet `AsyncEvent` constructor dereferences it. */
     private fun asyncContext(): MockAsyncContext = MockAsyncContext(MockHttpServletRequest(), MockHttpServletResponse())
-
-    private fun keyValues(event: ILoggingEvent): Map<String, Any?> = event.keyValuePairs?.associate { it.key to it.value } ?: emptyMap()
 
     private fun emitted(outcome: String): Double =
         meterRegistry
@@ -98,9 +86,9 @@ class ExchangeLogEmitterTest {
             emitter.logExchange(exchange(200))
 
             // Then: INFO, success, counted
-            val event = appender.list.single()
+            val event = exchangeLog.events.single()
             assertThat(event.level).isEqualTo(Level.INFO)
-            assertThat(keyValues(event))
+            assertThat(event.keyValues())
                 .containsEntry("endpoint_outcome", "success")
                 .containsEntry("endpoint_response_status_code", 200)
             assertThat(emitted("success")).isEqualTo(1.0)
@@ -116,10 +104,10 @@ class ExchangeLogEmitterTest {
             emitter.logExchange(exchange(503))
 
             // Then: WARN (already handled), outcome failure, no cause
-            val event = appender.list.single()
+            val event = exchangeLog.events.single()
             assertThat(event.level).isEqualTo(Level.WARN)
             assertThat(event.throwableProxy).isNull()
-            assertThat(keyValues(event)).containsEntry("endpoint_outcome", "failure")
+            assertThat(event.keyValues()).containsEntry("endpoint_outcome", "failure")
         }
 
         @Test
@@ -136,10 +124,10 @@ class ExchangeLogEmitterTest {
             emitter.logExchange(ex)
 
             // Then
-            val event = appender.list.single()
+            val event = exchangeLog.events.single()
             assertThat(event.level).isEqualTo(Level.ERROR)
             assertThat(event.throwableProxy?.message).isEqualTo("boom")
-            assertThat(keyValues(event)).containsEntry("endpoint_outcome", "failure")
+            assertThat(event.keyValues()).containsEntry("endpoint_outcome", "failure")
         }
 
         @Test
@@ -159,11 +147,11 @@ class ExchangeLogEmitterTest {
             emitter.logExchange(ex)
 
             // Then
-            val event = appender.list.single()
+            val event = exchangeLog.events.single()
             assertThat(ex.asyncDisposition).isEqualTo(AsyncDisposition.TIMED_OUT)
             assertThat(event.level).isEqualTo(Level.WARN)
             assertThat(event.throwableProxy?.message).isEqualTo("abort after timeout")
-            assertThat(keyValues(event)).containsEntry("endpoint_outcome", "timeout")
+            assertThat(event.keyValues()).containsEntry("endpoint_outcome", "timeout")
             assertThat(emitted("timeout")).isEqualTo(1.0)
         }
 
@@ -208,7 +196,7 @@ class ExchangeLogEmitterTest {
             // Then: the timeout won every race, and the classification follows it
             assertThat(exchanges).allSatisfy({ assertThat(it.asyncDisposition).isEqualTo(AsyncDisposition.TIMED_OUT) })
             emitter.logExchange(exchanges.last())
-            assertThat(keyValues(appender.list.single())).containsEntry("endpoint_outcome", "timeout")
+            assertThat(exchangeLog.events.single().keyValues()).containsEntry("endpoint_outcome", "timeout")
         }
 
         @Test
@@ -227,11 +215,11 @@ class ExchangeLogEmitterTest {
             emitter.logExchange(ex)
 
             // Then
-            val event = appender.list.single()
+            val event = exchangeLog.events.single()
             assertThat(ex.asyncDisposition).isEqualTo(AsyncDisposition.ERRORED)
             assertThat(event.level).isEqualTo(Level.ERROR)
             assertThat(event.throwableProxy).isNull()
-            assertThat(keyValues(event)).containsEntry("endpoint_outcome", "failure")
+            assertThat(event.keyValues()).containsEntry("endpoint_outcome", "failure")
         }
 
         @Test
@@ -248,9 +236,9 @@ class ExchangeLogEmitterTest {
             emitter.logExchange(ex)
 
             // Then
-            val event = appender.list.single()
+            val event = exchangeLog.events.single()
             assertThat(event.level).isEqualTo(Level.WARN)
-            assertThat(keyValues(event))
+            assertThat(event.keyValues())
                 .containsEntry("endpoint_slow", true)
                 .containsEntry("endpoint_outcome", "success")
                 .containsEntry("endpoint_duration_ms", 200L)
@@ -271,7 +259,7 @@ class ExchangeLogEmitterTest {
             emitter.logExchange(ex)
 
             // Then: one event, one count
-            assertThat(appender.list).hasSize(1)
+            assertThat(exchangeLog.events).hasSize(1)
             assertThat(emitted("success")).isEqualTo(1.0)
         }
 
@@ -282,13 +270,13 @@ class ExchangeLogEmitterTest {
             // Why it matters: the counter counts EMITTED events, so a gated exchange must not be
             //   counted, or the reconciliation against the index would show phantom loss.
             // Given: INFO disabled on the exchange logger
-            logger.level = Level.WARN
+            exchangeLog.logger.level = Level.WARN
 
             // When: a clean exchange completes
             emitter.logExchange(exchange(200))
 
             // Then: nothing logged, nothing counted as emitted (the counter is the reconciliation ground truth)
-            assertThat(appender.list).isEmpty()
+            assertThat(exchangeLog.events).isEmpty()
             assertThat(emitted("success")).isEqualTo(0.0)
         }
     }

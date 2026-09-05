@@ -4,12 +4,14 @@ import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
+import eu.inqudium.limesium.common.CapturedLogger
 import eu.inqudium.limesium.common.CorrelationIdGenerator
 import eu.inqudium.limesium.common.EndpointLoggingMetrics
 import eu.inqudium.limesium.common.HeaderLogProperties
 import eu.inqudium.limesium.common.MdcKeys
 import eu.inqudium.limesium.common.NanoTimeSource
 import eu.inqudium.limesium.common.installMdcAdapter
+import eu.inqudium.limesium.common.keyValues
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.reactor.mono
@@ -19,6 +21,7 @@ import org.assertj.core.api.Assertions.catchThrowable
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.RegisterExtension
 import org.slf4j.LoggerFactory
 import org.slf4j.MDC
 import org.slf4j.spi.MDCAdapter
@@ -51,15 +54,12 @@ class CoRequestLoggingWebFilterTest {
         )
     private lateinit var originalMdcAdapter: MDCAdapter
 
-    private lateinit var logger: Logger
-    private lateinit var appender: ListAppender<ILoggingEvent>
+    @JvmField
+    @RegisterExtension
+    val exchangeLog = CapturedLogger(properties.loggerName)
 
     @BeforeEach
     fun setUp() {
-        logger = LoggerFactory.getLogger(properties.loggerName) as Logger
-        appender = ListAppender<ILoggingEvent>().apply { start() }
-        logger.addAppender(appender)
-        logger.level = Level.INFO
         originalMdcAdapter = MDC.getMDCAdapter()
         MDC.clear()
     }
@@ -67,12 +67,8 @@ class CoRequestLoggingWebFilterTest {
     @AfterEach
     fun tearDown() {
         installMdcAdapter(originalMdcAdapter)
-        logger.detachAppender(appender)
-        appender.stop()
         MDC.clear()
     }
-
-    private fun keyValues(event: ILoggingEvent): Map<String, Any?> = event.keyValuePairs?.associate { it.key to it.value } ?: emptyMap()
 
     @Test
     fun `should log the identical line format of the reactor variant`() {
@@ -93,11 +89,11 @@ class CoRequestLoggingWebFilterTest {
         filter.filter(exchange, chain).block()
 
         // Then: one INFO line, format-identical
-        val event = appender.list.single()
+        val event = exchangeLog.events.single()
         assertThat(event.level).isEqualTo(Level.INFO)
         assertThat(event.formattedMessage)
             .isEqualTo("Endpoint http exchange GET /api/things -> 200 [endpoint_request_id=generated-42]")
-        assertThat(keyValues(event))
+        assertThat(event.keyValues())
             .containsEntry("endpoint_outcome", "success")
             .containsEntry("endpoint_duration_ms", 42L)
             .containsEntry("endpoint_response_status_code", 200)
@@ -176,7 +172,7 @@ class CoRequestLoggingWebFilterTest {
         // Then: served and logged without the handler MDC, degradation counted, gauge closed
         assertThat(thrown).isNull()
         assertThat(chainRan).isTrue()
-        assertThat(appender.list).singleElement().satisfies({ assertThat(keyValues(it)).containsEntry("endpoint_outcome", "success") })
+        assertThat(exchangeLog.events).singleElement().satisfies({ assertThat(it.keyValues()).containsEntry("endpoint_outcome", "success") })
         assertThat(
             meterRegistry
                 .get(EndpointLoggingMetrics.FAIL_OPEN_METER)
@@ -257,16 +253,16 @@ class CoRequestLoggingWebFilterTest {
         //   reachable original are what upstream error handling classifies on. No event yet.
         assertThat(thrown).isInstanceOf(IllegalStateException::class.java).hasMessage("boom")
         assertThat(thrown === boom || thrown!!.cause === boom).isTrue()
-        assertThat(appender.list).isEmpty()
+        assertThat(exchangeLog.events).isEmpty()
 
         // When: the upstream error handling renders and commits the response
         exchange.response.statusCode = HttpStatus.INTERNAL_SERVER_ERROR
         exchange.response.setComplete().block()
 
         // Then: one ERROR event with the rendered status and the cause
-        val event = appender.list.single()
+        val event = exchangeLog.events.single()
         assertThat(event.level).isEqualTo(Level.ERROR)
-        assertThat(keyValues(event))
+        assertThat(event.keyValues())
             .containsEntry("endpoint_outcome", "failure")
             .containsEntry("endpoint_response_status_code", 500)
     }
@@ -300,17 +296,17 @@ class CoRequestLoggingWebFilterTest {
                 Mono.error(IllegalStateException("boom"))
             }
         catchThrowable { selecting.filter(exchange, chain).block() }
-        assertThat(appender.list).isEmpty()
+        assertThat(exchangeLog.events).isEmpty()
 
         // When: the upstream error handling renders 500 and commits - the later action then mutates
         exchange.response.statusCode = HttpStatus.INTERNAL_SERVER_ERROR
         exchange.response.setComplete().block()
 
         // Then: the event carries what the response applied
-        val event = appender.list.single()
+        val event = exchangeLog.events.single()
         assertThat(event.level).isEqualTo(Level.ERROR)
-        assertThat(keyValues(event)).containsEntry("endpoint_response_status_code", 503)
-        assertThat(keyValues(event)["endpoint_response_headers"].toString()).contains("X-Late:\"late\"")
+        assertThat(event.keyValues()).containsEntry("endpoint_response_status_code", 503)
+        assertThat(event.keyValues()["endpoint_response_headers"].toString()).contains("X-Late:\"late\"")
     }
 
     @Test
@@ -328,9 +324,9 @@ class CoRequestLoggingWebFilterTest {
         subscription.dispose()
 
         // Then: WARN, cancelled, no invented status
-        val event = appender.list.single()
+        val event = exchangeLog.events.single()
         assertThat(event.level).isEqualTo(Level.WARN)
-        assertThat(keyValues(event))
+        assertThat(event.keyValues())
             .containsEntry("endpoint_outcome", "cancelled")
             .doesNotContainKey("endpoint_response_status_code")
     }

@@ -3,11 +3,14 @@ package eu.inqudium.limesium.servlet.logging
 import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
 import eu.inqudium.limesium.common.AwaitingAppender
+import eu.inqudium.limesium.common.CapturedLogger
 import eu.inqudium.limesium.common.MdcKeys
+import eu.inqudium.limesium.common.keyValues
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.RegisterExtension
 import org.slf4j.LoggerFactory
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.web.server.LocalServerPort
@@ -43,21 +46,13 @@ class RequestLoggingFilterUndertowTracingIntegrationTest {
     private var port: Int = 0
 
     private val http: HttpClient = HttpClient.newBuilder().connectTimeout(REQUEST_TIMEOUT).build()
-    private lateinit var logger: Logger
-    private lateinit var appender: AwaitingAppender
 
-    @BeforeEach
-    fun setUp() {
-        logger = LoggerFactory.getLogger("endpoint-http-exchange-undertow-tracing-integration-test") as Logger
-        appender = AwaitingAppender().apply { start() }
-        logger.addAppender(appender)
-        logger.level = Level.INFO
-    }
+    @JvmField
+    @RegisterExtension
+    final val exchangeLog = CapturedLogger("endpoint-http-exchange-undertow-tracing-integration-test")
 
     @AfterEach
     fun tearDown() {
-        logger.detachAppender(appender)
-        appender.stop()
         // The JDK client is AutoCloseable (Java 21+); JUnit creates one instance per test method,
         // so each client - selector thread, sockets, buffers - must end with its test.
         http.close()
@@ -95,7 +90,7 @@ class RequestLoggingFilterUndertowTracingIntegrationTest {
         //   bridge's live MDC rides along
         assertThat(response.statusCode()).isEqualTo(200)
         assertThat(response.headers().firstValue("X-Correlation-Id")).isEmpty()
-        val event = appender.awaitEvents(1).single()
+        val event = exchangeLog.awaitEvents(1).single()
         assertThat(event.mdcPropertyMap)
             .containsEntry("traceId", TRACE_ID)
             .containsEntry("parentSpanId", PARENT_SPAN_ID)
@@ -118,12 +113,12 @@ class RequestLoggingFilterUndertowTracingIntegrationTest {
 
         // Then
         assertThat(response.statusCode()).isEqualTo(200)
-        val event = appender.awaitEvents(1).single()
+        val event = exchangeLog.awaitEvents(1).single()
         assertThat(event.mdcPropertyMap)
             .containsEntry("traceId", TRACE_ID)
             .containsEntry(MdcKeys.REQUEST_ID, TRACE_ID)
             .doesNotContainKey("spanId")
-        assertThat(keyValues(event)).containsEntry("endpoint_async", true)
+        assertThat(event.keyValues()).containsEntry("endpoint_async", true)
     }
 
     private fun keyValues(event: ch.qos.logback.classic.spi.ILoggingEvent): Map<String, Any?> = event.keyValuePairs?.associate { it.key to it.value } ?: emptyMap()

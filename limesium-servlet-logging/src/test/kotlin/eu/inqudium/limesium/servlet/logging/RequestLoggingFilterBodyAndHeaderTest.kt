@@ -5,9 +5,11 @@ import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
 import eu.inqudium.limesium.common.BodyLogMode
+import eu.inqudium.limesium.common.CapturedLogger
 import eu.inqudium.limesium.common.EndpointLoggingMetrics
 import eu.inqudium.limesium.common.HeaderLogProperties
 import eu.inqudium.limesium.common.HeaderValueMasker
+import eu.inqudium.limesium.common.keyValues
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import jakarta.servlet.FilterChain
 import jakarta.servlet.ServletRequestEvent
@@ -19,15 +21,16 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.RegisterExtension
 import org.slf4j.LoggerFactory
 import org.springframework.mock.web.MockHttpServletRequest
 import org.springframework.mock.web.MockHttpServletResponse
-import java.nio.charset.StandardCharsets
-import java.util.concurrent.atomic.AtomicLong
-
 import java.io.IOException
 import java.io.PrintWriter
 import java.io.Writer
+import java.nio.charset.StandardCharsets
+import java.util.concurrent.atomic.AtomicLong
+
 /**
  * Header capture and the tee-based body capture of [RequestLoggingFilter]: bodies are logged exactly as
  * they flowed through the exchange - what the application read, what it wrote - bounded by
@@ -46,28 +49,11 @@ class RequestLoggingFilterBodyAndHeaderTest {
         )
     private val filter = RequestLoggingFilter(properties, { ticker.get() }, { "generated-42" }, SimpleMeterRegistry())
 
-    private lateinit var logger: Logger
-    private lateinit var appender: ListAppender<ILoggingEvent>
+    @JvmField
+    @RegisterExtension
+    val exchangeLog = CapturedLogger(properties.loggerName)
 
-    @BeforeEach
-    fun setUp() {
-        logger = LoggerFactory.getLogger(properties.loggerName) as Logger
-        appender = ListAppender<ILoggingEvent>().apply { start() }
-        logger.addAppender(appender)
-        logger.level = Level.INFO
-    }
-
-    @AfterEach
-    fun tearDown() {
-        logger.detachAppender(appender)
-        appender.stop()
-    }
-
-    private fun keyValues(): Map<String, Any?> =
-        appender.list
-            .single()
-            .keyValuePairs
-            ?.associate { it.key to it.value } ?: emptyMap()
+    private fun keyValues(): Map<String, Any?> = exchangeLog.events.single().keyValues()
 
     /** Filter pass plus the request destruction the container would fire - the emission point. */
     private fun handle(
@@ -501,7 +487,7 @@ class RequestLoggingFilterBodyAndHeaderTest {
             handle(MockHttpServletRequest("GET", "/api/things"), response, chain)
 
             // Then: WARN for the 5xx, and no stale body field
-            assertThat(appender.list.single().level).isEqualTo(Level.WARN)
+            assertThat(exchangeLog.events.single().level).isEqualTo(Level.WARN)
             assertThat(keyValues()).doesNotContainKey("endpoint_response_body")
         }
 
@@ -665,7 +651,7 @@ class RequestLoggingFilterBodyAndHeaderTest {
             //   of simply dropped.
             // Given/When: three exchanges - two with the same secret, one with a different one
             fun headersFor(secret: String): String {
-                appender.list.clear()
+                exchangeLog.clear()
                 val request = MockHttpServletRequest("GET", "/api/things")
                 request.addHeader("X-Api-Key", secret)
                 handleWith(maskingFilter, request)

@@ -4,6 +4,7 @@ import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
+import eu.inqudium.limesium.common.CapturedLogger
 import eu.inqudium.limesium.common.CorrelationIdGenerator
 import eu.inqudium.limesium.common.MdcKeys
 import eu.inqudium.limesium.common.NanoTimeSource
@@ -14,6 +15,7 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.RegisterExtension
 import org.slf4j.LoggerFactory
 import org.slf4j.MDC
 import org.springframework.mock.web.MockHttpServletRequest
@@ -38,22 +40,17 @@ class RequestLoggingFilterTraceContextTest {
             SimpleMeterRegistry(),
         )
 
-    private lateinit var logger: Logger
-    private lateinit var appender: ListAppender<ILoggingEvent>
+    @JvmField
+    @RegisterExtension
+    val exchangeLog = CapturedLogger(properties.loggerName)
 
     @BeforeEach
     fun setUp() {
-        logger = LoggerFactory.getLogger(properties.loggerName) as Logger
-        appender = ListAppender<ILoggingEvent>().apply { start() }
-        logger.addAppender(appender)
-        logger.level = Level.INFO
         MDC.clear()
     }
 
     @AfterEach
     fun tearDown() {
-        logger.detachAppender(appender)
-        appender.stop()
         MDC.clear()
     }
 
@@ -83,7 +80,7 @@ class RequestLoggingFilterTraceContextTest {
         destroy(request)
 
         // Then: the event carries the trace context - in the MDC for encoders, inline for plain text
-        val event = appender.list.single()
+        val event = exchangeLog.events.single()
         assertThat(event.mdcPropertyMap)
             .containsEntry("traceId", TRACE_ID)
             .containsEntry("parentSpanId", PARENT_SPAN_ID)
@@ -111,7 +108,7 @@ class RequestLoggingFilterTraceContextTest {
         destroy(request)
 
         // Then: the distributed identity outranks the private one, and the wire stays untouched
-        val event = appender.list.single()
+        val event = exchangeLog.events.single()
         assertThat(event.mdcPropertyMap).containsEntry(MdcKeys.REQUEST_ID, TRACE_ID)
         assertThat(event.formattedMessage).contains("[endpoint_request_id=$TRACE_ID ")
         assertThat(response.getHeader(properties.correlationIdHeader)).isNull()
@@ -139,7 +136,7 @@ class RequestLoggingFilterTraceContextTest {
         destroy(request)
 
         // Then
-        val event = appender.list.single()
+        val event = exchangeLog.events.single()
         assertThat(event.mdcPropertyMap).containsEntry(MdcKeys.REQUEST_ID, "caller-corr-1")
         assertThat(event.mdcPropertyMap).doesNotContainKey("traceId")
         assertThat(response.getHeader(properties.correlationIdHeader)).isEqualTo("caller-corr-1")
@@ -186,7 +183,7 @@ class RequestLoggingFilterTraceContextTest {
         destroy(request)
 
         // Then: nothing foreign on the event, the thread's own state restored
-        val event = appender.list.single()
+        val event = exchangeLog.events.single()
         assertThat(event.mdcPropertyMap)
             .doesNotContainKey("traceId")
             .doesNotContainKey("parentSpanId")
@@ -215,7 +212,7 @@ class RequestLoggingFilterTraceContextTest {
         destroy(request)
 
         // Then
-        val event = appender.list.single()
+        val event = exchangeLog.events.single()
         assertThat(event.mdcPropertyMap)
             .containsEntry("traceId", TRACE_ID)
             .containsEntry("parentSpanId", PARENT_SPAN_ID)
@@ -250,7 +247,7 @@ class RequestLoggingFilterTraceContextTest {
         arrivalFilter.doFilterInternal(request, MockHttpServletResponse(), FilterChain { _, _ -> })
 
         // Then: the arrival event carries the parsed pair and no bridge spanId; the ambient value survives
-        val arrival = appender.list.first()
+        val arrival = exchangeLog.events.first()
         assertThat(arrival.formattedMessage).startsWith("Endpoint http exchange started")
         assertThat(arrival.mdcPropertyMap)
             .containsEntry("traceId", TRACE_ID)
@@ -274,7 +271,7 @@ class RequestLoggingFilterTraceContextTest {
         destroy(request)
 
         // Then: the event has neither trace MDC entries nor a trace suffix - and no noise marker either
-        val event = appender.list.single()
+        val event = exchangeLog.events.single()
         assertThat(event.mdcPropertyMap)
             .doesNotContainKey("traceId")
             .doesNotContainKey("parentSpanId")

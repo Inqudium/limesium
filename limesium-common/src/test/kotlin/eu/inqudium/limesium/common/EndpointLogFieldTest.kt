@@ -5,12 +5,14 @@ import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
 import com.jayway.jsonpath.JsonPath
+import eu.inqudium.limesium.common.CapturedLogger
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.catchThrowable
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.RegisterExtension
 import org.slf4j.LoggerFactory
 import org.springframework.core.io.ClassPathResource
 import java.nio.charset.StandardCharsets
@@ -217,21 +219,9 @@ class EndpointLogFieldTest {
 
     @Nested
     inner class `Drop the field not the event` {
-        private val logger = LoggerFactory.getLogger("endpoint-log-field-test") as Logger
-        private lateinit var appender: ListAppender<ILoggingEvent>
-
-        @BeforeEach
-        fun setUp() {
-            appender = ListAppender<ILoggingEvent>().apply { start() }
-            logger.addAppender(appender)
-            logger.level = Level.INFO
-        }
-
-        @AfterEach
-        fun tearDown() {
-            logger.detachAppender(appender)
-            appender.stop()
-        }
+        @JvmField
+        @RegisterExtension
+        val exchangeLog = CapturedLogger("endpoint-log-field-test")
 
         @Test
         fun `should drop a badly typed field but keep the event and its other fields`() {
@@ -241,7 +231,7 @@ class EndpointLogFieldTest {
             // Why it matters: the exchange line is the observability of the request path; a type slip in
             //   one field must not take the whole statement (and the surrounding request) down with it.
             // Given/When: one well-typed and one ill-typed field on the same event
-            logger
+            exchangeLog.logger
                 .atInfo()
                 .setMessage("exchange")
                 .addKeyValue(EndpointLogField.OUTCOME, "success")
@@ -250,7 +240,7 @@ class EndpointLogFieldTest {
 
             // Then: the event survived with only the well-typed field
             val keyValues =
-                appender.list
+                exchangeLog.events
                     .single()
                     .keyValuePairs
                     .associate { it.key to it.value }

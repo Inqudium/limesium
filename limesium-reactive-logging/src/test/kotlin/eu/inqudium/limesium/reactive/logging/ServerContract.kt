@@ -4,15 +4,18 @@ import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import eu.inqudium.limesium.common.AwaitingAppender
+import eu.inqudium.limesium.common.CapturedLogger
 import eu.inqudium.limesium.common.CorrelationIdGenerator
 import eu.inqudium.limesium.common.MdcKeys
 import eu.inqudium.limesium.common.NanoTimeSource
+import eu.inqudium.limesium.common.keyValues
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.RegisterExtension
 import org.slf4j.LoggerFactory
 import org.springframework.boot.SpringBootConfiguration
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration
@@ -23,10 +26,10 @@ import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Bean
 import org.springframework.core.Ordered
 import org.springframework.http.HttpStatus
+import org.springframework.test.context.TestConstructor
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
-import org.springframework.test.context.TestConstructor
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ServerWebExchange
@@ -81,21 +84,13 @@ abstract class ServerContract(
     protected abstract val server: Class<out ReactiveWebServerFactory>
 
     private val http: HttpClient = HttpClient.newBuilder().connectTimeout(REQUEST_TIMEOUT).build()
-    private lateinit var logger: Logger
-    private lateinit var appender: AwaitingAppender
 
-    @BeforeEach
-    fun setUp() {
-        logger = LoggerFactory.getLogger("endpoint-http-exchange-server-contract") as Logger
-        appender = AwaitingAppender().apply { start() }
-        logger.addAppender(appender)
-        logger.level = Level.INFO
-    }
+    @JvmField
+    @RegisterExtension
+    final val exchangeLog = CapturedLogger("endpoint-http-exchange-server-contract")
 
     @AfterEach
     fun tearDown() {
-        logger.detachAppender(appender)
-        appender.stop()
         // The JDK client is AutoCloseable (Java 21+); JUnit creates one instance per test method,
         // so each client - selector thread, sockets, buffers - must end with its test.
         http.close()
@@ -109,8 +104,6 @@ abstract class ServerContract(
         headers.forEach { (name, value) -> request.header(name, value) }
         return http.send(request.build(), HttpResponse.BodyHandlers.ofString())
     }
-
-    private fun keyValues(event: ILoggingEvent): Map<String, Any?> = event.keyValuePairs?.associate { it.key to it.value } ?: emptyMap()
 
     @Test
     fun `should run on this server`() {
@@ -163,10 +156,10 @@ abstract class ServerContract(
         assertThat(response.statusCode()).isEqualTo(200)
         assertThat(response.body()).isEqualTo("echo:hello reactor")
         assertThat(response.headers().firstValue("X-Correlation-Id")).contains("rx-corr-1")
-        val event = appender.awaitEvents(1).single()
+        val event = exchangeLog.awaitEvents(1).single()
         assertThat(event.level).isEqualTo(Level.INFO)
         assertThat(event.formattedMessage).isEqualTo("Endpoint http exchange POST /rx/echo -> 200 [endpoint_request_id=rx-corr-1]")
-        assertThat(keyValues(event))
+        assertThat(event.keyValues())
             .containsEntry("endpoint_outcome", "success")
             .containsEntry("endpoint_url_template", "/rx/echo")
             .containsEntry("endpoint_request_body", "hello reactor")
@@ -188,10 +181,10 @@ abstract class ServerContract(
         // Then
         assertThat(response.statusCode()).isEqualTo(500)
         assertThat(response.headers().firstValue("X-Correlation-Id")).contains("rx-corr-boom")
-        val event = appender.awaitEvents(1).single()
+        val event = exchangeLog.awaitEvents(1).single()
         assertThat(event.level).isEqualTo(Level.ERROR)
         assertThat(event.formattedMessage).contains("-> 500")
-        assertThat(keyValues(event))
+        assertThat(event.keyValues())
             .containsEntry("endpoint_outcome", "failure")
             .containsEntry("endpoint_response_status_code", 500)
         assertThat(event.throwableProxy).isNotNull()
@@ -213,11 +206,11 @@ abstract class ServerContract(
         // Then: the client sees the mutated response, the event agrees with it
         assertThat(response.statusCode()).isEqualTo(503)
         assertThat(response.headers().firstValue("X-Late")).contains("late")
-        val event = appender.awaitEvents(1).single()
+        val event = exchangeLog.awaitEvents(1).single()
         assertThat(event.level).isEqualTo(Level.ERROR)
         assertThat(event.formattedMessage).contains("-> 503")
-        assertThat(keyValues(event)).containsEntry("endpoint_response_status_code", 503)
-        assertThat(keyValues(event)["endpoint_response_headers"].toString()).contains("X-Late:\"late\"")
+        assertThat(event.keyValues()).containsEntry("endpoint_response_status_code", 503)
+        assertThat(event.keyValues()["endpoint_response_headers"].toString()).contains("X-Late:\"late\"")
     }
 
     @Test
@@ -233,8 +226,8 @@ abstract class ServerContract(
 
         // Then
         assertThat(response.body()).isEqualTo("thing-42")
-        val event = appender.awaitEvents(1).single()
-        assertThat(keyValues(event))
+        val event = exchangeLog.awaitEvents(1).single()
+        assertThat(event.keyValues())
             .containsEntry("endpoint_url_path", "/rx/things/42")
             .containsEntry("endpoint_url_template", "/rx/things/{id}")
     }
@@ -264,8 +257,8 @@ abstract class ServerContract(
         // Then: served from the parsed field, event present, request body absent by documented contract
         assertThat(response.statusCode()).isEqualTo(200)
         assertThat(response.body()).isEqualTo("form:form-value")
-        val event = appender.awaitEvents(1).single()
-        assertThat(keyValues(event))
+        val event = exchangeLog.awaitEvents(1).single()
+        assertThat(event.keyValues())
             .doesNotContainKey("endpoint_request_body")
             .containsEntry("endpoint_response_body", "form:form-value")
     }

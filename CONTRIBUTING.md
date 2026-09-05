@@ -97,6 +97,11 @@ the UI with a written reason.
 - Changes to the shared field/configuration contract need the reference file and the
   contract tests in **both** modules updated.
 - Test classes follow the existing `*Test.kt` naming (Surefire picks up `**/*Test.kt`).
+- Log output is observed through the shared `CapturedLogger` JUnit extension
+  (`@JvmField @RegisterExtension val exchangeLog = CapturedLogger(name)`, from
+  `limesium-common`'s test-jar - `events`, `awaitEvents(n)`, `logger` for level
+  changes) and the `ILoggingEvent.keyValues()` extension; do not re-create the
+  Logback attach/detach fixture per class.
 - Test rationale comments follow the existing three-line pattern at the top of the
   test body (`What is tested:` / `Success criteria:` / `Why it matters:`), followed
   by the `Given/When/Then` stage comments. The

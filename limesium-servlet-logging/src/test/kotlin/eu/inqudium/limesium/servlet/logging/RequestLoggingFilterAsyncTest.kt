@@ -7,20 +7,23 @@ import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.classic.turbo.TurboFilter
 import ch.qos.logback.core.read.ListAppender
 import ch.qos.logback.core.spi.FilterReply
+import eu.inqudium.limesium.common.CapturedLogger
 import eu.inqudium.limesium.common.EndpointLoggingMetrics
 import eu.inqudium.limesium.common.MdcKeys
+import eu.inqudium.limesium.common.keyValues
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import jakarta.servlet.AsyncEvent
 import jakarta.servlet.DispatcherType
 import jakarta.servlet.FilterChain
 import jakarta.servlet.ServletRequestEvent
+import jakarta.servlet.http.HttpServlet
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.catchThrowable
-import jakarta.servlet.http.HttpServlet
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.RegisterExtension
 import org.slf4j.LoggerFactory
 import org.slf4j.MDC
 import org.slf4j.Marker
@@ -44,26 +47,11 @@ class RequestLoggingFilterAsyncTest {
     private val meterRegistry = SimpleMeterRegistry()
     private val filter = RequestLoggingFilter(properties, { ticker.get() }, { "generated-42" }, meterRegistry)
 
-    private lateinit var logger: Logger
-    private lateinit var appender: ListAppender<ILoggingEvent>
-
-    @BeforeEach
-    fun setUp() {
-        logger = LoggerFactory.getLogger(properties.loggerName) as Logger
-        appender = ListAppender<ILoggingEvent>().apply { start() }
-        logger.addAppender(appender)
-        logger.level = Level.INFO
-    }
-
-    @AfterEach
-    fun tearDown() {
-        logger.detachAppender(appender)
-        appender.stop()
-    }
+    @JvmField
+    @RegisterExtension
+    val exchangeLog = CapturedLogger(properties.loggerName)
 
     private fun asyncRequest(): MockHttpServletRequest = MockHttpServletRequest("GET", "/api/async").apply { isAsyncSupported = true }
-
-    private fun keyValues(event: ILoggingEvent): Map<String, Any?> = event.keyValuePairs?.associate { it.key to it.value } ?: emptyMap()
 
     /** The request destruction the container fires once the async cycle has ended - the emission point. */
     private fun destroy(request: MockHttpServletRequest) = filter.exchangeCompletionListener().requestDestroyed(ServletRequestEvent(request.servletContext, request))
@@ -94,7 +82,7 @@ class RequestLoggingFilterAsyncTest {
             filter.doFilterInternal(request, response, chain)
 
             // Then: no line yet - the exchange is still in flight
-            assertThat(appender.list).isEmpty()
+            assertThat(exchangeLog.events).isEmpty()
 
             // When: the async work finishes 70 ms later and the container fires onComplete
             ticker.addAndGet(70_000_000)
@@ -104,15 +92,15 @@ class RequestLoggingFilterAsyncTest {
             asyncContext.listeners.single().onComplete(AsyncEvent(asyncContext))
 
             // Then: STILL no line - the async listener marks, it does not emit
-            assertThat(appender.list).isEmpty()
+            assertThat(exchangeLog.events).isEmpty()
 
             // When: the container destroys the request after the async cycle has ENDED
             destroy(request)
 
             // Then: exactly one line, marked async, with the final status and the full duration
-            val event = appender.list.single()
+            val event = exchangeLog.events.single()
             assertThat(event.level).isEqualTo(Level.INFO)
-            assertThat(keyValues(event))
+            assertThat(event.keyValues())
                 .containsEntry("endpoint_outcome", "success")
                 .containsEntry("endpoint_async", true)
                 .containsEntry("endpoint_response_status_code", 201)
@@ -142,7 +130,7 @@ class RequestLoggingFilterAsyncTest {
             destroy(request)
 
             // Then: nothing is emitted - the exchange survives the early destruction
-            assertThat(appender.list).isEmpty()
+            assertThat(exchangeLog.events).isEmpty()
 
             // When: the cycle ends (onComplete arms the completion); later destructions follow
             response.status = 502
@@ -151,8 +139,8 @@ class RequestLoggingFilterAsyncTest {
 
             // Then: exactly one line with the final status - and no duplicate from the extra destruction
             destroy(request)
-            val event = appender.list.single()
-            assertThat(keyValues(event)).containsEntry("endpoint_response_status_code", 502)
+            val event = exchangeLog.events.single()
+            assertThat(event.keyValues()).containsEntry("endpoint_response_status_code", 502)
         }
 
         @Test
@@ -170,7 +158,7 @@ class RequestLoggingFilterAsyncTest {
             filter.doFilterInternal(request, response, FilterChain { req, _ -> req.startAsync() })
             val asyncContext = request.asyncContext as MockAsyncContext
             destroy(request)
-            assertThat(appender.list).isEmpty()
+            assertThat(exchangeLog.events).isEmpty()
 
             // When: the cycle completes without any further dispatch
             response.status = 204
@@ -179,8 +167,8 @@ class RequestLoggingFilterAsyncTest {
             // Then: the backstop emitted exactly one line with the final status; a stray late
             //   destruction changes nothing
             destroy(request)
-            val event = appender.list.single()
-            assertThat(keyValues(event)).containsEntry("endpoint_response_status_code", 204)
+            val event = exchangeLog.events.single()
+            assertThat(event.keyValues()).containsEntry("endpoint_response_status_code", 204)
         }
 
         @Test
@@ -204,7 +192,7 @@ class RequestLoggingFilterAsyncTest {
             destroy(request)
 
             // Then: exactly one line was emitted
-            assertThat(appender.list).hasSize(1)
+            assertThat(exchangeLog.events).hasSize(1)
         }
     }
 
@@ -228,10 +216,10 @@ class RequestLoggingFilterAsyncTest {
             destroy(request)
 
             // Then: the single line is WARN with outcome timeout and no cause
-            val event = appender.list.single()
+            val event = exchangeLog.events.single()
             assertThat(event.level).isEqualTo(Level.WARN)
             assertThat(event.throwableProxy).isNull()
-            assertThat(keyValues(event)).containsEntry("endpoint_outcome", "timeout")
+            assertThat(event.keyValues()).containsEntry("endpoint_outcome", "timeout")
         }
 
         @Test
@@ -255,9 +243,9 @@ class RequestLoggingFilterAsyncTest {
             destroy(request)
 
             // Then: still WARN/timeout, with the throwable attached as cause
-            val event = appender.list.single()
+            val event = exchangeLog.events.single()
             assertThat(event.level).isEqualTo(Level.WARN)
-            assertThat(keyValues(event)).containsEntry("endpoint_outcome", "timeout")
+            assertThat(event.keyValues()).containsEntry("endpoint_outcome", "timeout")
             assertThat(event.throwableProxy?.message).isEqualTo("timeout cause")
         }
 
@@ -281,10 +269,10 @@ class RequestLoggingFilterAsyncTest {
             destroy(request)
 
             // Then: ERROR/failure, no invented cause
-            val event = appender.list.single()
+            val event = exchangeLog.events.single()
             assertThat(event.level).isEqualTo(Level.ERROR)
             assertThat(event.throwableProxy).isNull()
-            assertThat(keyValues(event)).containsEntry("endpoint_outcome", "failure")
+            assertThat(event.keyValues()).containsEntry("endpoint_outcome", "failure")
         }
 
         @Test
@@ -308,10 +296,10 @@ class RequestLoggingFilterAsyncTest {
             destroy(request)
 
             // Then: the single line is ERROR with outcome failure and carries the async failure as cause
-            val event = appender.list.single()
+            val event = exchangeLog.events.single()
             assertThat(event.level).isEqualTo(Level.ERROR)
             assertThat(event.throwableProxy?.message).isEqualTo("async boom")
-            assertThat(keyValues(event)).containsEntry("endpoint_outcome", "failure")
+            assertThat(event.keyValues()).containsEntry("endpoint_outcome", "failure")
         }
     }
 
@@ -352,7 +340,7 @@ class RequestLoggingFilterAsyncTest {
             val request = asyncRequest()
             val response = MockHttpServletResponse()
             dispatch(request, response, FilterChain { req, _ -> req.startAsync() })
-            assertThat(appender.list).isEmpty()
+            assertThat(exchangeLog.events).isEmpty()
 
             // When: the container dispatches ASYNC and the rendering throws; MDC is observed inside
             request.dispatcherType = DispatcherType.ASYNC
@@ -377,10 +365,10 @@ class RequestLoggingFilterAsyncTest {
             assertThat(thrown).isSameAs(boom)
             assertThat(dispatchMdc).isEqualTo("generated-42")
             assertThat(MDC.get(MdcKeys.REQUEST_ID)).isNull()
-            val event = appender.list.single()
+            val event = exchangeLog.events.single()
             assertThat(event.level).isEqualTo(Level.ERROR)
             assertThat(event.throwableProxy?.message).isEqualTo("async handler boom")
-            assertThat(keyValues(event))
+            assertThat(event.keyValues())
                 .containsEntry("endpoint_outcome", "failure")
                 .containsEntry("endpoint_async", true)
                 .containsEntry("endpoint_response_status_code", 500)
@@ -434,7 +422,7 @@ class RequestLoggingFilterAsyncTest {
 
             // Then: the application exception reached the container; the failure is on the event
             assertThat(thrown).isSameAs(boom)
-            val event = appender.list.single()
+            val event = exchangeLog.events.single()
             assertThat(event.level).isEqualTo(Level.ERROR)
             assertThat(event.throwableProxy?.message).isEqualTo("async handler boom")
             assertThat(
@@ -463,9 +451,9 @@ class RequestLoggingFilterAsyncTest {
 
             // Then: served, nothing logged, nothing wired
             assertThat(chainRan).isTrue()
-            assertThat(appender.list).isEmpty()
+            assertThat(exchangeLog.events).isEmpty()
             destroy(request)
-            assertThat(appender.list).isEmpty()
+            assertThat(exchangeLog.events).isEmpty()
         }
     }
 }
