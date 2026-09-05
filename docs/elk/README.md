@@ -40,7 +40,7 @@ directions — a field added to the enum without a mapping, and a mapping left b
 | `endpoint_response_body` | `keyword` | **false** | off | display only |
 
 The per-field rationale sits next to each constant as an `ELK:` line in
-[`EndpointLogFields.kt`](https://github.com/Inqudium/limesium/blob/main/limesium-common/src/main/kotlin/eu/inqudium/limesium/common/EndpointLogFields.kt); the two
+[`EndpointLogField.kt`](https://github.com/Inqudium/limesium/blob/main/limesium-common/src/main/kotlin/eu/inqudium/limesium/common/EndpointLogField.kt); the two
 decisions most easily undone by accident — `index: false` on payload fields (sensitivity precedes
 analytics) and `doc_values: false` on the high-cardinality path pair half (repetition factor) — each have their own explicit assertion in the lockstep test.
 
