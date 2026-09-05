@@ -16,6 +16,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.slf4j.LoggerFactory
+import org.slf4j.MDC
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest
@@ -259,6 +260,33 @@ class RequestLoggingWebFilterTest {
         }
 
         @Test
+        fun `should treat an over-long or non-token correlation header value as absent and generate instead`() {
+            // What is tested: the acceptance rule for caller-supplied ids (CorrelationHeaderValue) at the
+            //   reactive filter - a value beyond 128 characters and a value with an inner space.
+            // Success criteria: both exchanges carry the generated id in event and echo; the caller's
+            //   value appears nowhere on the line.
+            // Why it matters: an accepted value is written into every log line, the MDC and the Reactor
+            //   context of the exchange; without the bound the peer dictates log volume and id shape
+            //   (code analysis of 2026-09-05, finding 11).
+            // Given: two traceless requests with unacceptable correlation values
+            val overLong = MockServerWebExchange.from(MockServerHttpRequest.get("/api/things").header(properties.correlationIdHeader, "x".repeat(129)))
+            val withSpace = MockServerWebExchange.from(MockServerHttpRequest.get("/api/things").header(properties.correlationIdHeader, "id with space"))
+
+            // When: both exchanges run
+            filter.filter(overLong, okChain()).block()
+            filter.filter(withSpace, okChain()).block()
+
+            // Then: generated and echoed, the caller's values nowhere
+            assertThat(overLong.response.headers.getFirst(properties.correlationIdHeader)).isEqualTo("generated-42")
+            assertThat(withSpace.response.headers.getFirst(properties.correlationIdHeader)).isEqualTo("generated-42")
+            assertThat(appender.list).hasSize(2)
+            assertThat(appender.list).allSatisfy { event ->
+                assertThat(event.mdcPropertyMap).containsEntry(MdcKeys.REQUEST_ID, "generated-42")
+                assertThat(event.formattedMessage).doesNotContain("xxxxxxxx").doesNotContain("id with space")
+            }
+        }
+
+        @Test
         fun `should carry the traceparent-derived trace context into the event`() {
             // What is tested: an incoming W3C traceparent header - the trace id and the caller's
             //   span id at emission.
@@ -285,6 +313,84 @@ class RequestLoggingWebFilterTest {
                 .doesNotContainKey("spanId")
             assertThat(event.formattedMessage)
                 .contains(" traceId=0af7651916cd43dd8448eb211c80319c parentSpanId=b7ad6b7169203331")
+        }
+
+        @Test
+        fun `should not adopt a stale trace context of the emitting thread when none was parsed`() {
+            // What is tested: the emission scope's OWNERSHIP of the trace keys (twin parity with the
+            //   servlet emitter) - an id that was not parsed from the request must be absent from the
+            //   event even when the emitting thread carries one, as it does under
+            //   spring.reactor.context-propagation=auto with a tracing bridge.
+            // Success criteria: the event has no traceId, parentSpanId or spanId and no trace suffix;
+            //   the thread's values are back in place afterwards (owned for the scope only).
+            // Why it matters: a bridge's live or stale ids would join a traceless exchange to a trace
+            //   that is not its request id - the inconsistency ADR-0002 rules out (code analysis of
+            //   2026-09-05, finding 1).
+            // Given: a traceless exchange, emitted on a thread carrying bridge-style trace keys
+            MDC.put("traceId", "stale-trace")
+            MDC.put("parentSpanId", "stale-parent")
+            MDC.put("spanId", "stale-span")
+            try {
+                val exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/api/things"))
+
+                // When: the filter handles the exchange (the emission runs on this thread)
+                filter.filter(exchange, okChain()).block()
+
+                // Then: nothing foreign on the event, the thread's own state restored
+                val event = appender.list.single()
+                assertThat(event.mdcPropertyMap)
+                    .doesNotContainKey("traceId")
+                    .doesNotContainKey("parentSpanId")
+                    .doesNotContainKey("spanId")
+                assertThat(event.formattedMessage).doesNotContain("traceId=")
+                assertThat(MDC.get("traceId")).isEqualTo("stale-trace")
+                assertThat(MDC.get("parentSpanId")).isEqualTo("stale-parent")
+                assertThat(MDC.get("spanId")).isEqualTo("stale-span")
+            } finally {
+                MDC.clear()
+            }
+        }
+
+        @Test
+        fun `should suppress a bridge spanId beside the parsed trace pair on the exchange line and the arrival line`() {
+            // What is tested: the bridge's local-span key is suppressed during BOTH emissions of a traced
+            //   exchange - the module never publishes under spanId (ADR-0002) - and restored afterwards.
+            // Success criteria: arrival and completion event carry the parsed traceId/parentSpanId and no
+            //   spanId; the thread's bridge value survives the exchange.
+            // Why it matters: under automatic propagation the bridge's server-span id sits live in the MDC
+            //   around the emission; publishing it would read as if this module had measured that span.
+            // Given: an arrival-logging filter, a traced request, a bridge-style spanId on the thread
+            val startLogging =
+                RequestLoggingWebFilter(
+                    properties.copy(logRequestStart = true),
+                    { ticker.get() },
+                    { "generated-42" },
+                    SimpleMeterRegistry(),
+                )
+            MDC.put("spanId", "bridge-span")
+            try {
+                val exchange =
+                    MockServerWebExchange.from(
+                        MockServerHttpRequest
+                            .get("/api/things")
+                            .header("traceparent", "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"),
+                    )
+
+                // When: the filter handles the exchange
+                startLogging.filter(exchange, okChain()).block()
+
+                // Then: both events carry the parsed pair and no spanId; the ambient value is back
+                assertThat(appender.list).hasSize(2)
+                assertThat(appender.list).allSatisfy { event ->
+                    assertThat(event.mdcPropertyMap)
+                        .containsEntry("traceId", "0af7651916cd43dd8448eb211c80319c")
+                        .containsEntry("parentSpanId", "b7ad6b7169203331")
+                        .doesNotContainKey("spanId")
+                }
+                assertThat(MDC.get("spanId")).isEqualTo("bridge-span")
+            } finally {
+                MDC.clear()
+            }
         }
     }
 

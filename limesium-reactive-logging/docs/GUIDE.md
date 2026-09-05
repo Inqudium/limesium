@@ -53,6 +53,7 @@ to the module [README](../README.md). Everything here is derived from the code u
    3. [Zero-copy responses](#63-zero-copy-responses)
    4. [Late body chunks after cancellation](#64-late-body-chunks-after-cancellation)
    5. [Coroutine boundary and exception copies](#65-coroutine-boundary-and-exception-copies)
+   6. [Framework-parsed bodies bypass the tee](#66-framework-parsed-bodies-bypass-the-tee)
 7. [Appendix](#7-appendix)
    1. [File map](#71-file-map)
    2. [Related documents](#72-related-documents)
@@ -647,6 +648,9 @@ In addition to the rules that hold on both stacks
   the price of the bytes flowing through the tee ([§6.3](#63-zero-copy-responses)).
 - A body chunk arriving after a cancellation is a no-op on the frozen capture
   ([§6.4](#64-late-body-chunks-after-cancellation)).
+- A body **WebFlux parses itself** — a form POST read through `@ModelAttribute` or `getFormData()`, a
+  multipart request through `getMultipartData()` — flows beside the tee: no `endpoint_request_body`,
+  no size sample, read state `unread` ([§6.6](#66-framework-parsed-bodies-bypass-the-tee)).
 
 ### 4.4 Path activation
 
@@ -765,12 +769,20 @@ that is the liveness signal, not a leak to suppress
 The `traceparent` parse, the keys and the strict conformance are the
 [common guide's §5.6](../../docs/GUIDE.md#56-trace-correlation). On this stack the event-loop thread
 that runs the filter carries no tracing-bridge MDC at filter time — which is why the module reads the
-incoming header in the first place — and the emission thread carries no per-request state either, so
-the emission scope restores the parsed pair (or removes a stale one) around the event at the terminal
-signal or the commit. Inside handlers, with a Micrometer tracing bridge active, the local `spanId` is
-the bridge's — the module never touches that key. `RequestLoggingWebFilterTracingIntegrationTest` pins
-the header-parse join, the identity decision, the documented no-`traceparent` boundary and the
-commit-deferred error path against a real Brave bridge on Netty.
+incoming header in the first place. What the **emitting** thread carries depends on the propagation
+mode: under Boot's default `limited` it carries no per-request state; under
+`spring.reactor.context-propagation=auto` ([§3.5](#35-enabling-handler-side-mdc)) Micrometer's
+`ObservationThreadLocalAccessor` restores the server span's `traceId`/`spanId` around every operator,
+the terminal and commit callbacks included. The emission scope therefore **owns** the trace keys, exactly
+like the servlet twin's: it installs the parsed pair, removes an unparsed one and the bridge's local
+`spanId` for the duration of the event, and restores whatever was there afterwards — so a traced
+exchange never publishes the bridge's span under `spanId`, and a traceless exchange carries no trace
+context although the bridge traces it (ADR-0002: the trace id is the request id, or there is none).
+Inside handlers the local `spanId` is the bridge's — the module never touches that key outside its
+emission scope. `RequestLoggingWebFilterTracingIntegrationTest` pins the header-parse join, the identity
+decision, the documented no-`traceparent` boundary and the commit-deferred error path against a real
+Brave bridge on Netty under `limited`; `RequestLoggingWebFilterTracingAutoPropagationIntegrationTest`
+pins the ownership against the same bridge under `auto`, where its MDC is live around the emission.
 
 ---
 
@@ -832,6 +844,20 @@ the host, not only this filter.
 
 ---
 
+### 6.6 Framework-parsed bodies bypass the tee
+
+`CapturingRequestDecorator` tees `getBody()`. Form and multipart data are read through
+`ServerWebExchange.getFormData()` / `getMultipartData()` — and the mutated exchange the filter passes
+down the chain is a `ServerWebExchangeDecorator` that delegates both to the **original** exchange, whose
+form-data and multipart publishers were built from the undecorated request at construction. A
+`@ModelAttribute` bound from a form POST, a `FilePart`, an explicit `getFormData()` therefore never
+subscribe to the decorated body (`@RequestParam` binds query parameters only on this stack): `endpoint_request_body` stays absent although `log-request-body` is on, no size
+sample is recorded, and `endpoint.request.body.read` counts the exchange as `unread`. The response side
+is unaffected. A documented boundary — the tee mirrors what the application subscribed to, and the
+framework's form reader subscribes elsewhere — pinned by the form-POST case of the `ServerContract`
+on every reactive server. Read the `unread` share of the read counter per `uri` with this in mind: a
+form endpoint sits at 100 % `unread` by construction, not because it drops its payload.
+
 ## 7. Appendix
 
 ### 7.1 File map
@@ -875,7 +901,8 @@ lists every test with its rationale):
 | `RequestLoggingWebFilterIntegrationTest` | end-to-end on real embedded **Netty** with the auto-selected (coroutine) variant: DataBuffer tee on pooled buffers, real WebFlux dispatch, commit-deferred error emission |
 | Server suites (`ServerContract` run as `ReactorNettyServerIntegrationTest`, `TomcatServerIntegrationTest`, `JettyServerIntegrationTest`) | the **Reactor variant** (coroutine auto-configuration excluded — the majority consumer configuration) on every reactive server Boot 4 ships: the single active filter, a real round trip with both bodies teed on the server's own buffers, the commit-deferred emission behind the server's error rendering, a later commit action's status and header as the server orders the actions, the handler pattern of a real dispatch |
 | `CoRequestLoggingWebFilterCoroutineIntegrationTest` | the **coroutine variant**'s `MDCContext` handler-MDC parity across real dispatcher hops |
-| `RequestLoggingWebFilterTracingIntegrationTest` | ADR-0002 trace contract beside a real Brave bridge on Netty: header-parse join, identity decision, the documented no-`traceparent` boundary, the commit-deferred error path |
+| `RequestLoggingWebFilterTracingIntegrationTest` | ADR-0002 trace contract beside a real Brave bridge on Netty under Boot's default `limited` propagation: header-parse join, identity decision, the documented no-`traceparent` boundary, the commit-deferred error path |
+| `RequestLoggingWebFilterTracingAutoPropagationIntegrationTest` | the emission scope's ownership of the trace keys beside the same bridge under `spring.reactor.context-propagation=auto`, where the bridge's `traceId`/`spanId` are live around the terminal and commit callbacks: parsed pair wins, no `spanId`, no trace context on a traceless exchange |
 | Lockstep/contract tests (`TwinContractTest`, `EndpointLogFieldTest`, `EndpointLoggingReferenceConfigTest`, `HandlerMappingAttributeTest`) | pin the twin/wire/config contracts against the servlet twin and the shared reference YAML |
 
 Fuzzing of the shared `Traceparent` parser and header masking lives in limesium-common. This module's

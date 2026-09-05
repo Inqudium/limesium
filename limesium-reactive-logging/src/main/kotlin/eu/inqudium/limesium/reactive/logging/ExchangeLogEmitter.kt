@@ -69,7 +69,14 @@ internal class ExchangeLogEmitter(
             if (!exchangeLog.isInfoEnabled) {
                 return
             }
-            MdcScope(exchange.requestId, exchange.method, exchange.path, exchange.traceId, exchange.parentSpanId).use {
+            MdcScope(
+                exchange.requestId,
+                exchange.method,
+                exchange.path,
+                exchange.traceId,
+                exchange.parentSpanId,
+                ownsTraceKeys = true,
+            ).use {
                 exchangeLog
                     .atInfo()
                     .setMessage(
@@ -160,9 +167,14 @@ internal class ExchangeLogEmitter(
         }
         // The emission scope carries the exchange identity and the traceparent-derived trace context into
         // the MDC, so a structured encoder emits them as fields; the message repeats the gist inline for
-        // plain-text appenders - identical to the servlet twin. `use` restores the scope and records a
-        // close-time failure as suppressed instead of masking an emission failure (both land in
-        // logExchange's guard either way).
+        // plain-text appenders - identical to the servlet twin. The scope OWNS the trace keys (a bridge's
+        // spanId included): under Boot's default `limited` propagation the emitting event-loop or commit
+        // thread carries no bridge MDC, but under `spring.reactor.context-propagation=auto` - the mode the
+        // handler-MDC parity asks for - Micrometer's ObservationThreadLocalAccessor restores the server
+        // span's traceId/spanId around this operator, and a traceless exchange would otherwise inherit a
+        // trace the event must not carry (ADR-0002). `use` restores the scope and records a close-time
+        // failure as suppressed instead of masking an emission failure (both land in logExchange's guard
+        // either way).
         val traceSuffix =
             if (exchange.traceId != null || exchange.parentSpanId != null) {
                 " ${TraceMdcKeys.TRACE_ID}=${exchange.traceId ?: "-"} " +
@@ -170,7 +182,14 @@ internal class ExchangeLogEmitter(
             } else {
                 ""
             }
-        MdcScope(exchange.requestId, exchange.method, exchange.path, exchange.traceId, exchange.parentSpanId).use {
+        MdcScope(
+            exchange.requestId,
+            exchange.method,
+            exchange.path,
+            exchange.traceId,
+            exchange.parentSpanId,
+            ownsTraceKeys = true,
+        ).use {
             // Multi-value resolution, natively from the reactive HttpHeaders.
             val responseHeaders =
                 properties.responseHeaders.select(exchange.response.headers.headerNames(), masker) { name ->
