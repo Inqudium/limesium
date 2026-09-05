@@ -46,7 +46,7 @@ class RequestLoggingAutoConfiguration {
     /** How masked header values render - a host pins a keyed or fixed masker; both variants and both twins take the same bean. */
     @Bean
     @ConditionalOnMissingBean
-    fun requestLoggingHeaderValueMasker(properties: RequestLoggingProperties): HeaderValueMasker = HeaderValueMasker.forKey(properties.maskingKey)
+    fun requestLoggingHeaderValueMasker(properties: RequestLoggingProperties): HeaderValueMasker = HeaderValueMasker.forKey(properties.maskingKey.value)
 
     /**
      * The Reactor variant, registered only when NO [EndpointLoggingFilter] exists yet: the coroutine

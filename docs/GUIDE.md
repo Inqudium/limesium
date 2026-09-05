@@ -637,7 +637,7 @@ has it.
 | `measure-request-body-size` | boolean | `false` | Record `endpoint.request.body.size`; independent of `log-request-body`. |
 | `measure-response-body-size` | boolean | `false` | Record `endpoint.response.body.size`; independent of `log-response-body`. |
 | `max-body-bytes` | int > 0 | `16384` | Capture limit per body. Bounds **memory**, not the exchange: bytes beyond it still flow; the logged value is truncated with a note of the total size. |
-| `masking-key` | string | *(empty)* | Keys the masking fingerprint: empty keeps the unkeyed `length:hash`, any other value turns it into an HMAC-SHA256 under the key — same shape, same stability under the same key, guess-proof without it. A **secret**: supply it like one; the properties' `toString` redacts it. Ignored when a host pins its own `HeaderValueMasker` bean. |
+| `masking-key` | string (bound to `MaskingKey`, whose `toString` redacts it) | *(empty)* | Keys the masking fingerprint: empty keeps the unkeyed `length:hash`, any other value turns it into an HMAC-SHA256 under the key — same shape, same stability under the same key, guess-proof without it. A **secret**: supply it like one; the properties' `toString` redacts it. Ignored when a host pins its own `HeaderValueMasker` bean. |
 
 ### 4.2 Header sections
 
@@ -1042,7 +1042,7 @@ The BYTE-identical part of the twins' shared layer lives in the `limesium-common
 ([ADR-0003](adr/ADR-0003-limesium-common-inlined-by-shade.md)): the `Traceparent` parser (with its
 tests and fuzz target), `HeaderLogProperties` (selection and masking fingerprint, with its unit test and
 fuzz target — ADR-0003 amendment 2026-08-31), `NanoTimeSource`, `CorrelationIdGenerator`,
-`HeaderValueMasker`, `CorrelationHeaderValue`, the fail-open helpers, the MDC keys and scope, and — since
+`HeaderValueMasker`, `CorrelationHeaderValue`, `MaskingKey`, the fail-open helpers, the MDC keys and scope, and — since
 the amendment of 2026-09-05 — the field enum `EndpointLogField`, the meters `EndpointLoggingMetrics`
 (parameterized with the stack's third outcome) and `ExchangeLine`, the stack-neutral core of the
 emitters (message texts, header rendering, the arrival line, the body measurements) over the two small
