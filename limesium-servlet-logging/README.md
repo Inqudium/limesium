@@ -28,8 +28,9 @@ code it inlines:
   code, and the twins cannot drift from each other by construction. The properties are explained in
   the common guide's [§4](../docs/GUIDE.md#4-configuration).
 - **Index mapping:** the one component template for both stacks is the repository-shared
-  [`/docs/elk/`](../docs/elk/README.md) — bound by `EndpointLogFieldTest` against this module's field
-  enum. The field table is the common guide's [§5.1](../docs/GUIDE.md#51-log-fields).
+  [`/docs/elk/`](../docs/elk/README.md) — bound by `EndpointLogFieldTest` in `limesium-common` against
+  the one field enum both twins inline. The field table is the common guide's
+  [§5.1](../docs/GUIDE.md#51-log-fields).
 - **Metrics:** the same six meters (`endpoint.logging.failopen`, `endpoint.logging.events`,
   `endpoint.logging.exchanges.open`, `endpoint.logging.correlation.id`, `endpoint.request/response.body.size`,
   `endpoint.request.body.read`), consumed from the host's `MeterRegistry`, never exported. The meter
@@ -59,19 +60,21 @@ both twins ship, documented once in the [common guide](../docs/GUIDE.md).
 
 ## The shared layer
 
-The **byte-identical** part of the twins' shared layer (the `traceparent` parser with its fuzz target,
-the injectable time/id interfaces, `reportQuietly`, the MDC keys and scope) lives in the internal
-`limesium-common` module and is **inlined into this jar** by the Maven Shade plugin
+The **stack-neutral** part of the twins' shared layer - the `traceparent` parser with its fuzz target,
+the injectable time/id/masker interfaces, the header selection and masking, the fail-open helpers, the
+MDC keys and scope, and since the architecture review of 2026-09-05 also the field enum, the meters
+(parameterized with the stack's own outcome) and the core of the exchange line (`ExchangeLine`) - lives
+in the internal `limesium-common` module and is **inlined into this jar** by the Maven Shade plugin
 ([ADR-0003](../docs/adr/ADR-0003-limesium-common-inlined-by-shade.md)): consumers add exactly one
 artifact, the published POM carries no extra dependency, and `limesium-common` itself is never
 published.
 
-Everything whose twin copies genuinely differ (field enum and metrics with their per-stack outcome
-vocabulary, emitters, exchanges, properties, body capture with its own concurrency design) stays
-**deliberately duplicated**, per the original architecture-review decision: one twin per host,
-standalone jars, contract-level code that changes rarely. For that remainder every change is a
-conscious port in both directions; the pins in `TwinContractTest` / `EndpointLogFieldTest` /
-`EndpointLoggingReferenceConfigTest` catch *named* contract drift (meter names, field names,
+Everything whose twin copies genuinely differ - the filters and lifecycles, the exchange state, the
+per-stack classification in the emitters, the properties, the body capture with its own concurrency
+design - stays **deliberately duplicated**, per the original architecture-review decision: one twin per
+host, standalone jars, contract-level code that changes rarely. For that remainder every change is a
+conscious port in both directions; the pins in `TwinContractTest` / `EndpointLoggingReferenceConfigTest`
+(and `EndpointLogFieldTest` in `limesium-common`) catch *named* contract drift (meter names, field names,
 configuration keys, message text) — not behavioural drift inside near-identical code.
 
 ## Usage

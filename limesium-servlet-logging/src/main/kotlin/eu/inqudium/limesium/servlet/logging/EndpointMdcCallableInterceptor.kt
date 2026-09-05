@@ -1,5 +1,6 @@
 package eu.inqudium.limesium.servlet.logging
 
+import eu.inqudium.limesium.common.EndpointLoggingMetrics
 import eu.inqudium.limesium.common.MdcScope
 import eu.inqudium.limesium.common.reportQuietly
 import org.slf4j.LoggerFactory

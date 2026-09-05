@@ -180,8 +180,8 @@ reactive module's build binds them:
 
 | Contract | Shipped in | Pinned by |
 |---|---|---|
-| Configuration keys and defaults | [`/docs/endpoint-logging-reference.yml`](endpoint-logging-reference.yml) — the reactive module carries a copy plus its one `variant` key as [`limesium-reactive-logging/docs/endpoint-logging-reference.yml`](https://github.com/Inqudium/limesium/blob/main/limesium-reactive-logging/docs/endpoint-logging-reference.yml) | `EndpointLoggingReferenceConfigTest` in both modules: binds the YAML against the module's `RequestLoggingProperties` (the reactive one binds both files and pins the key parity) |
-| Field family and index mapping | [`/docs/elk/…component-template.json`](elk/README.md) | `EndpointLogFieldTest` in both modules: locks the module's `EndpointLogField` enum against the template |
+| Configuration keys and defaults | [`/docs/endpoint-logging-reference.yml`](endpoint-logging-reference.yml) — the ONE place the property semantics are documented; the reactive module's [`docs/endpoint-logging-reference.yml`](https://github.com/Inqudium/limesium/blob/main/limesium-reactive-logging/docs/endpoint-logging-reference.yml) carries exactly its one `variant` key | `EndpointLoggingReferenceConfigTest` in both modules: binds the shared YAML against the module's `RequestLoggingProperties` (the reactive one also pins that its own file documents nothing but `variant`) |
+| Field family and index mapping | [`/docs/elk/…component-template.json`](elk/README.md) | `EndpointLogFieldTest` in `limesium-common`: locks the one `EndpointLogField` enum both twins inline against the template |
 | Message text and meter names | the servlet module's emitter and metrics | `TwinContractTest` in both modules |
 
 The reactive build pulls the two shared files from the sibling checkout as **test resources** (declared
@@ -205,9 +205,9 @@ name and contract whose code genuinely differs:
 |---|---|---|
 | `RequestLoggingProperties` | The `endpoint-logging.*` binding, validated in `init` | per-stack twin; the reactive one adds `variant` |
 | `HeaderLogProperties` | One header section — `includes` / `excludes` / `masked` / `unmasked` — with the selection and the masking fingerprint ([§4.2](#42-header-sections)) | byte-identical (`limesium-common`) |
-| `ExchangeLogEmitter` | Builds and emits the arrival line and the completion event; resolves level, outcome and cause; records body sizes; opens the emission `MdcScope` | per-stack twin (the outcome vocabulary differs) |
-| `EndpointLogField` | The wire names and the exact JVM type of each structured field; a wrongly typed value drops the field with a warning, never the event | per-stack twin, each locked against the one template |
-| `EndpointLoggingMetrics` | The six meters — the fixed-tag meters pre-registered, the body meters created lazily per tag — with per-meter fallback to a private registry on registration conflict | per-stack twin (meter descriptions carry the stack's outcome vocabulary) |
+| `ExchangeLogEmitter` | Resolves level, outcome and cause for the stack and emits the completion event; the arrival line, the message texts, the header rendering and the body measurements are the shared `ExchangeLine` | per-stack twin around a byte-identical core (`ExchangeLine`, `limesium-common`) |
+| `EndpointLogField` | The wire names and the exact JVM type of each structured field; a wrongly typed value drops the field with a warning, never the event | byte-identical (`limesium-common`), locked against the one template |
+| `EndpointLoggingMetrics` | The six meters — the fixed-tag meters pre-registered, the body meters created lazily per tag — with per-meter fallback to a private registry on registration conflict | byte-identical (`limesium-common`), parameterized with the stack's third outcome (`timeout` / `cancelled`) |
 | `BoundedBodyCapture` | The bounded capture target; count-only mode with limit `0`; the request-side read state (`BodyReadState`) | per-stack twin (two concurrency designs, [§6.1](#61-differences-between-the-stacks)) |
 | `Traceparent` | Strict W3C `traceparent` parsing to `(traceId, parentSpanId)` ([§5.6](#56-trace-correlation)) | byte-identical |
 | `MdcKeys` / `TraceMdcKeys` / `MdcScope` | The MDC key names; the scope that puts identity (and, for the emission, the trace keys) into the MDC and restores the previous values on close | byte-identical |
@@ -1042,7 +1042,12 @@ The BYTE-identical part of the twins' shared layer lives in the `limesium-common
 ([ADR-0003](adr/ADR-0003-limesium-common-inlined-by-shade.md)): the `Traceparent` parser (with its
 tests and fuzz target), `HeaderLogProperties` (selection and masking fingerprint, with its unit test and
 fuzz target — ADR-0003 amendment 2026-08-31), `NanoTimeSource`, `CorrelationIdGenerator`,
-`HeaderValueMasker`, `reportQuietly`, and the MDC keys and scope. The Maven Shade plugin inlines those
+`HeaderValueMasker`, `CorrelationHeaderValue`, the fail-open helpers, the MDC keys and scope, and — since
+the amendment of 2026-09-05 — the field enum `EndpointLogField`, the meters `EndpointLoggingMetrics`
+(parameterized with the stack's third outcome) and `ExchangeLine`, the stack-neutral core of the
+emitters (message texts, header rendering, the arrival line, the body measurements) over the two small
+interfaces `LoggedExchange` and `MeasuredBody` that both twins' `Exchange` and `BoundedBodyCapture`
+implement. The Maven Shade plugin inlines those
 classes into each module's jar at package time, the dependency-reduced POM drops the dependency, and
 `limesium-common` is never published — consumers keep adding exactly one artifact, and the shared
 classes stay `internal` (`-Xfriend-paths`).

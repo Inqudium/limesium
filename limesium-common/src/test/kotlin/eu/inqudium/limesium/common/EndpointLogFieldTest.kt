@@ -1,4 +1,4 @@
-package eu.inqudium.limesium.servlet.logging
+package eu.inqudium.limesium.common
 
 import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
@@ -16,14 +16,15 @@ import org.springframework.core.io.ClassPathResource
 import java.nio.charset.StandardCharsets
 
 /**
- * Contract of the [EndpointLogField] family: the wire names (a contract with the log index), the per-field
- * type guarantee, the drop-the-field-not-the-event semantics of the [addKeyValue] overload, and the
- * lockstep with the repository-shared `/docs/elk/limesium-servlet-logging-fields.component-template.json`.
+ * Contract of the [EndpointLogField] family - the ONE enum both twins inline (ADR-0003 amendment of
+ * 2026-09-05): the wire names (a contract with the log index), the per-field type guarantee, the
+ * drop-the-field-not-the-event semantics of the [addKeyValue] overload, and the lockstep with the
+ * repository-shared component template (the one index contract both stacks share).
  */
 class EndpointLogFieldTest {
     // The ONE template for both stacks lives in the repository-shared /docs and reaches this module's test
-    // classpath through the declared test resource in the POM (like the reactive twin) - no dependency on
-    // the working directory of the test run.
+    // classpath through the declared test resource in the POM - the drift guard: the enum must stay in
+    // lockstep with the index contract.
     private val template: String by lazy {
         val resource = ClassPathResource("elk/limesium-servlet-logging-fields.component-template.json")
         assertThat(resource.exists())

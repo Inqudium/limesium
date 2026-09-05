@@ -1,6 +1,7 @@
 package eu.inqudium.limesium.reactive.logging
 
 import eu.inqudium.limesium.common.BodyReadState
+import eu.inqudium.limesium.common.MeasuredBody
 import eu.inqudium.limesium.common.decodeTruncated
 import java.io.ByteArrayOutputStream
 import java.nio.charset.Charset
@@ -38,7 +39,7 @@ import kotlin.concurrent.withLock
  */
 internal class BoundedBodyCapture(
     private val maxBytes: Int,
-) {
+) : MeasuredBody {
     private val lock = ReentrantLock()
     private val buffer = ByteArrayOutputStream()
     private var total: Long = 0
@@ -46,7 +47,7 @@ internal class BoundedBodyCapture(
     private var state = BodyReadState.UNREAD
 
     /** How far the application consumed the body - see [BodyReadState]. */
-    val readState: BodyReadState
+    override val readState: BodyReadState
         get() = lock.withLock { state }
 
     /** The application subscribed to the body: from now on it counts as (at least) partially read. */
@@ -66,7 +67,7 @@ internal class BoundedBodyCapture(
         }
 
     /** Every byte that flowed, including those beyond the capture limit - the size metrics' source. */
-    val totalBytes: Long
+    override val totalBytes: Long
         get() = lock.withLock { total }
 
     fun capture(b: Int) {

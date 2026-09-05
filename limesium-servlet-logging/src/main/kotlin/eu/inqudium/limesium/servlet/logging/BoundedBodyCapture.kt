@@ -1,6 +1,7 @@
 package eu.inqudium.limesium.servlet.logging
 
 import eu.inqudium.limesium.common.BodyReadState
+import eu.inqudium.limesium.common.MeasuredBody
 import eu.inqudium.limesium.common.decodeTruncated
 import java.io.ByteArrayOutputStream
 import java.nio.charset.Charset
@@ -30,7 +31,7 @@ import java.nio.charset.Charset
  */
 class BoundedBodyCapture(
     private val maxBytes: Int,
-) {
+) : MeasuredBody {
     private val buffer = ByteArrayOutputStream()
 
     /**
@@ -39,7 +40,7 @@ class BoundedBodyCapture(
      * its end), so it has its own field rather than being derived from the count.
      */
     @Volatile
-    var readState: BodyReadState = BodyReadState.UNREAD
+    override var readState: BodyReadState = BodyReadState.UNREAD
         private set
 
     /**
@@ -48,7 +49,7 @@ class BoundedBodyCapture(
      * destruction-time reader (see the class KDoc), and readers must read it FIRST.
      */
     @Volatile
-    var totalBytes: Long = 0
+    override var totalBytes: Long = 0
         private set
 
     fun capture(b: Int) {

@@ -7,6 +7,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.classic.turbo.TurboFilter
 import ch.qos.logback.core.read.ListAppender
 import ch.qos.logback.core.spi.FilterReply
+import eu.inqudium.limesium.common.EndpointLoggingMetrics
 import eu.inqudium.limesium.common.MdcKeys
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import jakarta.servlet.AsyncEvent

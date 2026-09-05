@@ -2,12 +2,17 @@ package eu.inqudium.limesium.servlet.logging
 
 import eu.inqudium.limesium.common.CorrelationHeaderValue
 import eu.inqudium.limesium.common.CorrelationIdGenerator
+import eu.inqudium.limesium.common.EndpointLogField
+import eu.inqudium.limesium.common.EndpointLoggingMetrics
 import eu.inqudium.limesium.common.HeaderValueMasker
 import eu.inqudium.limesium.common.MdcKeys
 import eu.inqudium.limesium.common.MdcScope
 import eu.inqudium.limesium.common.NanoTimeSource
 import eu.inqudium.limesium.common.Traceparent
+import eu.inqudium.limesium.common.addKeyValue
+import eu.inqudium.limesium.common.addKeyValueIfPresent
 import eu.inqudium.limesium.common.reportQuietly
+import eu.inqudium.limesium.common.setCauseIfPresent
 import io.micrometer.core.instrument.MeterRegistry
 import jakarta.servlet.FilterChain
 import jakarta.servlet.ServletRequestEvent
@@ -117,7 +122,7 @@ class RequestLoggingFilter
         /** How masked header values render; the auto-configuration passes the host's bean, [HeaderValueMasker.DEFAULT] otherwise. */
         private val masker: HeaderValueMasker = HeaderValueMasker.DEFAULT,
     ) : OncePerRequestFilter() {
-        private val metrics = EndpointLoggingMetrics.forRegistry(meterRegistry)
+        private val metrics = EndpointLoggingMetrics.forRegistry(meterRegistry, EndpointLoggingMetrics.OUTCOME_TIMEOUT)
         private val emitter = ExchangeLogEmitter(properties, nanoTime, metrics, masker)
 
         // Parsed ONCE at construction: an invalid pattern is a configuration error and fails the context
@@ -525,7 +530,7 @@ class RequestLoggingFilter
             override fun requestDestroyed(event: ServletRequestEvent) {
                 val request = event.servletRequest
                 val exchange = request.getAttribute(EXCHANGE_ATTRIBUTE) as? Exchange ?: return
-                // A destruction WHILE async processing is still running is not the end of the exchange:
+                // A destruction WHILE an armed async cycle is still running is not the end of the exchange:
                 // Tomcat fires requestDestroyed once, after async completion, but Jetty fires it at the end
                 // of EVERY dispatch - including the initial one that merely STARTED async. Emitting there
                 // logged the pre-completion status (200 for an exchange whose client later received a 500)

@@ -2,6 +2,7 @@ package eu.inqudium.limesium.servlet.logging
 
 import eu.inqudium.limesium.common.BodyLogMode
 import eu.inqudium.limesium.common.CorrelationIdGenerator
+import eu.inqudium.limesium.common.EndpointLoggingMetrics
 import eu.inqudium.limesium.common.HeaderValueMasker
 import eu.inqudium.limesium.common.NanoTimeSource
 import io.micrometer.core.instrument.MeterRegistry

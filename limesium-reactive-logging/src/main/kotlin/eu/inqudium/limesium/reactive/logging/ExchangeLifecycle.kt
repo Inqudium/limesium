@@ -2,6 +2,7 @@ package eu.inqudium.limesium.reactive.logging
 
 import eu.inqudium.limesium.common.CorrelationHeaderValue
 import eu.inqudium.limesium.common.CorrelationIdGenerator
+import eu.inqudium.limesium.common.EndpointLoggingMetrics
 import eu.inqudium.limesium.common.HeaderValueMasker
 import eu.inqudium.limesium.common.MdcKeys
 import eu.inqudium.limesium.common.NanoTimeSource
@@ -41,7 +42,7 @@ internal class ExchangeLifecycle(
     private val masker: HeaderValueMasker,
 ) {
     /** Shared with the variants for the arrival line and for tests; one instance per filter. */
-    val metrics = EndpointLoggingMetrics.forRegistry(meterRegistry)
+    val metrics = EndpointLoggingMetrics.forRegistry(meterRegistry, EndpointLoggingMetrics.OUTCOME_CANCELLED)
     val emitter = ExchangeLogEmitter(properties, nanoTime, metrics, masker)
 
     // Parsed ONCE at construction: an invalid pattern is a configuration error and fails the context

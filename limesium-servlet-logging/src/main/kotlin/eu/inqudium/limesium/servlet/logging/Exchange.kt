@@ -1,5 +1,6 @@
 package eu.inqudium.limesium.servlet.logging
 
+import eu.inqudium.limesium.common.LoggedExchange
 import eu.inqudium.limesium.common.TraceMdcKeys
 import jakarta.servlet.AsyncEvent
 import jakarta.servlet.AsyncListener
@@ -16,15 +17,15 @@ import java.util.concurrent.atomic.AtomicReference
  * threads.
  */
 internal class Exchange(
-    val method: String,
-    val path: String,
-    val query: String?,
+    override val method: String,
+    override val path: String,
+    override val query: String?,
     /**
      * The exchange identity (`endpoint_request_id`, ADR-0002): the `traceparent` trace id when the
      * request carried a conformant one, otherwise the accepted or generated correlation id.
      */
-    val requestId: String,
-    val requestHeaders: List<Pair<String, String>>,
+    override val requestId: String,
+    override val requestHeaders: List<Pair<String, String>>,
     val requestCapture: BoundedBodyCapture?,
     val requestWrapper: CapturingRequestWrapper?,
     val responseCapture: BoundedBodyCapture?,
@@ -36,9 +37,9 @@ internal class Exchange(
      * trace id; the parent-id is the CALLER's span (see [TraceMdcKeys]). Null without the header.
      * Carried here because the emission runs on a destruction callback thread of its own.
      */
-    val traceId: String? = null,
-    val parentSpanId: String? = null,
-) {
+    override val traceId: String? = null,
+    override val parentSpanId: String? = null,
+) : LoggedExchange {
     /** The exactly-once guard of the emission; whoever wins the CAS emits - the emitter's own inner backstop. */
     val logged = AtomicBoolean(false)
 

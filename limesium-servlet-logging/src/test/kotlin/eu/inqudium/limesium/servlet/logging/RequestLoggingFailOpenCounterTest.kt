@@ -9,6 +9,7 @@ import ch.qos.logback.core.read.ListAppender
 import ch.qos.logback.core.spi.FilterReply
 import eu.inqudium.limesium.common.BodyLogMode
 import eu.inqudium.limesium.common.CorrelationIdGenerator
+import eu.inqudium.limesium.common.EndpointLoggingMetrics
 import eu.inqudium.limesium.common.HeaderLogProperties
 import eu.inqudium.limesium.common.NanoTimeSource
 import io.micrometer.core.instrument.Counter
