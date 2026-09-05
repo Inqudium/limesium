@@ -27,6 +27,7 @@ import org.slf4j.LoggerFactory
 import org.slf4j.Marker
 import org.springframework.mock.web.MockHttpServletRequest
 import org.springframework.mock.web.MockHttpServletResponse
+import org.springframework.web.context.request.async.WebAsyncUtils
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -401,6 +402,39 @@ class RequestLoggingFailOpenCounterTest {
             handle(lyingRequest, MockHttpServletResponse())
 
             // Then: wiring counted once, and the event was still emitted at destruction
+            assertThat(stageCount("wiring")).isEqualTo(1.0)
+            assertThat(stageCount("emission")).isEqualTo(0.0)
+            assertThat(appender.list).hasSize(1)
+        }
+
+        @Test
+        fun `should count a failed async MDC registration as stage wiring and still serve and log`() {
+            // What is tested: the fail-open guard around the per-request CallableProcessingInterceptor
+            //   registration - WebAsyncUtils stores its manager as a request attribute, and a request
+            //   that refuses exactly that attribute makes the registration throw.
+            // Success criteria: the chain runs, nothing propagates, wiring reads 1, and the exchange event
+            //   is still emitted at destruction (the registration is bookkeeping, not the emission).
+            // Why it matters: worker logs lose the identity in that case, the request must not lose
+            //   anything (code analysis of 2026-09-05, finding 6).
+            // Given: a request that rejects the WebAsyncManager attribute
+            val request =
+                object : MockHttpServletRequest("GET", "/api/things") {
+                    override fun setAttribute(
+                        name: String,
+                        value: Any?,
+                    ) {
+                        if (name == WebAsyncUtils.WEB_ASYNC_MANAGER_ATTRIBUTE) throw IllegalStateException("async manager boom")
+                        super.setAttribute(name, value)
+                    }
+                }
+            var chainRan = false
+
+            // When: the exchange runs to destruction
+            filter.doFilterInternal(request, MockHttpServletResponse(), FilterChain { _, _ -> chainRan = true })
+            filter.exchangeCompletionListener().requestDestroyed(ServletRequestEvent(request.servletContext, request))
+
+            // Then: served, counted once as wiring, event present
+            assertThat(chainRan).isTrue()
             assertThat(stageCount("wiring")).isEqualTo(1.0)
             assertThat(stageCount("emission")).isEqualTo(0.0)
             assertThat(appender.list).hasSize(1)

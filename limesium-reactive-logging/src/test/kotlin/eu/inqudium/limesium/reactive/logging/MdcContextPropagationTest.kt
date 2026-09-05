@@ -154,4 +154,27 @@ class MdcContextPropagationTest {
             assertThat(MDC.get(MdcKeys.REQUEST_ID)).isNull()
         }
     }
+
+    @Test
+    fun `should bridge one MDC entry through the accessor and clear it on the empty restore`() {
+        // What is tested: the ThreadLocalAccessor contract of MdcEntryThreadLocalAccessor in isolation -
+        //   key, read, write and the no-value restore that context-propagation calls when the previous
+        //   value was absent.
+        // Success criteria: the key is the MDC key; getValue mirrors the MDC; setValue(value) writes the
+        //   entry; setValue() removes it.
+        // Why it matters: the restore path is what keeps a pooled scheduler thread from carrying one
+        //   exchange's identity into the next operator (code analysis of 2026-09-05, finding 6).
+        // Given: an accessor for the request-id key on a clean thread
+        val accessor = MdcEntryThreadLocalAccessor(MdcKeys.REQUEST_ID)
+        assertThat(accessor.key()).isEqualTo(MdcKeys.REQUEST_ID)
+        assertThat(accessor.getValue()).isNull()
+
+        // When/Then: write, read back, clear
+        accessor.setValue("corr-1")
+        assertThat(MDC.get(MdcKeys.REQUEST_ID)).isEqualTo("corr-1")
+        assertThat(accessor.getValue()).isEqualTo("corr-1")
+        accessor.setValue()
+        assertThat(MDC.get(MdcKeys.REQUEST_ID)).isNull()
+        assertThat(accessor.getValue()).isNull()
+    }
 }
