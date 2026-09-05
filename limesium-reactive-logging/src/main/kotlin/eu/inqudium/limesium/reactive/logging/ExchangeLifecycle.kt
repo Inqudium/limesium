@@ -273,7 +273,7 @@ internal class ExchangeLifecycle(
             } else {
                 null
             }
-        val requestId = trace?.first ?: headerCorrelationId ?: correlationIds.nextCorrelationId()
+        val requestId = trace?.traceId ?: headerCorrelationId ?: correlationIds.nextCorrelationId()
         // Guarded inside the metrics: a throwing host counter must not turn the request into an
         // unlogged pass-through.
         metrics.requestId(
@@ -335,8 +335,8 @@ internal class ExchangeLifecycle(
                 requestCharset = request.headers.declaredCharsetOrUtf8(),
                 response = webExchange.response,
                 startNanos = nanoTime.nanoTime(),
-                traceId = trace?.first,
-                parentSpanId = trace?.second,
+                traceId = trace?.traceId,
+                parentSpanId = trace?.parentSpanId,
             )
         metrics.exchangeOpened()
         return Wiring(exchange, mutatedExchange)

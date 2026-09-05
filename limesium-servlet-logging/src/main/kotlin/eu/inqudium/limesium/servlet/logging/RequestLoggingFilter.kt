@@ -432,7 +432,7 @@ class RequestLoggingFilter
                 } else {
                     null
                 }
-            val requestId = trace?.first ?: headerCorrelationId ?: correlationIds.nextCorrelationId()
+            val requestId = trace?.traceId ?: headerCorrelationId ?: correlationIds.nextCorrelationId()
             // Guarded inside the metrics: a throwing host counter must not turn the request into an
             // unlogged pass-through.
             metrics.requestId(
@@ -490,8 +490,8 @@ class RequestLoggingFilter
                     responseWrapper = responseCapture?.let { CapturingResponseWrapper(response, it) },
                     response = response,
                     startNanos = nanoTime.nanoTime(),
-                    traceId = trace?.first,
-                    parentSpanId = trace?.second,
+                    traceId = trace?.traceId,
+                    parentSpanId = trace?.parentSpanId,
                 )
             // The handoff to the emission at request destruction: the ServletRequestListener finds the
             // exchange under this attribute once the request goes out of scope. The gauge goes up with the

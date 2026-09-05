@@ -23,7 +23,7 @@ class TraceparentTest {
 
         // When/Then: each parses to the expected pair
         cases.forEach { (header, traceId, spanId) ->
-            assertThat(Traceparent.parse(header)).describedAs(header).isEqualTo(traceId to spanId)
+            assertThat(Traceparent.parse(header)).describedAs(header).isEqualTo(TraceContext(traceId, spanId))
         }
     }
 

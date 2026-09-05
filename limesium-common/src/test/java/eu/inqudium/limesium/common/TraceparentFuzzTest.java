@@ -42,23 +42,23 @@ class TraceparentFuzzTest {
             String spanId = hex(data, 16, true);
             String flags = hex(data, 2, false);
             String header = "00-" + traceId + "-" + spanId + "-" + flags;
-            kotlin.Pair<String, String> parsed = Traceparent.INSTANCE.parse(header);
+            TraceContext parsed = Traceparent.INSTANCE.parse(header);
             if (parsed == null) {
                 throw new IllegalStateException("conformant header rejected: " + header);
             }
-            if (!parsed.getFirst().equals(traceId) || !parsed.getSecond().equals(spanId)) {
+            if (!parsed.getTraceId().equals(traceId) || !parsed.getParentSpanId().equals(spanId)) {
                 throw new IllegalStateException("ids mangled for: " + header + " -> " + parsed);
             }
             return;
         }
 
         String value = data.consumeBoolean() ? null : data.consumeRemainingAsString();
-        kotlin.Pair<String, String> parsed = Traceparent.INSTANCE.parse(value);
+        TraceContext parsed = Traceparent.INSTANCE.parse(value);
         if (parsed == null) {
             return;
         }
-        String traceId = parsed.getFirst();
-        String spanId = parsed.getSecond();
+        String traceId = parsed.getTraceId();
+        String spanId = parsed.getParentSpanId();
         if (!TRACE_ID.matcher(traceId).matches() || traceId.chars().allMatch(c -> c == '0')) {
             throw new IllegalStateException("invalid traceId accepted from: " + value);
         }

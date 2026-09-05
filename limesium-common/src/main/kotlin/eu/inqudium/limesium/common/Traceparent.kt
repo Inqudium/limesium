@@ -1,6 +1,17 @@
 package eu.inqudium.limesium.common
 
 /**
+ * The trace context a conformant `traceparent` carries: [traceId] is the trace the server span runs
+ * under (the exchange identity, ADR-0002), [parentSpanId] the CALLER's span (published as
+ * `parentSpanId`, never as the local `spanId` - see [TraceMdcKeys]). A named pair rather than a
+ * `Pair`, so no call site has to know which half is which.
+ */
+internal data class TraceContext(
+    val traceId: String,
+    val parentSpanId: String,
+)
+
+/**
  * Minimal W3C `traceparent` parsing (`version-traceid-parentid-flags`). On the INBOUND side the header carries the
  * caller's context: the trace id is shared with the server span this exchange runs under (that is what
  * makes the log-to-trace join work), the parent-id is the CALLER's span - it is published as
@@ -24,10 +35,10 @@ internal object Traceparent {
     private const val CURRENT_VERSION = "00"
 
     /**
-     * Extracts `(traceId, parentSpanId)` or null when the value is absent or not a conformant
-     * `traceparent` (malformed structure, invalid version or flags, non-lowercase-hex or all-zero ids).
+     * The [TraceContext] of a conformant `traceparent`, or null when the value is absent or not
+     * conformant (malformed structure, invalid version or flags, non-lowercase-hex or all-zero ids).
      */
-    fun parse(value: String?): Pair<String, String>? {
+    fun parse(value: String?): TraceContext? {
         val parts = (value ?: return null).split('-')
         if (parts.size < 4) {
             return null
@@ -47,6 +58,6 @@ internal object Traceparent {
         if (traceId.all { it == '0' } || parentSpanId.all { it == '0' }) {
             return null
         }
-        return traceId to parentSpanId
+        return TraceContext(traceId, parentSpanId)
     }
 }
