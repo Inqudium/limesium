@@ -21,6 +21,7 @@ fun interface CorrelationIdGenerator {
          * ids per second, so an operational certainty rather than an unconditional one (NOT a
          * UUID; see that class's documentation for the rationale and the format contract).
          */
+        @JvmField
         val DEFAULT: CorrelationIdGenerator = CountingCorrelationIdGenerator()
     }
 }

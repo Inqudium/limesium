@@ -44,6 +44,7 @@ fun interface HeaderValueMasker {
          * security boundary for guessable values; omit such headers from the selection instead - or
          * key the fingerprint ([keyed], the `masking-key` property).
          */
+        @JvmField
         val DEFAULT: HeaderValueMasker = FingerprintHeaderValueMasker(null)
 
         /**
@@ -57,6 +58,7 @@ fun interface HeaderValueMasker {
          * never a checked-in literal). [key] must not be blank; an empty key means unkeyed - see
          * [forKey].
          */
+        @JvmStatic
         fun keyed(key: String): HeaderValueMasker {
             require(key.isNotBlank()) { "masking key must not be blank" }
             return FingerprintHeaderValueMasker(key)
@@ -67,6 +69,7 @@ fun interface HeaderValueMasker {
          * default - unkeyed), [keyed] otherwise. The auto-configurations build their default bean from
          * this, so keying the fingerprint needs no bean of the host's own.
          */
+        @JvmStatic
         fun forKey(key: String): HeaderValueMasker = if (key.isEmpty()) DEFAULT else keyed(key)
 
         private class FingerprintHeaderValueMasker(
