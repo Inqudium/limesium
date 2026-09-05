@@ -7,7 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- A caller-supplied correlation id is adopted only when it is 1-128 visible-ASCII
+  characters (`CorrelationHeaderValue`, shared by both twins); anything else -
+  whitespace, control or non-ASCII characters, more than 128 characters - counts as an
+  absent header: a fresh id is generated and echoed, counted as `generated`. Before, any
+  non-blank value up to the server's header limit was echoed and written into every log
+  line and MDC entry of the exchange (code analysis of 2026-09-05, finding 11).
+
 ### Fixed
+
+- The reactive emission scope now OWNS the trace MDC keys, like the servlet twin's: the
+  parsed `traceId`/`parentSpanId` pair is installed, an unparsed one and the bridge's
+  local `spanId` are removed for the duration of the exchange line and the arrival line,
+  and the previous values are restored afterwards. Under
+  `spring.reactor.context-propagation=auto` with a tracing bridge - the mode the
+  handler-MDC parity asks for - the bridge's live `traceId`/`spanId` used to ride along:
+  a local `spanId` on traced exchanges, a `traceId` that was not the request id on
+  traceless ones, both against ADR-0002 and the guide. Pinned beside a real Brave bridge
+  under `auto` by `RequestLoggingWebFilterTracingAutoPropagationIntegrationTest`
+  (finding 1).
+- The reactive propagation initializer resolves the filter slot over all
+  `EndpointLoggingFilter` beans instead of `ObjectProvider.getIfAvailable()`, which threw
+  `NoUniqueBeanDefinitionException` and failed the context start when a host defined two
+  filters (finding 4).
+- The servlet request tee delegates `available()` to the container's stream instead of
+  inheriting `InputStream`'s constant 0 (finding 5).
+- Fuzzing: every `@FuzzTest` target ships a seed corpus under
+  `src/test/resources/**/<Class>Inputs/`; regression mode used to replay exactly one
+  empty input per target although CONTRIBUTING promised checked-in inputs. The nightly
+  `Fuzz` workflow now also uploads the corpus it grew (finding 3).
+- Framework-parsed bodies - a form POST read through `@RequestParam`/`getParameter*` (servlet)
+  or `@ModelAttribute`/`getFormData()` (reactive), a multipart request - bypass the request tee on both stacks by
+  construction; the boundary is now documented in both module guides (servlet §6.9,
+  reactive §6.6), in the common guide's body rules and meter notes, and pinned by
+  form-POST integration tests on Tomcat and on every reactive server. The `unread` share
+  of `endpoint.request.body.read` must be read per `uri` with that in mind (finding 2).
+- Test infrastructure: the servlet module reads the shared contract files from the test
+  classpath like the reactive twin (finding 7); the container suites' `AwaitingAppender`
+  settles briefly after the awaited count so a late duplicate emission fails the
+  exactly-once assertion (finding 10); the fail-open branches of
+  `EndpointMdcCallableInterceptor`, the async MDC registration and
+  `MdcEntryThreadLocalAccessor` have direct tests (finding 6); the reactive Netty
+  integration test names the coroutine variant it actually runs (finding 8); the seven
+  test methods without Given/When/Then stage comments carry them (finding 9).
 
 - The published POMs name the repository itself as homepage and SCM. Maven appends the
   module name to an inherited `url` and `scm`, so Maven Central showed the twins with a
