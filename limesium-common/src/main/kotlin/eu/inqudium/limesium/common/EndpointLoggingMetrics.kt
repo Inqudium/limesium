@@ -1,7 +1,5 @@
-package eu.inqudium.limesium.reactive.logging
+package eu.inqudium.limesium.common
 
-import eu.inqudium.limesium.common.BodyReadState
-import eu.inqudium.limesium.common.reportQuietly
 import io.micrometer.core.instrument.Counter
 import io.micrometer.core.instrument.DistributionSummary
 import io.micrometer.core.instrument.Gauge
@@ -15,9 +13,12 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 
 /**
- * The module's meters (the `*_METER` constants below), all fed from the host's registry. Every meter
- * here observes what neither `http.server.requests` nor the log fields can show; rates, latencies and
- * status distributions are deliberately left to those.
+ * The module's meters (the `*_METER` constants below), all fed from the host's registry - ONE class for
+ * both endpoint-logging twins (ADR-0003 amendment of 2026-09-05), parameterized by the one thing that
+ * differs per stack: the third value of the outcome vocabulary ([OUTCOME_TIMEOUT] on the servlet twin,
+ * [OUTCOME_CANCELLED] on the reactive twin). Every meter here observes what neither
+ * `http.server.requests` nor the log fields can show; rates, latencies and status distributions are
+ * deliberately left to those.
  *
  * All fixed-tag meters are PRE-registered at construction: a `rate()` alert must see the zero before the
  * first occurrence, not a meter that springs into existence at the very moment it should already fire.
@@ -38,6 +39,8 @@ import java.util.concurrent.atomic.AtomicLong
  */
 internal class EndpointLoggingMetrics private constructor(
     private val meterRegistry: MeterRegistry,
+    /** The stack's own third outcome ([OUTCOME_TIMEOUT] or [OUTCOME_CANCELLED]), pre-registered beside success and failure. */
+    stackOutcome: String,
 ) {
     private val fallbackRegistry = SimpleMeterRegistry()
     private val reportedConflicts: MutableSet<String> = ConcurrentHashMap.newKeySet()
@@ -84,7 +87,7 @@ internal class EndpointLoggingMetrics private constructor(
     // ground truth to reconcile against the log index: any difference is loss in the log pipeline
     // (appender overflow, broker loss, index rejection), isolated from application behavior.
     private val eventCounters =
-        listOf(OUTCOME_SUCCESS, OUTCOME_FAILURE, OUTCOME_CANCELLED).associateWith { outcome ->
+        listOf(OUTCOME_SUCCESS, OUTCOME_FAILURE, stackOutcome).associateWith { outcome ->
             registerOrFallback(EVENTS_METER) { registry ->
                 Counter
                     .builder(EVENTS_METER)
@@ -96,15 +99,19 @@ internal class EndpointLoggingMetrics private constructor(
             }
         }
 
-    // The liveness check of the emission architecture - see [OPEN_EXCHANGES_METER].
+    // The liveness check of the emission architecture itself - see [OPEN_EXCHANGES_METER]: everything
+    // rests on the completion signal reaching the filter (request destruction on the servlet stack, the
+    // terminal signal or the commit on the reactive one). A completion that never arrives loses the
+    // event SILENTLY - nothing throws, so not even the fail-open counter sees it. This gauge (up at
+    // filter entry, down at the exactly-once completion) makes the assumption measurable.
     private val openExchanges =
         AtomicLong(0).also { open ->
             registerOrFallback(OPEN_EXCHANGES_METER) { registry ->
                 Gauge
                     .builder(OPEN_EXCHANGES_METER, open) { it.get().toDouble() }
                     .description(
-                        "Exchanges between filter entry and emission; a growing baseline means " +
-                            "terminal signals are not reaching the filter and exchange events are silently lost",
+                        "Exchanges between filter entry and the exactly-once completion; a growing baseline means " +
+                            "completions are not reaching the filter and exchange events are silently lost",
                     ).register(registry)
             }
         }
@@ -132,9 +139,9 @@ internal class EndpointLoggingMetrics private constructor(
     fun wiringFailure() = failOpenCounters.getValue(STAGE_WIRING).increment()
 
     /**
-     * Counts one EMITTED exchange event; [outcome] must be one of the [OUTCOME_SUCCESS] family. Guarded:
-     * the event is already on the logger when this runs, so a failing host counter must neither be
-     * reported as a lost emission nor disturb the caller.
+     * Counts one EMITTED exchange event; [outcome] must be one of the [OUTCOME_SUCCESS] family of THIS
+     * stack. Guarded: the event is already on the logger when this runs, so a failing host counter must
+     * neither be reported as a lost emission nor disturb the caller.
      */
     fun eventEmitted(outcome: String) = updateQuietly(EVENTS_METER) { eventCounters.getValue(outcome).increment() }
 
@@ -244,12 +251,18 @@ internal class EndpointLoggingMetrics private constructor(
          * the same registry. Sharing is what keeps the open-exchanges gauge truthful when several
          * filters run against one registry: a duplicate owner's gauge registration would be silently
          * ignored (see the class documentation), a shared owner makes the gauge the total across its
-         * filters while the counters merge as before.
+         * filters while the counters merge as before. One STACK per registry: the owner keeps the
+         * [stackOutcome] of its first caller (the auto-configurations activate exactly one twin per
+         * application, so the case never arises there; a hand-wired mix would count the other twin's
+         * third outcome as a lost bookkeeping update, never as a lost event).
          */
-        fun forRegistry(registry: MeterRegistry): EndpointLoggingMetrics =
+        fun forRegistry(
+            registry: MeterRegistry,
+            stackOutcome: String,
+        ): EndpointLoggingMetrics =
             synchronized(perRegistry) {
                 perRegistry[registry]?.get()
-                    ?: EndpointLoggingMetrics(registry).also { perRegistry[registry] = WeakReference(it) }
+                    ?: EndpointLoggingMetrics(registry, stackOutcome).also { perRegistry[registry] = WeakReference(it) }
             }
 
         /**
@@ -281,20 +294,22 @@ internal class EndpointLoggingMetrics private constructor(
          * not transmission: the logged body and the size sample describe the bytes the application read,
          * so neither can tell a body the client sent but the application ignored from one that was never
          * sent. This counter is the one place that distinction is visible - an endpoint with a rising
-         * `unread` or `partial` share is dropping payload it was handed. Opt-in with
+         * `unread` or `partial` share is dropping payload it was handed. Bodies the framework parses
+         * itself (form and multipart requests read through the parameter/form-data API) never pass the
+         * tee and always count as `unread` - read the share per `uri` with that in mind. Opt-in with
          * `measure-request-body-size`, like the size summary.
          */
         const val REQUEST_BODY_READ_METER = "endpoint.request.body.read"
 
-        /** The `uri` tag value for exchanges WebFlux recorded no handler pattern for. */
+        /** The `uri` tag value for exchanges the framework recorded no handler pattern for. */
         const val UNTEMPLATED_URI = "UNKNOWN"
 
         /**
-         * Gauge of exchanges between filter entry and emission (up at wiring, down at the exactly-once
-         * completion). Hovers near the active-request count in health; a monotonically growing baseline
-         * means subscriptions never reach their terminal signal or commit and exchange events are being
-         * lost SILENTLY - the one failure mode neither the fail-open counter (nothing throws) nor the
-         * events counter (no baseline) can see.
+         * Gauge of exchanges between filter entry and the exactly-once completion (up at wiring, down at
+         * request destruction resp. the terminal signal or commit). Hovers near the active-request count
+         * in health; a monotonically growing baseline means completions never reach the filter and
+         * exchange events are being lost SILENTLY - the one failure mode neither the fail-open counter
+         * (nothing throws) nor the events counter (no baseline) can see.
          */
         const val OPEN_EXCHANGES_METER = "endpoint.logging.exchanges.open"
 
@@ -305,16 +320,21 @@ internal class EndpointLoggingMetrics private constructor(
          */
         const val CORRELATION_METER = "endpoint.logging.correlation.id"
 
-        /** The closed outcome vocabulary - shared with the emitter, so counter keys and log field agree. */
+        /** The closed outcome vocabulary - shared with the emitters, so counter keys and log field agree. */
         const val OUTCOME_SUCCESS = "success"
         const val OUTCOME_FAILURE = "failure"
+
+        /** The servlet twin's third outcome: the container's async timeout. */
+        const val OUTCOME_TIMEOUT = "timeout"
+
+        /** The reactive twin's third outcome: a client disconnect, the reactive reality. */
         const val OUTCOME_CANCELLED = "cancelled"
 
         private const val STAGE_EMISSION = "emission"
         private const val STAGE_ARRIVAL = "arrival"
         private const val STAGE_WIRING = "wiring"
 
-        /** The closed request-id source vocabulary of [CORRELATION_METER] - shared with the lifecycle. */
+        /** The closed request-id source vocabulary of [CORRELATION_METER] - shared with the filters. */
         const val REQUEST_ID_SOURCE_TRACE = "trace"
         const val REQUEST_ID_SOURCE_HEADER = "header"
         const val REQUEST_ID_SOURCE_GENERATED = "generated"

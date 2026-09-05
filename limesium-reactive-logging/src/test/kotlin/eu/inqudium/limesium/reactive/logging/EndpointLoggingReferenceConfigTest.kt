@@ -15,15 +15,16 @@ import org.springframework.core.io.ClassPathResource
 import org.springframework.core.io.FileSystemResource
 
 /**
- * Lockstep between the TWO reference configurations and THIS module's [RequestLoggingProperties] - the
+ * Lockstep between the reference configurations and THIS module's [RequestLoggingProperties] - the
  * configuration-identity guarantee of the duplication. The repository-shared
- * `/docs/endpoint-logging-reference.yml` is bound against this module's properties class (the
- * cross-stack proof that the shared namespace is identical, key for key and default for default), and
- * this module's OWN `docs/endpoint-logging-reference.yml` is bound and key-compared as well: it must
- * document the identical keys plus exactly the one reactive-only `variant` key. Each file is loaded
- * exactly as Boot would load it (YamlPropertySourceLoader + Binder), so what the docs show is what an
- * application.yml would do; a property added, renamed or re-defaulted without both references
- * following - or a documented key that does not exist - fails the build.
+ * `/docs/endpoint-logging-reference.yml` is the ONE documented property semantics for both twins and is
+ * bound against this module's properties class (the cross-stack proof that the shared namespace is
+ * identical, key for key and default for default); this module's OWN `docs/endpoint-logging-reference.yml`
+ * carries exactly the one reactive-only `variant` key and nothing else (a second full copy was a drift
+ * surface - architecture review of 2026-09-05, finding 2). Each file is loaded exactly as Boot would load
+ * it (YamlPropertySourceLoader + Binder), so what the docs show is what an application.yml would do; a
+ * property added, renamed or re-defaulted without the shared reference following - or a documented key
+ * that does not exist - fails the build.
  */
 class EndpointLoggingReferenceConfigTest {
     // The shared reference reaches this module's test classpath through the declared test
@@ -67,18 +68,20 @@ class EndpointLoggingReferenceConfigTest {
     }
 
     @Test
-    fun `should document in the own reference exactly the shared keys plus the variant key`() {
-        // What is tested: the parity rule of having TWO reference files - this module's own reference
-        //   must be the shared namespace plus exactly the one reactive-only key.
-        // Success criteria: key set of the own file == key set of the shared file + "variant".
-        // Why it matters: a second reference file is a drift surface; this assertion turns the parity
-        //   promise in both file headers into a build-breaking contract.
+    fun `should document in the own reference nothing but the variant key`() {
+        // What is tested: the single-source rule of the two reference files - the shared file documents
+        //   the whole namespace, this module's own file exactly the one reactive-only key.
+        // Success criteria: key set of the own file == {"variant"}; the shared file does not document
+        //   the variant key.
+        // Why it matters: a second full copy of the shared block was a drift surface; this assertion
+        //   turns the single-source promise in both file headers into a build-breaking contract.
         // Given/When: the endpoint-logging.* keys of both files
         val sharedKeys = documentedKeys(sharedReferenceSources)
         val ownKeys = documentedKeys(ownReferenceSources)
 
-        // Then: identical namespaces apart from the documented reactive-only addition
-        assertThat(ownKeys).isEqualTo(sharedKeys + "variant")
+        // Then: the own file adds the one key the shared file leaves out
+        assertThat(ownKeys).containsExactly("variant")
+        assertThat(sharedKeys).doesNotContain("variant")
     }
 
     @Test
@@ -117,9 +120,9 @@ class EndpointLoggingReferenceConfigTest {
 
         // When: the endpoint-logging.* keys are extracted from both loaded references
         // Then: nothing is documented that does not exist, and nothing existing is left undocumented -
-        //   the shared file omits the reactive-only key by design, the own file carries it
+        //   the shared file carries the whole shared namespace, the own file the reactive-only key
         assertThat(documentedKeys(sharedReferenceSources)).isEqualTo(knownKeys)
-        assertThat(documentedKeys(ownReferenceSources)).isEqualTo(knownKeys + "variant")
+        assertThat(documentedKeys(ownReferenceSources)).isEqualTo(setOf("variant"))
     }
 
     @Test

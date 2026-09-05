@@ -2,12 +2,17 @@ package eu.inqudium.limesium.servlet.logging
 
 import eu.inqudium.limesium.common.CorrelationHeaderValue
 import eu.inqudium.limesium.common.CorrelationIdGenerator
+import eu.inqudium.limesium.common.EndpointLogField
+import eu.inqudium.limesium.common.EndpointLoggingMetrics
 import eu.inqudium.limesium.common.HeaderValueMasker
 import eu.inqudium.limesium.common.MdcKeys
 import eu.inqudium.limesium.common.MdcScope
 import eu.inqudium.limesium.common.NanoTimeSource
 import eu.inqudium.limesium.common.Traceparent
+import eu.inqudium.limesium.common.addKeyValue
+import eu.inqudium.limesium.common.addKeyValueIfPresent
 import eu.inqudium.limesium.common.reportQuietly
+import eu.inqudium.limesium.common.setCauseIfPresent
 import io.micrometer.core.instrument.MeterRegistry
 import jakarta.servlet.FilterChain
 import jakarta.servlet.ServletRequestEvent
@@ -83,7 +88,7 @@ import org.springframework.web.util.pattern.PathPatternParser
  * every DISPATCH. A destruction observed while async is still running is therefore skipped (flagged on
  * the exchange), the destruction after the final dispatch completes as usual, and an async cycle that
  * ends WITHOUT a further dispatch (raw `complete()`) is completed by the marker's onComplete backstop -
- * all behind one exactly-once guard ([Exchange.completed]); see the completion listener and
+ * all behind one atomic lifecycle ([Exchange.completionState]); see the completion listener and
  * [AsyncOutcomeMarker] for the choreography (pinned by the Jetty capture-boundary integration test).
  *
  * When the chain throws, a short WARN breadcrumb is additionally logged in the `finally` on the module's
@@ -117,7 +122,7 @@ class RequestLoggingFilter
         /** How masked header values render; the auto-configuration passes the host's bean, [HeaderValueMasker.DEFAULT] otherwise. */
         private val masker: HeaderValueMasker = HeaderValueMasker.DEFAULT,
     ) : OncePerRequestFilter() {
-        private val metrics = EndpointLoggingMetrics.forRegistry(meterRegistry)
+        private val metrics = EndpointLoggingMetrics.forRegistry(meterRegistry, EndpointLoggingMetrics.OUTCOME_TIMEOUT)
         private val emitter = ExchangeLogEmitter(properties, nanoTime, metrics, masker)
 
         // Parsed ONCE at construction: an invalid pattern is a configuration error and fails the context
@@ -247,7 +252,7 @@ class RequestLoggingFilter
                     if (request.isAsyncStarted) {
                         exchange.asyncStarted = true
                         request.asyncContext.addListener(AsyncOutcomeMarker(exchange, ::completeExchange))
-                        exchange.asyncMarkerArmed = true
+                        exchange.markAsyncArmed()
                     }
                     // Immediate breadcrumb at the failure site: the full ERROR event follows only at request
                     // destruction, after the container's error dispatch (which is what makes its status
@@ -417,12 +422,9 @@ class RequestLoggingFilter
             request: HttpServletRequest,
             response: HttpServletResponse,
         ): Exchange {
-            // The exchange identity, resolved per ADR-0002: a conformant traceparent's trace id IS the
-            // request id (the caller's X-Correlation-Id is ignored on such exchanges - the distributed
-            // identity outranks the private one); only a traceless exchange accepts the correlation header
-            // or generates a fresh id, and only a traceless exchange gets the echo - a traced exchange
-            // passes through observationally untouched. A header value outside the acceptance rule
-            // (CorrelationHeaderValue: 1-128 visible-ASCII characters) counts as absent.
+            // The exchange identity per ADR-0002 (trace id, else an acceptable correlation header, else
+            // generated; the echo only on a traceless exchange) - the rule is documented there and on
+            // CorrelationHeaderValue, not repeated here.
             val trace = Traceparent.parse(request.getHeader(Traceparent.HEADER))
             val headerCorrelationId =
                 if (trace == null) {
@@ -508,13 +510,13 @@ class RequestLoggingFilter
         fun exchangeCompletionListener(): ServletRequestListener = ExchangeCompletionListener()
 
         /**
-         * The exactly-once end of an exchange - gauge close plus emission - guarded by
-         * [Exchange.completed]: the destruction listener and the [AsyncOutcomeMarker.onComplete] backstop
-         * can both arrive here (see [Exchange.destroyedDuringAsync]); whichever wins the CAS completes,
-         * the other is a no-op.
+         * The exactly-once end of an exchange - gauge close plus emission - guarded by the lifecycle's
+         * `COMPLETED` transition ([Exchange.tryComplete]): the destruction listener and the
+         * [AsyncOutcomeMarker.onComplete] backstop can both arrive here; whichever wins completes, the
+         * other is a no-op.
          */
         private fun completeExchange(exchange: Exchange) {
-            if (!exchange.completed.compareAndSet(false, true)) {
+            if (!exchange.tryComplete()) {
                 return
             }
             metrics.exchangeCompleted()
@@ -525,26 +527,19 @@ class RequestLoggingFilter
             override fun requestDestroyed(event: ServletRequestEvent) {
                 val request = event.servletRequest
                 val exchange = request.getAttribute(EXCHANGE_ATTRIBUTE) as? Exchange ?: return
-                // A destruction WHILE async processing is still running is not the end of the exchange:
+                // A destruction WHILE an armed async cycle is still running is not the end of the exchange:
                 // Tomcat fires requestDestroyed once, after async completion, but Jetty fires it at the end
                 // of EVERY dispatch - including the initial one that merely STARTED async. Emitting there
                 // logged the pre-completion status (200 for an exchange whose client later received a 500)
                 // and removed the attribute the async-dispatch pass depends on (found by the Jetty
-                // capture-boundary integration test, 2026-08-30). "Still running" is judged from MODULE
-                // state - marker armed, no onComplete observed - never from request.isAsyncStarted():
-                // Tomcat's facade throws on that query inside requestDestroyed after an errored cycle.
-                // Skipping leaves exchange, attribute and gauge untouched; the spec guarantees onComplete
-                // at the end of every cycle, so either a later destruction completes (dispatch-based
-                // endings, after onComplete flipped the flag) or the marker's onComplete backstop does
-                // (a raw complete() with no further dispatch). The RE-CHECK after setting the flag closes
-                // the race with a concurrently completing cycle: whoever loses the Exchange.completed CAS
-                // is a no-op either way. An exchange whose marker could NOT be armed (fail-open) never
-                // defers - completing with possibly pre-completion state beats losing the event.
-                if (exchange.asyncStarted && exchange.asyncMarkerArmed && !exchange.asyncCompleted) {
-                    exchange.destroyedDuringAsync = true
-                    if (!exchange.asyncCompleted) {
-                        return
-                    }
+                // capture-boundary integration test, 2026-08-30). The lifecycle decides atomically
+                // (Exchange.onDestroyed): a skipped destruction leaves exchange, attribute and gauge
+                // untouched, and the spec-guaranteed onComplete either lets a later destruction complete
+                // or completes through the marker's backstop (a raw complete() with no further dispatch).
+                // An exchange whose marker could NOT be armed (fail-open) never defers - completing with
+                // possibly pre-completion state beats losing the event.
+                if (!exchange.onDestroyed()) {
+                    return
                 }
                 request.removeAttribute(EXCHANGE_ATTRIBUTE)
                 completeExchange(exchange)

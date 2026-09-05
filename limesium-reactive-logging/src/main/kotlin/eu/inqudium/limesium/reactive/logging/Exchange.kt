@@ -1,5 +1,6 @@
 package eu.inqudium.limesium.reactive.logging
 
+import eu.inqudium.limesium.common.LoggedExchange
 import eu.inqudium.limesium.common.TraceMdcKeys
 import org.springframework.http.server.reactive.ServerHttpResponse
 import java.nio.charset.Charset
@@ -13,15 +14,15 @@ import java.util.concurrent.atomic.AtomicReference
  * different threads.
  */
 internal class Exchange(
-    val method: String,
-    val path: String,
-    val query: String?,
+    override val method: String,
+    override val path: String,
+    override val query: String?,
     /**
      * The exchange identity (`endpoint_request_id`, ADR-0002): the `traceparent` trace id when the
      * request carried a conformant one, otherwise the accepted or generated correlation id.
      */
-    val requestId: String,
-    val requestHeaders: List<Pair<String, String>>,
+    override val requestId: String,
+    override val requestHeaders: List<Pair<String, String>>,
     val requestCapture: BoundedBodyCapture?,
     val responseCapture: BoundedBodyCapture?,
     /** Charset of the request body for the logged value, resolved from the Content-Type at wiring time. */
@@ -32,9 +33,9 @@ internal class Exchange(
      * Trace context parsed from the incoming W3C `traceparent` header: the trace id is the server span's
      * trace id; the parent-id is the CALLER's span (see [TraceMdcKeys]). Null without the header.
      */
-    val traceId: String? = null,
-    val parentSpanId: String? = null,
-) {
+    override val traceId: String? = null,
+    override val parentSpanId: String? = null,
+) : LoggedExchange {
     /**
      * The lifecycle state - ONE atomic value instead of independent flags, so the legal transitions are
      * enumerable: `OPEN` from wiring;

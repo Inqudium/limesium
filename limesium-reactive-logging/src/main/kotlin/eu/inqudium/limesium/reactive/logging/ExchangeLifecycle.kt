@@ -2,6 +2,7 @@ package eu.inqudium.limesium.reactive.logging
 
 import eu.inqudium.limesium.common.CorrelationHeaderValue
 import eu.inqudium.limesium.common.CorrelationIdGenerator
+import eu.inqudium.limesium.common.EndpointLoggingMetrics
 import eu.inqudium.limesium.common.HeaderValueMasker
 import eu.inqudium.limesium.common.MdcKeys
 import eu.inqudium.limesium.common.NanoTimeSource
@@ -41,7 +42,7 @@ internal class ExchangeLifecycle(
     private val masker: HeaderValueMasker,
 ) {
     /** Shared with the variants for the arrival line and for tests; one instance per filter. */
-    val metrics = EndpointLoggingMetrics.forRegistry(meterRegistry)
+    val metrics = EndpointLoggingMetrics.forRegistry(meterRegistry, EndpointLoggingMetrics.OUTCOME_CANCELLED)
     val emitter = ExchangeLogEmitter(properties, nanoTime, metrics, masker)
 
     // Parsed ONCE at construction: an invalid pattern is a configuration error and fails the context
@@ -262,12 +263,9 @@ internal class ExchangeLifecycle(
 
     private fun wireExchange(webExchange: ServerWebExchange): Wiring {
         val request = webExchange.request
-        // The exchange identity, resolved per ADR-0002: a conformant traceparent's trace id IS the
-        // request id (the caller's X-Correlation-Id is ignored on such exchanges - the distributed
-        // identity outranks the private one); only a traceless exchange accepts the correlation header
-        // or generates a fresh id, and only a traceless exchange gets the echo - a traced exchange
-        // passes through observationally untouched. A header value outside the acceptance rule
-        // (CorrelationHeaderValue: 1-128 visible-ASCII characters) counts as absent.
+        // The exchange identity per ADR-0002 (trace id, else an acceptable correlation header, else
+        // generated; the echo only on a traceless exchange) - the rule is documented there and on
+        // CorrelationHeaderValue, not repeated here.
         val trace = Traceparent.parse(request.headers.getFirst(Traceparent.HEADER))
         val headerCorrelationId =
             if (trace == null) {

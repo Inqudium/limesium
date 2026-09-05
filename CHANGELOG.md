@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Shared core widened (ADR-0003 amendment of 2026-09-05, architecture review findings 1
+  and 3): the field enum `EndpointLogField`, the meters `EndpointLoggingMetrics`
+  (parameterized with the stack's third outcome) and the stack-neutral core of the
+  exchange line (`ExchangeLine`) now live in `limesium-common` and are inlined into
+  both twins - one class where two near-identical copies drifted before; the emitters
+  keep only what differs per stack. The test helpers `AwaitingAppender` and
+  `installMdcAdapter` ship to the twins as `limesium-common`'s unpublished `test-jar`
+  instead of per-module copies. No host-visible package changes (all moved classes are
+  internal); the registration-conflict warnings now come from
+  `eu.inqudium.limesium.common.EndpointLoggingMetrics`.
+- The servlet twin's completion lifecycle is one atomic `CompletionState` (`OPEN`,
+  `ASYNC_ARMED`, `DESTROYED_DURING_ASYNC`, `ASYNC_COMPLETED`, `COMPLETED`) with CAS
+  transitions - the mirror of the reactive twin's `ExchangeState` - instead of four
+  volatile flags plus two atomic booleans and a re-check protocol (architecture review
+  finding 4). Behaviour under Tomcat's once-late and Jetty's per-dispatch destruction is
+  unchanged and pinned by the same suites.
+- Documentation: one normative source per contract statement (architecture review
+  finding 2). The reactive module's `docs/endpoint-logging-reference.yml` carries only
+  its `variant` key - the complete reference for both twins is the repository-shared
+  file; the twins' property KDocs name the key and point to that reference instead of
+  restating it; the filters' wiring comments point to ADR-0002 instead of paraphrasing
+  it; CONTRIBUTING states the rule.
+
 - A caller-supplied correlation id is adopted only when it is 1-128 visible-ASCII
   characters (`CorrelationHeaderValue`, shared by both twins); anything else -
   whitespace, control or non-ASCII characters, more than 128 characters - counts as an

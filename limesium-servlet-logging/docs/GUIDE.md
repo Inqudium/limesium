@@ -144,7 +144,7 @@ modules — which of them are one shared class and which are per-stack twins is 
 | `EndpointMdcCallableInterceptor` | Restores the `endpoint_*` MDC on the Spring MVC `Callable`/`WebAsyncTask` worker thread. |
 | `ExchangeLogEmitter` | Builds and emits the arrival line and the completion event; resolves level, outcome and cause (the async disposition included); records body sizes; opens the emission `MdcScope` with trace ownership. |
 | `EndpointLogField` | The wire names and the exact JVM type of each structured field — this module's enum carries the `endpoint_async` field and the `timeout` outcome. |
-| `EndpointLoggingMetrics` | The six meters, with `timeout` in the `outcome` tag vocabulary. |
+| `EndpointLoggingMetrics` | The six meters, with `timeout` in the `outcome` tag vocabulary - the shared class from `limesium-common`, parameterized with this stack's outcome. |
 | `CapturingRequestWrapper` / `CapturingResponseWrapper` | The servlet stream/reader and stream/writer tees. |
 | `BoundedBodyCapture` | The bounded capture target; count-only mode with limit `0`; the request-side read state (`BodyReadState`); single-writer/late-reader visibility via a volatile total. |
 | `MdcScope` | Puts identity (and, for the emission, trace keys) into the MDC and restores the previous values on close — around the chain, the async dispatch and the emission. |
@@ -649,7 +649,7 @@ stack decides within them.
 | `endpoint_response_body` | Absent for container-rendered error responses ([§6.2](#62-container-error-rendering-bypasses-the-response-tee)). |
 
 A wrongly typed value drops that field with a warning on
-`eu.inqudium.limesium.servlet.logging.EndpointLogField`, never the event. The throwable of a failed chain —
+`eu.inqudium.limesium.common.EndpointLogField`, never the event. The throwable of a failed chain —
 or of an async `onError`/`onTimeout` event, when the container supplied one — is attached to the event as
 its cause (`setCause`).
 
@@ -685,7 +685,7 @@ raising severity — has two servlet-specific rows, resolved between the thrown 
 | `endpoint.request.body.read{state=partial}` | consumption started but the end of the stream was never observed — an early-exiting parser, an exception mid-read, a read loop that never asked for the final EOF |
 
 Registration conflicts are warned once per meter name on
-`eu.inqudium.limesium.servlet.logging.EndpointLoggingMetrics`.
+`eu.inqudium.limesium.common.EndpointLoggingMetrics` (the shared class both twins inline).
 
 ### 5.5 Reading the meters together
 
@@ -833,14 +833,13 @@ limesium-servlet-logging/
     │   ├── RequestLoggingFilter.kt                the servlet lifecycle, completion listener
     │   ├── Exchange.kt                            per-exchange state, AsyncDisposition, AsyncOutcomeMarker
     │   ├── EndpointMdcCallableInterceptor.kt      MDC on the MVC async worker
-    │   ├── ExchangeLogEmitter.kt                  arrival line and completion event
-    │   ├── EndpointLogFields.kt                   field enum and builder helpers (owns the family)
-    │   ├── EndpointLoggingMetrics.kt              the six meters
+    │   ├── ExchangeLogEmitter.kt                  the per-stack classification of the completion event
     │   ├── CapturingRequestWrapper.kt             request stream/reader tee
     │   ├── CapturingResponseWrapper.kt            response stream/writer tee
     │   └── BoundedBodyCapture.kt                  bounded capture target, BodyReadState
-    │   (Traceparent, Mdc, NanoTimeSource, CorrelationIdGenerator, HeaderValueMasker and
-    │    reportQuietly live in ../limesium-common - inlined into this jar, common guide §6.4)
+    │   (Traceparent, Mdc, NanoTimeSource, CorrelationIdGenerator, HeaderValueMasker, the fail-open
+    │    helpers, EndpointLogField, EndpointLoggingMetrics and ExchangeLine live in ../limesium-common -
+    │    inlined into this jar, common guide §6.4)
     ├── main/resources/META-INF/spring/…AutoConfiguration.imports
     └── test/kotlin/eu/inqudium/limesium/servlet/logging/   see the suite overview below
 ```
@@ -857,7 +856,7 @@ lists every test with its rationale):
 | `RequestLoggingFilterTomcatTracingIntegrationTest` | ADR-0002 trace contract beside a real Brave bridge on Tomcat, plus the container-independent bridge-propagation assertions |
 | `RequestLoggingFilterJettyTracingIntegrationTest` | trace-key suppression against Jetty's LIVE in-dispatch bridge MDC |
 | `RequestLoggingFilterUndertowTracingIntegrationTest` | trace-key suppression on Undertow's emission threads |
-| Lockstep/contract tests (`TwinContractTest`, `EndpointLogFieldTest`, `EndpointLoggingReferenceConfigTest`, `HandlerMappingAttributeTest`) | pin the twin/wire/config contracts |
+| Lockstep/contract tests (`TwinContractTest`, `EndpointLoggingReferenceConfigTest`, `HandlerMappingAttributeTest`; `EndpointLogFieldTest` lives in `limesium-common`) | pin the twin/wire/config contracts |
 | Fuzz targets (`src/test/java`: `BoundedBodyCaptureFuzzTest`; `Traceparent` and header-masking fuzzing lives in limesium-common) | Jazzer `@FuzzTest`, corpus replay in every build, nightly exploration |
 
 ### 7.2 Related documents

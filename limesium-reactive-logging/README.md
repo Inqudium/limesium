@@ -17,16 +17,18 @@ summary.
 
 The servlet module is the reference implementation; its documentation applies here too:
 
-- **Configuration:** the complete commented reference for THIS module is
-  [`docs/endpoint-logging-reference.yml`](docs/endpoint-logging-reference.yml) (the shared
-  namespace plus the one reactive-only `variant` key) — this module's
-  `EndpointLoggingReferenceConfigTest` **binds both files against this module's properties class** and
-  pins the key parity, so neither reference can drift from the code or from its twin. The properties
-  are explained in the common guide's [§4](../docs/GUIDE.md#4-configuration).
+- **Configuration:** the complete commented reference for both twins is the repository-shared
+  [`/docs/endpoint-logging-reference.yml`](../docs/endpoint-logging-reference.yml) — the ONE place the
+  property semantics are documented; this module's
+  [`docs/endpoint-logging-reference.yml`](docs/endpoint-logging-reference.yml) carries exactly the one
+  reactive-only `variant` key. This module's `EndpointLoggingReferenceConfigTest` binds the shared file
+  against this module's properties class and pins that the own file documents nothing else, so neither
+  reference can drift from the code or from its twin. The properties are explained in the common
+  guide's [§4](../docs/GUIDE.md#4-configuration).
 - **Index mapping:** the one component template for both stacks is the repository-shared
-  [`/docs/elk/`](../docs/elk/README.md) — this module's `EndpointLogFieldTest`
-  locks this module's field enum against that same template across the reactor. The field table is
-  the common guide's [§5.1](../docs/GUIDE.md#51-log-fields).
+  [`/docs/elk/`](../docs/elk/README.md) — `EndpointLogFieldTest` in `limesium-common` locks the one
+  field enum both twins inline against that template. The field table is the common guide's
+  [§5.1](../docs/GUIDE.md#51-log-fields).
 - **Metrics:** the same six meters (`endpoint.logging.failopen`, `endpoint.logging.events`,
   `endpoint.logging.exchanges.open`, `endpoint.logging.correlation.id`, `endpoint.request/response.body.size`,
   `endpoint.request.body.read`),
@@ -53,21 +55,24 @@ behaves exactly as documented once in the [common guide](../docs/GUIDE.md).
 
 ## The shared layer
 
-The **byte-identical** part of the twins' shared layer (the `traceparent` parser with its fuzz target,
-the injectable time/id interfaces, `reportQuietly`, the MDC keys and scope) lives in the internal
-`limesium-common` module and is **inlined into this jar** by the Maven Shade plugin
+The **stack-neutral** part of the twins' shared layer - the `traceparent` parser with its fuzz target,
+the injectable time/id/masker interfaces, the header selection and masking, the fail-open helpers, the
+MDC keys and scope, and since the architecture review of 2026-09-05 also the field enum, the meters
+(parameterized with the stack's own outcome) and the core of the exchange line (`ExchangeLine`) - lives
+in the internal `limesium-common` module and is **inlined into this jar** by the Maven Shade plugin
 ([ADR-0003](../docs/adr/ADR-0003-limesium-common-inlined-by-shade.md)): consumers add exactly one
 artifact, the published POM carries no extra dependency, and `limesium-common` itself is never
 published.
 
-Everything whose twin copies genuinely differ (field enum and metrics with their per-stack outcome
-vocabulary, emitters, exchanges, properties with the reactive-only `variant`, body capture with its
-own concurrency design) stays **deliberately duplicated**, per the original architecture-review
-decision: one twin per host, standalone jars, contract-level code that changes rarely. For that
-remainder every change is still a conscious port in both directions; the pins in `TwinContractTest` /
-`EndpointLogFieldTest` / `EndpointLoggingReferenceConfigTest` catch *named* contract drift (meter
-names, field names, configuration keys) — not behavioural drift inside near-identical code. A change
-there must be ported consciously and verified in both modules.
+Everything whose twin copies genuinely differ - the filter variants and the lifecycle, the exchange
+state, the per-stack classification in the emitter, the properties with the reactive-only `variant`, the
+body capture with its own concurrency design - stays **deliberately duplicated**, per the original
+architecture-review decision: one twin per host, standalone jars, contract-level code that changes
+rarely. For that remainder every change is still a conscious port in both directions; the pins in
+`TwinContractTest` / `EndpointLoggingReferenceConfigTest` (and `EndpointLogFieldTest` in
+`limesium-common`) catch *named* contract drift (meter names, field names, configuration keys) — not
+behavioural drift inside near-identical code. A change there must be ported consciously and verified in
+both modules.
 
 ## Usage
 
@@ -227,9 +232,12 @@ once, in the common guide's [§5.1](../docs/GUIDE.md#51-log-fields), and mapped 
 
 Every property lives under the `endpoint-logging.*` namespace, identical to the servlet twin's by
 construction plus this module's one `variant` key. The complete, commented reference with every key at
-its default is this module's [`docs/endpoint-logging-reference.yml`](docs/endpoint-logging-reference.yml)
-— copy the block and change only what you need; `EndpointLoggingReferenceConfigTest` binds it and the
-repository-shared reference against the properties class and fails the build on any drift. The
+its default is the repository-shared
+[`/docs/endpoint-logging-reference.yml`](../docs/endpoint-logging-reference.yml); this module's
+[`docs/endpoint-logging-reference.yml`](docs/endpoint-logging-reference.yml) adds the `variant` key —
+copy the shared block, add the key if the classpath should not decide, and change only what you need;
+`EndpointLoggingReferenceConfigTest` binds the shared reference against the properties class and fails
+the build on any drift. The
 properties are explained in the common guide's [§4](../docs/GUIDE.md#4-configuration): the property
 reference, header sections, body logging and measuring, path activation, logger levels, validation at
 startup, and example configurations; what the reactive stack adds to individual properties — `variant`

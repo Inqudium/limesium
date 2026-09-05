@@ -17,8 +17,8 @@ curl -X PUT "$ES/_component_template/limesium-servlet-logging-fields" \
      --data-binary @limesium-servlet-logging-fields.component-template.json
 ```
 
-[`EndpointLogFieldTest`](https://github.com/Inqudium/limesium/blob/main/limesium-servlet-logging/src/test/kotlin/eu/inqudium/limesium/servlet/logging/EndpointLogFieldTest.kt)
-(and its reactive twin) compares this template's field set against `EndpointLogField.entries` at build time and fails in both
+[`EndpointLogFieldTest`](https://github.com/Inqudium/limesium/blob/main/limesium-common/src/test/kotlin/eu/inqudium/limesium/common/EndpointLogFieldTest.kt)
+(in `limesium-common` - the one enum both twins inline) compares this template's field set against `EndpointLogField.entries` at build time and fails in both
 directions — a field added to the enum without a mapping, and a mapping left behind for a removed field.
 
 ## The mapping, and the access pattern each line follows
@@ -40,7 +40,7 @@ directions — a field added to the enum without a mapping, and a mapping left b
 | `endpoint_response_body` | `keyword` | **false** | off | display only |
 
 The per-field rationale sits next to each constant as an `ELK:` line in
-[`EndpointLogFields.kt`](https://github.com/Inqudium/limesium/blob/main/limesium-servlet-logging/src/main/kotlin/eu/inqudium/limesium/servlet/logging/EndpointLogFields.kt); the two
+[`EndpointLogFields.kt`](https://github.com/Inqudium/limesium/blob/main/limesium-common/src/main/kotlin/eu/inqudium/limesium/common/EndpointLogFields.kt); the two
 decisions most easily undone by accident — `index: false` on payload fields (sensitivity precedes
 analytics) and `doc_values: false` on the high-cardinality path pair half (repetition factor) — each have their own explicit assertion in the lockstep test.
 

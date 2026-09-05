@@ -120,3 +120,34 @@ ported from the outbound sibling Legatium, whose design settled it first.
 Source-breaking for hosts that called `mask` or `select` directly; the
 filter constructors take the masker as an optional trailing parameter, so
 host-built filter beans compile unchanged.
+
+## Amendment (2026-09-05)
+
+Findings 1 and 3 of `docs/assessment/ARCHITECTURE_REVIEW-2026-09-05T15-28-48.md`
+moved the "genuinely differ" line once more, on the evidence the previous
+amendments predicted: the field enum and the metrics differed by one
+constant and by prose (29 of 325 and 48 of 168 lines), three emitter
+functions were byte-identical, and the defect analysis of the same day found
+a behavioural drift (trace-key ownership) exactly inside that near-identical
+remainder - the drift no literal pin can see. Now in `limesium-common`:
+`EndpointLogField` with its builder extensions (one enum, one
+`EndpointLogFieldTest`), `EndpointLoggingMetrics` parameterized with the
+stack's third outcome (`forRegistry(registry, OUTCOME_TIMEOUT |
+OUTCOME_CANCELLED)`; `micrometer-core` becomes a dependency of the common
+module - both twins declared it already, the shaded jars add nothing), and
+`ExchangeLine` - the stack-neutral core of the emitters (message texts,
+header rendering, the arrival line, the body measurements) over the two
+small interfaces `LoggedExchange` and `MeasuredBody` that both twins'
+`Exchange` and `BoundedBodyCapture` implement. The emitters keep what
+differs: the classification (async disposition vs. cancellation, an
+always-present vs. a nullable status) and the exactly-once guard shape. All
+moved classes are `internal`; no host-visible package changes.
+
+The TEST-helper exception of the 2026-08-30 amendment is revoked: the "one
+16-line copy" had become five copies of two helpers. `AwaitingAppender` and
+`installMdcAdapter` now ship to the twins as `limesium-common`'s
+`test-jar` (unpublished like the module itself, test scope only, never
+shaded). What deliberately stays duplicated: the filters and lifecycles,
+the exchange state, the per-stack classification, the properties, the body
+captures - and the ENGINE-specific test infrastructure (`ServerContract`,
+`EndpointAccessorRegistryGuard`, `UndertowTestServer`).

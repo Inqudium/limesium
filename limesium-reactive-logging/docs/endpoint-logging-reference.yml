@@ -1,24 +1,19 @@
 # =====================================================================================================
-# endpoint-logging - complete reference configuration (REACTIVE twin)
+# endpoint-logging - the REACTIVE twin's addition to the shared reference configuration
 #
-# Every property of the limesium-reactive-logging module with its DEFAULT value and the reasoning
-# behind it. Copy the block into an application.yml and change only what you need: every value shown
-# here is the built-in default, so an entry you leave out (or delete) behaves exactly like an entry you
-# keep. Bound by RequestLoggingProperties; invalid values (blank names, non-positive sizes/durations)
-# fail the context start with a message naming the property.
+# The complete, commented reference for every property of the limesium-reactive-logging module is the
+# repository-shared /docs/endpoint-logging-reference.yml: the namespace is IDENTICAL in both twins,
+# key for key and default for default, and that file is the ONE place the property semantics are
+# documented (architecture review of 2026-09-05, finding 2 - a second full copy was a drift surface).
+# This file carries exactly the ONE reactive-only key. Copy the shared block into an application.yml,
+# add the key below when the classpath should not decide the variant, and change only what you need.
 #
-# The namespace is IDENTICAL to the repository-shared reference (/docs/
-# endpoint-logging-reference.yml) with exactly ONE reactive-only addition, `variant` - this module's
-# EndpointLoggingReferenceConfigTest binds BOTH files against the properties class and pins that
-# parity, so neither file can drift from the code or from its twin.
+# Bound by this module's RequestLoggingProperties; this module's EndpointLoggingReferenceConfigTest
+# binds the shared file against that class (the cross-stack proof that the namespace is identical)
+# and pins that this file documents nothing but the variant key.
 # =====================================================================================================
 
 endpoint-logging:
-  # Master switch. `false` removes the module entirely - both auto-configurations back off, no filter,
-  # no accessors, no beans. This is a context-start decision, not a runtime toggle; for a runtime
-  # off-switch use the logger level below instead (a disabled level skips the event assembly too).
-  enabled: true
-
   # Which filter variant this module registers - the ONE reactive-only key (the servlet twin has
   # nothing to select). `auto` (the default) keeps the classpath-based choice: the coroutine variant
   # (CoRequestLoggingWebFilter) when kotlinx-coroutines-reactor AND kotlinx-coroutines-slf4j are
@@ -29,150 +24,3 @@ endpoint-logging:
   # dashboards; it decides how handler-side MDC works (natively via MDCContext, or via the optional
   # context-propagation accessors plus spring.reactor.context-propagation=auto).
   variant: auto
-
-  # Logger the exchange events are emitted on. The level of
-  # THIS logger decides which exchanges are visible: INFO shows every exchange, WARN keeps only
-  # failures, cancellations and slow requests, ERROR only chains that errored (see `logging.level`
-  # below).
-  logger-name: endpoint-http-exchange
-
-  # Header the correlation id is read from on TRACELESS exchanges only (ADR-0002): a request with a
-  # conformant W3C traceparent takes its request id from the traceparent's trace id, ignores this
-  # header, and gets NO echo - the wire stays untouched. On a traceless exchange, absent or blank
-  # means a new id is generated (by default a 21-character counting id: random per-instance base-36
-  # prefix plus counter, ADR-0004 - override the CorrelationIdGenerator bean to change
-  # the format), and the id is echoed back to the client on the response under this same header name -
-  # set ONCE at filter entry, before the chain runs; the filter does not re-assert it, so downstream
-  # code that sets this header itself decides what the client finally sees, while the event and the
-  # MDC keep the id resolved at entry. Whichever identity wins rides the emission MDC as
-  # `endpoint_request_id` - and the Reactor context (or the coroutine MDCContext) under the same key -
-  # while the request is handled. A caller-supplied value is adopted only when it is 1-128 visible-ASCII
-  # characters (an opaque token: UUID, base-36, ULID, hex); anything else - whitespace, control or
-  # non-ASCII characters, more than 128 characters - counts as absent, so the peer never dictates the
-  # length or shape of what reaches every log line.
-  correlation-id-header: X-Correlation-Id
-
-  # Whether the query string is logged (as its own field `endpoint_url_query`, never as part of the
-  # path - grouping by path must not be defeated by varying queries). Logged RAW, percent-encoding
-  # intact, as the client sent it. Disable when query parameters may carry personal data.
-  include-query-string: true
-
-  # Optionally log an ARRIVAL line the moment the request comes in, before the handler runs - useful
-  # when long-running or hanging exchanges must be visible while still in flight. The arrival line
-  # carries no outcome/status/duration, so dashboards keyed on `endpoint_outcome` still count exactly
-  # one line per exchange even with this enabled.
-  log-request-start: false
-
-  # URL patterns (Spring PathPattern syntax) that determine for which endpoints the filter is active
-  # AT ALL. Empty (the default) means every endpoint; a request is logged when it matches ANY include
-  # pattern and NO exclude prefix - an exclude always wins. Matched against the path WITHIN the
-  # application (a configured base path is stripped first, as in the WebFlux handler mapping),
-  # segments decoded for matching. Invalid patterns fail the context start.
-  include-path-patterns: []
-  #  - /api/**
-
-  # Request-URI prefixes the filter skips entirely - no event, no MDC, no correlation echo. Prefix
-  # match against the DECODED request path (percent-encoding resolved, path parameters dropped - the
-  # representation the router matches, so an encoded variant cannot slip past). Default is empty
-  # (everything is logged); health probes are the typical exclusion:
-  exclude-path-prefixes: []
-  #  - /actuator/health
-
-  # At or above this duration the exchange escalates from INFO to WARN and is flagged
-  # `endpoint_slow: true` - the outcome stays `success`, slowness raises severity, it does not turn a
-  # completed exchange into a failure. Duration is measured until the exchange truly ended: the
-  # terminal signal, or - for the deferred error path - the response commit that carries the rendered
-  # status. Compared at millisecond resolution: values below 1ms are rejected at startup.
-  slow-request-threshold: 5s
-
-  # Header logging, one section per direction, rendered into one display-only field each
-  # (`endpoint_request_headers` / `endpoint_response_headers`). Matching is case-insensitive
-  # throughout, as header names are. MASKED BY DEFAULT (ADR-0005): whatever the selection logs is
-  # rendered as a fingerprint unless its name is explicitly allowed in plaintext - so the debugging
-  # move `includes: ["*"]` costs readability, never confidentiality.
-  request-headers:
-    # Names to log. Empty (the default) logs NOTHING; the entry "*" logs every header the request
-    # carries.
-    includes: []
-    #  - Accept
-    #  - "*"
-    # Names removed from the included set - meaningful mainly together with the "*" include; an
-    # exclude always wins over an include.
-    excludes: []
-    #  - Cookie
-    # Names whose VALUE is replaced by a stable short fingerprint (length:hex-hash, e.g. "18:a8b3c4d5").
-    # Non-reversible, but identical values yield
-    # identical fingerprints, so a masked token can still be correlated across events without exposing
-    # the secret. "*" masks every logged header. Masking only affects headers that are logged at all -
-    # listing a name here does not include it.
-    masked: ["*"]
-    # Names that appear in PLAINTEXT although `masked` covers them - the allowlist of harmless names.
-    # An unmasked name always wins over a masked one. No "*" here: the plaintext set is an explicit list
-    # by design (to log everything in plaintext, empty `masked` instead).
-    unmasked: []
-    #  - Accept
-    #  - X-Correlation-Id
-  response-headers:
-    # Same contract as request-headers, applied to the response.
-    includes: []
-    #  - Content-Type
-    excludes: []
-    masked: ["*"]
-    unmasked: []
-    #  - Content-Type
-
-  # Body logging per direction - a MODE, not a switch (ADR-0006): `never` (the default), `on-failure`
-  # or `always`. `on-failure` is the volume switch: the body is logged only when `endpoint_outcome` is
-  # not `success` (failure, timeout, cancelled) or the status is a 4xx - orders of magnitude fewer bytes
-  # than `always`, on
-  # exactly the lines a body is wanted for. The emitter decides when the outcome is final; the request
-  # body flows before that, so `on-failure` tees it (up to max-body-bytes) like `always` and drops it
-  # on success - the capture is paid, the output is saved. A 4xx response keeps its `success` outcome
-  # (the application answered) but logs its bodies in `on-failure`: the client's error is exactly what
-  # the body explains.
-  # The bodies are TEED as they flow - never pre-read, never replayed, so
-  # streaming and backpressure are untouched and the log shows exactly the bytes that actually moved
-  # (an unread request body is logged as absent). Fields `endpoint_request_body` /
-  # `endpoint_response_body` appear only when bytes flowed. Note the boundary: Boot's OUTER error
-  # renderer writes through the original response, so globally rendered error bodies bypass the tee;
-  # and while capture or measuring is on, file-serving handlers lose the zero-copy optimization.
-  log-request-body: never
-  log-response-body: never
-
-  # Body SIZE measurement per direction (meters `endpoint.request.body.size` /
-  # `endpoint.response.body.size`, tagged by the handler pattern). Deliberately independent of the
-  # log-*-body flags - a metric must not appear and disappear with a logging flag. Measure-only
-  # installs a count-only tee (nothing buffered); measured is what actually flowed, exact even beyond
-  # max-body-bytes. Zero-byte bodies record no sample. The request side additionally records the
-  # counter `endpoint.request.body.read` (tag `state` = unread | partial | complete): the tee mirrors
-  # what the application CONSUMED, so this is the one signal that tells a body the client sent but the
-  # application ignored from a body that was never sent.
-  measure-request-body-size: false
-  measure-response-body-size: false
-
-  # Capture limit per body, in bytes. Bounds MEMORY, not the exchange: bytes beyond the limit still
-  # reach the application respectively the client unchanged - only the logged value is truncated, with
-  # an explicit note of the total size.
-  max-body-bytes: 16384
-
-  # Keys the masking fingerprint. Empty (the default) keeps the unkeyed length:hash fingerprint; any
-  # other value turns it into an HMAC-SHA256 under this key - same shape, same stability under the
-  # same key (so correlation across events, twins and the outbound sibling holds as long as they share
-  # it), but a log reader without the key can no longer confirm a guessed value by hashing it. A
-  # SECRET: supply it like one (environment variable, vault-backed property), never as a literal in a
-  # checked-in file; the properties' toString redacts it. Ignored when a host pins its own
-  # HeaderValueMasker bean.
-  masking-key: ""
-
-logging:
-  level:
-    # The exchange stream. INFO = every exchange (the default expectation); WARN = only failures,
-    # cancellations (client disconnects - the reactive disposition where the servlet twin has
-    # timeouts) and slow requests; ERROR = only exchanges whose chain errored. Severity and semantic
-    # are decoupled: dashboards key on the `endpoint_outcome` field, the level only decides how loud -
-    # and whether - a line is emitted.
-    endpoint-http-exchange: INFO
-    # The module's own logger: the immediate WARN breadcrumb when a chain errors (the full ERROR event
-    # follows on the exchange logger at the commit), and errors of the logging itself. Keep at WARN or
-    # lower - silencing it hides the breadcrumb.
-    eu.inqudium.limesium.reactive.logging: WARN

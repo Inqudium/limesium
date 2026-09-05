@@ -1,6 +1,8 @@
 package eu.inqudium.limesium.servlet.logging
 
+import eu.inqudium.limesium.common.EndpointLoggingMetrics
 import eu.inqudium.limesium.common.MdcKeys
+import eu.inqudium.limesium.common.installMdcAdapter
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.catchThrowable
@@ -25,7 +27,7 @@ import java.util.concurrent.Callable
  */
 class EndpointMdcCallableInterceptorTest {
     private val meterRegistry = SimpleMeterRegistry()
-    private val metrics = EndpointLoggingMetrics.forRegistry(meterRegistry)
+    private val metrics = EndpointLoggingMetrics.forRegistry(meterRegistry, EndpointLoggingMetrics.OUTCOME_TIMEOUT)
     private val webRequest: NativeWebRequest = ServletWebRequest(MockHttpServletRequest())
     private val task = Callable { "result" }
     private lateinit var original: MDCAdapter
