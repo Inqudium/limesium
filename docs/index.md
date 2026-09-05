@@ -42,7 +42,11 @@ WebFlux/coroutines web filter. No starter, no forced transitives.
 
 ## Quick start
 
-Add the module matching your stack — the filter registers itself:
+[![limesium-servlet-logging on Maven Central](https://img.shields.io/maven-central/v/eu.inqudium/limesium-servlet-logging.svg?label=limesium-servlet-logging)](https://central.sonatype.com/artifact/eu.inqudium/limesium-servlet-logging)
+[![limesium-reactive-logging on Maven Central](https://img.shields.io/maven-central/v/eu.inqudium/limesium-reactive-logging.svg?label=limesium-reactive-logging)](https://central.sonatype.com/artifact/eu.inqudium/limesium-reactive-logging)
+
+The badges show the current release on Maven Central — use that version where the
+snippets say `...`. Add the module matching your stack — the filter registers itself:
 
 ```xml
 <dependency>
