@@ -1,162 +1,226 @@
 # ADR-0003: Byte-identical twin code moves to limesium-common, inlined by Shade
 
-- **Status:** accepted
-- **Date:** 2026-08-30
-- **Context:** The twins deliberately duplicated their shared layer -
-  "no shared base module", decided in an internal architecture review
-  and documented in both READMEs and GUIDEs: one twin per host, one
-  standalone jar each, contract-level code that changes rarely.
-  ADR-0002 tilted that balance: it grew the BYTE-identical set
-  (`Traceparent` with its unit, conformance and Jazzer fuzz tests now
-  exists twice; `Mdc.kt` differs only by a servlet-side superset) and
-  demonstrated that every shared-layer change is now a synchronized
-  multi-file port in both directions. The maintainer decided to extract
-  the identical set - under the constraint that consumers keep adding
-  exactly ONE artifact to their build.
+**Status:** Accepted  
+**Date:** 2026-08-30  
+**Last updated:** 2026-09-05  
+**Deciders:** Dirk Haase (maintainer)  
+**Related:** ADR-0002 (the change that grew the byte-identical set and
+triggered the extraction), ADR-0004 (`CorrelationIdGenerator` is one
+of the moved types; its package change ships with this ADR's),
+ADR-0005 (`HeaderLogProperties`, `HeaderValueMasker` and `MaskingKey`
+live in the common module by this ADR's criterion), ADR-0006
+(`BodyLogMode` likewise)
+
+## Context
+
+The twins deliberately duplicated their shared layer: "no shared base
+module", decided in an internal architecture review and documented in
+both READMEs and GUIDEs. One twin per host, one standalone jar each,
+contract-level code that changes rarely.
+
+[ADR-0002](ADR-0002-trace-id-is-the-request-id.md) tilted that
+balance. It grew the byte-identical set (`Traceparent` with its unit,
+conformance and Jazzer fuzz tests then existed twice; `Mdc.kt`
+differed only by a servlet-side superset) and demonstrated that every
+shared-layer change had become a synchronized multi-file port in both
+directions. The maintainer decided to extract the identical set, under
+the constraint that consumers keep adding exactly ONE artifact to
+their build.
 
 ## Decision
 
-**The byte-identical shared code lives in a new `limesium-common`
-module; each twin inlines it into its own jar with the Maven Shade
-plugin; `limesium-common` itself is never published.**
+**The byte-identical shared code lives in a `limesium-common` module;
+each twin inlines it into its own jar with the Maven Shade plugin;
+`limesium-common` itself is never published.**
 
-- **What moved:** `Traceparent` (with unit, conformance-fixture and
-  Jazzer fuzz tests plus seed inputs), `NanoTimeSource`,
-  `CorrelationIdGenerator`, `reportQuietly`, and `Mdc.kt`
-  (`MdcKeys`/`TraceMdcKeys`/`MdcScope`) as the superset both twins use
-  (`ownsTraceKeys` stays default-off in the reactive twin). Package:
-  `eu.inqudium.limesium.common`.
-- **What deliberately stays duplicated:** everything whose twin copies
-  genuinely differ - the field enum and metrics (per-stack outcome
-  vocabulary and meter descriptions), the emitters, exchanges, filters,
-  properties (`variant` is reactive-only), and `BoundedBodyCapture`
-  (two different concurrency designs). The prior duplication rationale
-  still holds for those; this ADR narrows it, it does not revoke it.
-- **Shading:** an `artifactSet` restricted to `eu.inqudium:
-  limesium-common`, NO relocation (relocating rewrites bytecode but not
-  Kotlin metadata), `keepDependenciesWithProvidedScope=false` so the
-  dependency-reduced POM drops the dependency entirely, and the
-  module's `META-INF/maven` filtered out of the shaded jar.
-  spring-boot-starter-parent pre-configures an unnamed uber-jar shade
-  execution; it is unbound (`phase=none`) so declaring the plugin does
-  not swallow the compile classpath.
-- **Visibility:** the twins compile with
-  `-Xfriend-paths` (own output dir, common's classes dir AND jar - the
-  reactor resolves the dependency as a directory before packaging and
-  as a jar afterwards), so the shared classes stay `internal`.
-- **Not published:** `maven.deploy.skip=true` plus
-  `skipPublishing=true` for the Central Portal bundle. The published
-  twin POMs mention no `limesium-common`.
-- **Documentation:** each twin's Dokka run includes the common sources
-  as an additional source root - the API reference documents what the
-  shaded jar actually contains, and cross-module KDoc links resolve
-  under `failOnWarning`. The Docs workflow installs (not merely
-  verifies) before the per-module Dokka runs, so the dependency
-  resolves.
+### The criterion
+
+Code whose twin copies are byte-identical, or differ only by a
+superset that the other twin can use with defaults, moves to
+`limesium-common` (package `eu.inqudium.limesium.common`). Code whose
+twin copies genuinely differ stays duplicated; the prior duplication
+rationale still holds for it. This ADR narrows that rationale, it does
+not revoke it. The line between the two sets is moved on evidence
+(see [History](#history)): each review that finds byte-identical
+residue moves it, and the drift found on 2026-09-05 showed that a
+near-identical remainder hides behavioural drift no literal pin can
+see.
+
+### What lives in `limesium-common`
+
+| Resident                                                                                                       | Since      | Route                                                                        |
+|----------------------------------------------------------------------------------------------------------------|------------|------------------------------------------------------------------------------|
+| `Traceparent` (with unit test, conformance fixture, Jazzer fuzz target and seed inputs)                         | 2026-08-30 | original extraction                                                          |
+| `NanoTimeSource`, `CorrelationIdGenerator`, `reportQuietly`                                                    | 2026-08-30 | original extraction                                                          |
+| `Mdc.kt` (`MdcKeys`/`TraceMdcKeys`/`MdcScope`) as the superset both twins use (`ownsTraceKeys` default-off in the reactive twin) | 2026-08-30 | original extraction                                            |
+| `BodyReadState` (the enum and `decodeTruncated`)                                                               | 2026-08-30 | `CODE_ANALYSIS-2026-08-30T21-52-43.md`, finding 6                            |
+| `HeaderLogProperties` (with unit test and `HeaderMaskingFuzzTest`)                                             | 2026-08-31 | `ARCHITECTURE_REVIEW-2026-08-31T10-51-58.md`, finding 1                      |
+| `HeaderValueMasker` (`fun interface`, fingerprint as `DEFAULT`)                                                | 2026-09-03 | ported from the outbound sibling legatium; see ADR-0005                      |
+| `BodyLogMode`                                                                                                  | 2026-09-03 | arrived with ADR-0006                                                        |
+| `EndpointLogField` with its builder extensions, `EndpointLoggingMetrics`, `ExchangeLine` over `LoggedExchange`/`MeasuredBody` | 2026-09-05 | `ARCHITECTURE_REVIEW-2026-09-05T15-28-48.md`, findings 1 and 3 |
+| `MaskingKey` (the secret-bearing value the `masking-key` property binds to)                                    | 2026-09-05 | `CODE_STYLE-2026-09-05T17-08-39.md`, finding 5                               |
+| test-jar: `AwaitingAppender`, `installMdcAdapter`, `CapturedLogger` with `ILoggingEvent.keyValues()`           | 2026-09-05 | test-helper exception revoked; `CODE_STYLE-2026-09-05T17-08-39.md`, pattern S2 |
+
+Later residents that arrive with ordinary changes follow the same
+criterion; the module's source tree is the authoritative list. Moved
+classes are `internal` where the twins' copies were `internal`; the
+host-visible types (`CorrelationIdGenerator`, `NanoTimeSource`,
+`HeaderLogProperties`, `HeaderValueMasker`, `MaskingKey`) keep their
+visibility and are the ones whose package move is source-breaking.
+
+### What deliberately stays duplicated
+
+Everything whose twin copies genuinely differ:
+
+- the filters and lifecycles, and the exchange state;
+- the per-stack classification in the emitters (async disposition vs.
+  cancellation, an always-present vs. a nullable status) and the
+  exactly-once guard shape; `ExchangeLine` carries only the
+  stack-neutral core (message texts, header rendering, the arrival
+  line, the body measurements);
+- the properties files, which keep only what actually differs (the
+  reactive-only `variant` key and stack-specific wording);
+- `BoundedBodyCapture` and the wrappers: two different concurrency
+  designs;
+- the ENGINE-specific test infrastructure (`ServerContract`,
+  `EndpointAccessorRegistryGuard`, `UndertowTestServer`).
+
+### Shading
+
+An `artifactSet` restricted to `eu.inqudium:limesium-common`, NO
+relocation (relocating rewrites bytecode but not Kotlin metadata),
+`keepDependenciesWithProvidedScope=false` so the dependency-reduced POM
+drops the dependency entirely, and the module's `META-INF/maven`
+filtered out of the shaded jar. spring-boot-starter-parent
+pre-configures an unnamed uber-jar shade execution; it is unbound
+(`phase=none`) so declaring the plugin does not swallow the compile
+classpath.
+
+### Visibility
+
+The twins compile with `-Xfriend-paths` (own output dir, common's
+classes dir AND jar; the reactor resolves the dependency as a directory
+before packaging and as a jar afterwards), so the shared classes stay
+`internal`.
+
+### Not published
+
+`maven.deploy.skip=true` plus `skipPublishing=true` for the Central
+Portal bundle. The published twin POMs mention no `limesium-common`.
+The test-jar is unpublished like the module itself, test scope only,
+never shaded.
+
+### Documentation
+
+Each twin's Dokka run includes the common sources as an additional
+source root: the API reference documents what the shaded jar actually
+contains, and cross-module KDoc links resolve under `failOnWarning`.
+The Docs workflow installs (not merely verifies) before the per-module
+Dokka runs, so the dependency resolves.
 
 ## Consequences
+
+**Positive:**
 
 - A shared-layer change in the extracted set is made ONCE; the
   both-directions port and its drift risk disappear for exactly the
   code where drift was invisible (byte-identical files).
 - Consumers are unaffected in shape: one artifact, no new transitive
-  dependency, internals stay internal. The classes' PACKAGE changed
+  dependency, internals stay internal.
+- The fuzz matrix keys on class names and finds `TraceparentFuzzTest`
+  and `HeaderMaskingFuzzTest` in their new module without a workflow
+  change; the coverage, SBOM and test-evidence tooling glob
+  `*/target/...` and pick the module up automatically.
+
+**Negative:**
+
+- The host-visible classes' PACKAGE changed
   (`eu.inqudium.limesium.common`), which is source-breaking for hosts
   that import `NanoTimeSource`/`CorrelationIdGenerator` for bean
-  overrides - to be called out in the same release notes as ADR-0002's
-  boundary change.
+  overrides or reference `HeaderLogProperties` in configuration code.
+  Called out in the same release notes as ADR-0002's boundary change.
 - Both twin jars carry byte-identical copies of the common classes. An
   application with BOTH twins on the classpath (not a supported
   deployment) would see benign duplication at equal versions and
   classpath-order-dependent classes at skewed versions.
 - `-Xfriend-paths` is a `-X` compiler flag: stable in practice and used
-  widely for test friendship, but not a documented contract; a Kotlin
-  upgrade that changes it surfaces as a loud compile error
-  ("internal in file"), never as silent misbehaviour.
-- The fuzz matrix keys on class names and finds `TraceparentFuzzTest`
-  in its new module without a workflow change; the coverage, SBOM and
-  test-evidence tooling glob `*/target/...` and pick the module up
-  automatically.
+  widely for test friendship, but not a documented contract. A Kotlin
+  upgrade that changes it surfaces as a loud compile error ("internal
+  in file"), never as silent misbehaviour.
 
-## Amendment (2026-08-30)
+**Neutral:**
 
-Finding 6 of `docs/assessment/CODE_ANALYSIS-2026-08-30T21-52-43.md`
-identified byte-identical residue the extraction had missed:
-`decodeTruncated` and the `BodyReadState` enum, identical in both
-twins' `BoundedBodyCapture.kt`, now live in `limesium-common`
-(`BodyReadState.kt`) - the captures themselves stay deliberately
-duplicated as decided above. The TEST helper `MdcAdapterSwap.kt`
-remains duplicated on purpose: test classes are not shared across
-modules (no test-jar dependency), and a copy of sixteen lines is
-cheaper than publishing one; the copies carry a comment saying so.
+- `micrometer-core` is a dependency of the common module since
+  `EndpointLoggingMetrics` moved; both twins declared it already, so
+  the shaded jars add nothing.
+- The "genuinely differ" line is expected to keep moving; every move is
+  recorded below rather than re-argued.
 
-## Amendment (2026-08-31)
+## History
 
-Finding 1 of `docs/assessment/ARCHITECTURE_REVIEW-2026-08-31T10-51-58.md`
-identified a second byte-identical residue, hidden inside a file that
-legitimately stays duplicated: `HeaderLogProperties` (selection
-semantics plus the `mask()` fingerprint - a cross-twin contract) was
-byte-identical in both twins' `RequestLoggingProperties.kt`, although
-the enumeration above counted "the properties" as genuinely differing.
-The class now lives in `limesium-common`; the twins' property files
-keep only what actually differs (the reactive-only `variant` key and
-stack-specific wording). Its unit test and the `HeaderMaskingFuzzTest`
-target moved along, as the Traceparent suite did in the original
-extraction. NOTE - source-breaking for hosts that import the class
-(bean-less, but referenced in configuration code): same break class as
-the original ADR-0003 package moves, shipped in the same release.
-
-## Amendment (2026-09-03)
-
-The masking fingerprint - `HeaderLogProperties.mask`, a static companion
-function - became the injectable `HeaderValueMasker` (`fun interface`, with
-the fingerprint as `DEFAULT`), a `@ConditionalOnMissingBean` bean in both
-twins' auto-configurations and handed to `HeaderLogProperties.select` by the
-filters: the properties decide WHICH values are masked, the host may decide
-HOW (a keyed HMAC where an unkeyed hash is not acceptable, a fixed `***`
-where no correlation is wanted). The interface lives in `limesium-common`
-beside `HeaderLogProperties`, as the shared-layer criterion demands, and was
-ported from the outbound sibling Legatium, whose design settled it first.
-Source-breaking for hosts that called `mask` or `select` directly; the
-filter constructors take the masker as an optional trailing parameter, so
-host-built filter beans compile unchanged.
-
-## Amendment (2026-09-05)
-
-Findings 1 and 3 of `docs/assessment/ARCHITECTURE_REVIEW-2026-09-05T15-28-48.md`
-moved the "genuinely differ" line once more, on the evidence the previous
-amendments predicted: the field enum and the metrics differed by one
-constant and by prose (29 of 325 and 48 of 168 lines), three emitter
-functions were byte-identical, and the defect analysis of the same day found
-a behavioural drift (trace-key ownership) exactly inside that near-identical
-remainder - the drift no literal pin can see. Now in `limesium-common`:
-`EndpointLogField` with its builder extensions (one enum, one
-`EndpointLogFieldTest`), `EndpointLoggingMetrics` parameterized with the
-stack's third outcome (`forRegistry(registry, OUTCOME_TIMEOUT |
-OUTCOME_CANCELLED)`; `micrometer-core` becomes a dependency of the common
-module - both twins declared it already, the shaded jars add nothing), and
-`ExchangeLine` - the stack-neutral core of the emitters (message texts,
-header rendering, the arrival line, the body measurements) over the two
-small interfaces `LoggedExchange` and `MeasuredBody` that both twins'
-`Exchange` and `BoundedBodyCapture` implement. The emitters keep what
-differs: the classification (async disposition vs. cancellation, an
-always-present vs. a nullable status) and the exactly-once guard shape. All
-moved classes are `internal`; no host-visible package changes.
-
-The TEST-helper exception of the 2026-08-30 amendment is revoked: the "one
-16-line copy" had become five copies of two helpers. `AwaitingAppender` and
-`installMdcAdapter` now ship to the twins as `limesium-common`'s
-`test-jar` (unpublished like the module itself, test scope only, never
-shaded). What deliberately stays duplicated: the filters and lifecycles,
-the exchange state, the per-stack classification, the properties, the body
-captures - and the ENGINE-specific test infrastructure (`ServerContract`,
-`EndpointAccessorRegistryGuard`, `UndertowTestServer`).
-
-The code-style audit of the same day (`CODE_STYLE-2026-09-05T17-08-39.md`)
-added two more residents by the same routes: `MaskingKey`, the secret-bearing
-value the `masking-key` property binds to (finding 5), and the JUnit 5 fixture
-`CapturedLogger` with the `ILoggingEvent.keyValues()` extension in the test-jar
-(pattern S2 - the per-class Logback fixture had been copied into 24 test
-classes). It also closed the twins' visibility gap: the servlet tee classes
-(`BoundedBodyCapture`, both wrappers) are `internal` like their reactive
-counterparts (finding 1).
+- **2026-08-30:** original extraction (`Traceparent`, `NanoTimeSource`,
+  `CorrelationIdGenerator`, `reportQuietly`, `Mdc.kt`).
+- **2026-08-30:** finding 6 of
+  `docs/assessment/CODE_ANALYSIS-2026-08-30T21-52-43.md` identified
+  byte-identical residue the extraction had missed: `decodeTruncated`
+  and the `BodyReadState` enum, identical in both twins'
+  `BoundedBodyCapture.kt`, moved to `limesium-common`
+  (`BodyReadState.kt`); the captures themselves stay duplicated. The
+  TEST helper `MdcAdapterSwap.kt` was left duplicated on purpose: test
+  classes are not shared across modules (no test-jar dependency), and a
+  copy of sixteen lines was cheaper than publishing one; the copies
+  carried a comment saying so.
+- **2026-08-31:** finding 1 of
+  `docs/assessment/ARCHITECTURE_REVIEW-2026-08-31T10-51-58.md`
+  identified a second byte-identical residue, hidden inside a file that
+  legitimately stays duplicated: `HeaderLogProperties` (selection
+  semantics plus the `mask()` fingerprint, a cross-twin contract) was
+  byte-identical in both twins' `RequestLoggingProperties.kt`, although
+  the original enumeration counted "the properties" as genuinely
+  differing. The class moved to `limesium-common`; the twins' property
+  files keep only what actually differs. Its unit test and the
+  `HeaderMaskingFuzzTest` target moved along, as the Traceparent suite
+  did in the original extraction. Source-breaking for hosts that import
+  the class (bean-less, but referenced in configuration code): same
+  break class as the original package moves, shipped in the same
+  release.
+- **2026-09-03:** the masking fingerprint (`HeaderLogProperties.mask`,
+  a static companion function) became the injectable
+  `HeaderValueMasker` (`fun interface`, with the fingerprint as
+  `DEFAULT`), a `@ConditionalOnMissingBean` bean in both twins'
+  auto-configurations and handed to `HeaderLogProperties.select` by
+  the filters: the properties decide WHICH values are masked, the host
+  may decide HOW (a keyed HMAC where an unkeyed hash is not acceptable,
+  a fixed `***` where no correlation is wanted). The interface lives in
+  `limesium-common` beside `HeaderLogProperties`, as the shared-layer
+  criterion demands, and was ported from the outbound sibling legatium,
+  whose design settled it first. Source-breaking for hosts that called
+  `mask` or `select` directly; the filter constructors take the masker
+  as an optional trailing parameter, so host-built filter beans compile
+  unchanged.
+- **2026-09-05:** findings 1 and 3 of
+  `docs/assessment/ARCHITECTURE_REVIEW-2026-09-05T15-28-48.md` moved
+  the "genuinely differ" line once more, on the evidence the previous
+  amendments predicted: the field enum and the metrics differed by one
+  constant and by prose (29 of 325 and 48 of 168 lines), three emitter
+  functions were byte-identical, and the defect analysis of the same
+  day found a behavioural drift (trace-key ownership) exactly inside
+  that near-identical remainder. Now in `limesium-common`:
+  `EndpointLogField` with its builder extensions (one enum, one
+  `EndpointLogFieldTest`), `EndpointLoggingMetrics` parameterized with
+  the stack's third outcome (`forRegistry(registry, OUTCOME_TIMEOUT |
+  OUTCOME_CANCELLED)`), and `ExchangeLine`, the stack-neutral core of
+  the emitters, over the two small interfaces `LoggedExchange` and
+  `MeasuredBody` that both twins' `Exchange` and `BoundedBodyCapture`
+  implement. All moved classes are `internal`; no host-visible package
+  changes. The TEST-helper exception of 2026-08-30 was revoked: the
+  "one 16-line copy" had become five copies of two helpers.
+  `AwaitingAppender` and `installMdcAdapter` now ship to the twins as
+  `limesium-common`'s `test-jar`. The code-style audit of the same day
+  (`CODE_STYLE-2026-09-05T17-08-39.md`) added two more residents by the
+  same routes: `MaskingKey` (finding 5) and the JUnit 5 fixture
+  `CapturedLogger` with the `ILoggingEvent.keyValues()` extension in
+  the test-jar (pattern S2: the per-class Logback fixture had been
+  copied into 24 test classes). It also closed the twins' visibility
+  gap: the servlet tee classes (`BoundedBodyCapture`, both wrappers)
+  are `internal` like their reactive counterparts (finding 1).
