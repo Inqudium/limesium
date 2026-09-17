@@ -1,9 +1,8 @@
 package eu.inqudium.limesium.reactive.logging
 
 import eu.inqudium.limesium.common.BodyReadState
+import eu.inqudium.limesium.common.BoundedByteBuffer
 import eu.inqudium.limesium.common.MeasuredBody
-import eu.inqudium.limesium.common.decodeTruncated
-import java.io.ByteArrayOutputStream
 import java.nio.charset.Charset
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -28,7 +27,9 @@ import kotlin.concurrent.withLock
  *
  * With `maxBytes = 0` the capture runs in COUNT-ONLY mode: nothing is buffered, [totalBytes] still
  * counts every byte - the mode the body-size metrics use when body logging is off. The tee is fed from
- * mapped `DataBuffer`s (see [CapturingResponseDecorator]).
+ * mapped `DataBuffer`s (see [CapturingResponseDecorator]). The bytes live in the shared
+ * [BoundedByteBuffer], sized once by the length the decorators learned from `Content-Length`
+ * ([expectBytes]); this class adds the count, the read state and the reactive stack's concurrency model.
  *
  * Besides the bytes, the capture records HOW FAR the application consumed the body ([readState]): the
  * tee mirrors consumption, not transmission, so a body the application never subscribed to - or
@@ -38,10 +39,10 @@ import kotlin.concurrent.withLock
  * snapshot.
  */
 internal class BoundedBodyCapture(
-    private val maxBytes: Int,
+    maxBytes: Int,
 ) : MeasuredBody {
     private val lock = ReentrantLock()
-    private val buffer = ByteArrayOutputStream()
+    private val buffer = BoundedByteBuffer(maxBytes)
     private var total: Long = 0
     private var frozen = false
     private var state = BodyReadState.UNREAD
@@ -74,14 +75,28 @@ internal class BoundedBodyCapture(
             }
         }
 
+    /**
+     * The body length the client or the application declared, as the buffer's SIZING hint
+     * ([BoundedByteBuffer.expect]): ignored once a byte is buffered and once frozen. A wrong hint costs
+     * allocation, never bytes - the cap and the count are unaffected.
+     */
+    fun expectBytes(length: Long) =
+        lock.withLock {
+            if (!frozen) {
+                buffer.expect(length)
+            }
+        }
+
+    /** The declared length the buffer is sized by, [UNKNOWN_LENGTH] without one - exposed for the tests. */
+    internal val expectedBytes: Long
+        get() = lock.withLock { buffer.expectedBytes }
+
     fun capture(b: Int) {
         lock.withLock {
             if (frozen) {
                 return
             }
-            if (buffer.size() < maxBytes) {
-                buffer.write(b)
-            }
+            buffer.write(b)
             total += 1
         }
     }
@@ -95,10 +110,7 @@ internal class BoundedBodyCapture(
             if (frozen) {
                 return
             }
-            val room = maxBytes - buffer.size()
-            if (room > 0) {
-                buffer.write(bytes, offset, minOf(length, room))
-            }
+            buffer.write(bytes, offset, length)
             total += length
         }
     }
@@ -108,7 +120,7 @@ internal class BoundedBodyCapture(
      * or once frozen. The reactive tee sizes its bounded prefix copy from this - the reason the tee's
      * transient allocation is bounded by the configured cap instead of the buffer size.
      */
-    fun remainingCapacity(): Int = lock.withLock { if (frozen) 0 else maxBytes - buffer.size() }
+    fun remainingCapacity(): Int = lock.withLock { if (frozen) 0 else buffer.remaining }
 
     /**
      * Counts [length] bytes that flowed WITHOUT buffering them: the reactive tee's path for everything
@@ -128,7 +140,7 @@ internal class BoundedBodyCapture(
     fun clear() =
         lock.withLock {
             if (!frozen) {
-                buffer.reset()
+                buffer.truncate(0)
                 total = 0
             }
         }
@@ -150,13 +162,11 @@ internal class BoundedBodyCapture(
      */
     fun loggedValue(charset: Charset): String? =
         lock.withLock {
-            if (total == 0L) {
-                return null
-            }
-            if (total > buffer.size()) {
-                "${decodeTruncated(buffer.toByteArray(), charset)}... [truncated, $total bytes total]"
-            } else {
-                buffer.toString(charset)
-            }
+            buffer.render(charset, total)
         }
+
+    companion object {
+        /** No trustworthy declared length: the buffer is sized by what flows. */
+        const val UNKNOWN_LENGTH = BoundedByteBuffer.UNKNOWN_LENGTH
+    }
 }
