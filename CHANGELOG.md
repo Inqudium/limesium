@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Reactive twin: the body tee counts a chunk in full before it copies the prefix the capture keeps.
+  A `DataBuffer` whose non-advancing read throws now costs the logged text of that chunk, no longer
+  its bytes in the size sample as well (the exception stays the body's error signal, as before).
+- Both twins, the shared body buffer (`BoundedByteBuffer`, ported from legatium): the truncated
+  rendering no longer allocates a `CharBuffer` of `size * maxCharsPerByte` chars - it decodes once
+  through a 1024-char scratch into a builder sized by the prefix plus the note, and UTF-8, the
+  charset of nearly every logged body, skips the decoder loop through a bounded tail check and the
+  JDK's own `String` decoding; rendering a full cap of N ASCII bytes drops from about 4N to 3N of
+  transient memory and the truncated ASCII rendering to the time of the naive concatenation. Without
+  a declared length the first array has 256 bytes instead of the first write's length (a byte-wise
+  reader no longer allocates and copies through 1, 2, 4, ... 128), and a declared length allocates
+  at most 64 KiB in one go - a body declared huge cannot reserve a large cap with its first byte
+  (caps up to 64 KiB are sized exactly by their declaration as before). Hardening in the same
+  change: the ranged write checks its source range before clipping and before allocating, the
+  doubling runs in `Long` so growth past 1 GiB keeps doubling, and a rendering total below the
+  buffered size is rejected instead of rendered as a complete body. Evidence: legatium's
+  `docs/assessment/BENCH_REPORT-2026-09-17T17-07-53.md` and `PERF_ASSESSMENT-2026-09-17T17-49-11.md`.
+
 - Reproducible builds: the root POM sets `project.build.outputTimestamp`
   (bumped in every release commit), the jar and sources manifests no longer
   carry `Created-By`/`Build-Jdk-Spec` (the build-JDK line was the one thing

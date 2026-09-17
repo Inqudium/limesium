@@ -78,7 +78,8 @@ class CapturingDecoratorsSizingHintTest {
         // When/Then
         capture.expectBytes(5)
         assertThat(capture.expectedBytes).isEqualTo(5L)
-        capture.capture("hello".toByteArray(), 0, 5)
+        capture.count(5)
+        capture.store("hello".toByteArray(), 0, 5)
         capture.expectBytes(9)
         assertThat(capture.expectedBytes).isEqualTo(5L)
         capture.freeze()

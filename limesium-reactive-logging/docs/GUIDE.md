@@ -280,12 +280,14 @@ the tee is a **map-tee** in two decorators:
   through untouched so the logical body is counted once.
 - `CapturingResponseDecorator.writeWith` / `writeAndFlushWith` do the same on the write side. A `Mono`
   body stays a `Mono` so Spring's single-buffer fast path in `AbstractServerHttpResponse` is preserved.
-- `tee` reads at most `capture.remainingCapacity()` bytes out of each `DataBuffer` with a
-  **non-advancing** read (the read position is untouched), counts the full length, and returns the
-  original buffer. Ownership, pooling and release are exactly those of an undecorated exchange.
+- `tee` counts the full length of each `DataBuffer` **first**, then reads at most
+  `capture.remainingCapacity()` bytes out of it with a **non-advancing** read (the read position is
+  untouched), and returns the original buffer. Counting cannot throw, the copy can (an exotic
+  `DataBuffer`) — in that order a copy that throws costs the logged text of that chunk, never the size
+  sample. Ownership, pooling and release are exactly those of an undecorated exchange.
 
-`BoundedBodyCapture` is the target: a `ByteArrayOutputStream` of at most `max-body-bytes`, a total byte
-counter, and a `frozen` flag — all under one uncontended `ReentrantLock` (no `synchronized`, per the
+`BoundedBodyCapture` is the target: the shared byte-bounded buffer of at most `max-body-bytes`
+(`BoundedByteBuffer` in `limesium-common`), a total byte counter, and a `frozen` flag — all under one uncontended `ReentrantLock` (no `synchronized`, per the
 repository's virtual-thread rule). With limit `0` it runs in **count-only** mode for the body-size
 meters: nothing is buffered, every byte is counted, `tee` copies nothing. Why it must be freezable is
 [§6.4](#64-late-body-chunks-after-cancellation).
