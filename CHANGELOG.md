@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Reactive twin: the body tee counts a chunk in full before it copies the prefix the capture keeps.
+  A `DataBuffer` whose non-advancing read throws now costs the logged text of that chunk, no longer
+  its bytes in the size sample as well (the exception stays the body's error signal, as before).
 - Both twins, the shared body buffer (`BoundedByteBuffer`, ported from legatium): the truncated
   rendering no longer allocates a `CharBuffer` of `size * maxCharsPerByte` chars - it decodes once
   through a 1024-char scratch into a builder sized by the prefix plus the note, and UTF-8, the

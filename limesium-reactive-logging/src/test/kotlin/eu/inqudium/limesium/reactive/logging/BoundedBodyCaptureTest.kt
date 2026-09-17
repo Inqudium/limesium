@@ -20,6 +20,16 @@ import java.nio.charset.StandardCharsets
 class BoundedBodyCaptureTest {
     private fun bytes(text: String) = text.toByteArray(StandardCharsets.UTF_8)
 
+    /** What the tee does with a chunk, in the tee's order: counted in full, then the prefix stored. */
+    private fun BoundedBodyCapture.capture(
+        bytes: ByteArray,
+        offset: Int,
+        length: Int,
+    ) {
+        count(length)
+        store(bytes, offset, length)
+    }
+
     @Nested
     inner class `Freeze semantics` {
         @Test
@@ -36,7 +46,6 @@ class BoundedBodyCaptureTest {
 
             // When: late tee calls arrive
             capture.capture(bytes("late"), 0, 4)
-            capture.capture('!'.code)
             capture.count(100)
             capture.clear()
 
