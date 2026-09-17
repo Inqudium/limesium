@@ -53,7 +53,7 @@ see.
 | `Traceparent` (with unit test, conformance fixture, Jazzer fuzz target and seed inputs)                         | 2026-08-30 | original extraction                                                          |
 | `NanoTimeSource`, `CorrelationIdGenerator`, `reportQuietly`                                                    | 2026-08-30 | original extraction                                                          |
 | `Mdc.kt` (`MdcKeys`/`TraceMdcKeys`/`MdcScope`) as the superset both twins use (`ownsTraceKeys` default-off in the reactive twin) | 2026-08-30 | original extraction                                            |
-| `BodyReadState` (the enum and `decodeTruncated`)                                                               | 2026-08-30 | `CODE_ANALYSIS-2026-08-30T21-52-43.md`, finding 6                            |
+| `BodyReadState` (the enum; `decodeTruncated` moved beneath `BoundedByteBuffer` on 2026-09-17)                  | 2026-08-30 | `CODE_ANALYSIS-2026-08-30T21-52-43.md`, finding 6                            |
 | `HeaderLogProperties` (with unit test and `HeaderMaskingFuzzTest`)                                             | 2026-08-31 | `ARCHITECTURE_REVIEW-2026-08-31T10-51-58.md`, finding 1                      |
 | `HeaderValueMasker` (`fun interface`, fingerprint as `DEFAULT`)                                                | 2026-09-03 | ported from the outbound sibling legatium; see ADR-0005                      |
 | `BodyLogMode`                                                                                                  | 2026-09-03 | arrived with ADR-0006                                                        |
@@ -237,7 +237,8 @@ Dokka runs, so the dependency resolves.
   fuzz target - a cap-bounded array, allocated on the first buffered
   byte and sized once by the declared `Content-Length` the wrappers and
   decorators hand it, cut back for the servlet twin's response reset.
-  `decodeTruncated` takes a length and guards a decoder whose declared
-  maximum undershoots. Each twin keeps its count, read state and
+  `decodeTruncated` takes a length, guards a decoder whose declared
+  maximum undershoots, and is private to the buffer's file - its only
+  caller. Each twin keeps its count, read state and
   locking; the truncation-boundary tests stay in the twins as tests of
   the twin API.

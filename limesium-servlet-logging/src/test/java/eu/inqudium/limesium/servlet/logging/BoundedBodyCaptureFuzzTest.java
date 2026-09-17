@@ -8,7 +8,7 @@ import java.nio.charset.StandardCharsets;
 /**
  * Fuzzes the bounded tee target both twins rest on (the servlet variant; the
  * reactive one is its field-identical copy): arbitrary interleavings of
- * single-byte and array captures, resets, and read-state marks, decoded with
+ * single-byte and array captures, clears, read-state marks and mark/reset rewinds, decoded with
  * different charsets.
  *
  * Invariants under test: no capture sequence may throw; the total byte count
@@ -38,11 +38,12 @@ class BoundedBodyCaptureFuzzTest {
         int maxBytes = data.consumeInt(0, 1 << 16);
         BoundedBodyCapture capture = new BoundedBodyCapture(maxBytes);
         long expectedTotal = 0;
+        long markedTotal = 0;
 
-        // When: a fuzzed sequence of captures, marks and clears runs against it
+        // When: a fuzzed sequence of captures, marks, clears and rewinds runs against it
         int ops = data.consumeInt(0, 64);
         for (int i = 0; i < ops && data.remainingBytes() > 0; i++) {
-            switch (data.consumeInt(0, 4)) {
+            switch (data.consumeInt(0, 6)) {
                 case 0 -> {
                     capture.capture(data.consumeByte());
                     expectedTotal += 1;
@@ -60,6 +61,16 @@ class BoundedBodyCaptureFuzzTest {
                 case 4 -> {
                     capture.clear();
                     expectedTotal = 0;
+                    // A clear re-anchors the mark at the start.
+                    markedTotal = 0;
+                }
+                case 5 -> {
+                    capture.mark();
+                    markedTotal = expectedTotal;
+                }
+                case 6 -> {
+                    capture.reset();
+                    expectedTotal = markedTotal;
                 }
             }
         }
