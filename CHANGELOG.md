@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Both twins: the body buffer beneath the two `BoundedBodyCapture`s is one class in
+  `limesium-common`, `BoundedByteBuffer` (ADR-0003, ported from the outbound sibling legatium) - a
+  cap-bounded bare array instead of a `ByteArrayOutputStream` per twin (which grew from 32 bytes by
+  doubling, synchronized under a guard that already existed, and was copied once more for the
+  truncated rendering), allocated on the first buffered byte, sized once by the declared
+  `Content-Length` (the servlet request wrapper hands over `getContentLengthLong` at stream
+  selection, the response wrapper observes `setContentLength`/`setContentLengthLong`/`setHeader`/
+  `addHeader`; the reactive decorators hand over the request's at the claiming subscription and the
+  response's at write time), doubled from there up to the cap, cut back for the servlet twin's
+  response reset. The truncated rendering decodes the prefix and writes the truncation note into
+  the same buffer, materialized once instead of three copies of the prefix.
 - Reactive twin: the body tee counts a chunk in full before it copies the prefix the capture keeps.
   A `DataBuffer` whose non-advancing read throws now costs the logged text of that chunk, no longer
   its bytes in the size sample as well (the exception stays the body's error signal, as before).
@@ -38,6 +49,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for both twins. From the next release on, the jars attached to the GitHub
   release (SLSA-attested) and the jars deployed to Maven Central are therefore
   the same bytes; README ("Reproducible builds") and SECURITY.md describe it.
+
+### Fixed
+
+- Servlet twin: the request tee forwards `markSupported`, `mark` and `reset` to the container's
+  stream instead of `InputStream`'s defaults (false, no-op, `IOException`), so a parser probing
+  `markSupported()` sees the same answer with or without the logging, and a filter ahead that hands
+  down a rewindable stream keeps it rewindable. A reset rewinds the capture with the stream (count,
+  buffered length and read state), a refused reset throws through and leaves the capture untouched;
+  `skip` and the bulk reads keep their defaults through `read`, so a container's skip cannot move
+  bytes past the tee.
 
 ## [3.0.0] - 2026-09-05
 
