@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.1] - 2026-09-17
+
 ### Changed
 
 - Both twins: the body buffer beneath the two `BoundedBodyCapture`s is one class in
@@ -37,7 +39,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   doubling runs in `Long` so growth past 1 GiB keeps doubling, and a rendering total below the
   buffered size is rejected instead of rendered as a complete body. Evidence: legatium's
   `docs/assessment/BENCH_REPORT-2026-09-17T17-07-53.md` and `PERF_ASSESSMENT-2026-09-17T17-49-11.md`.
-
 - Reproducible builds: the root POM sets `project.build.outputTimestamp`
   (bumped in every release commit), the jar and sources manifests no longer
   carry `Created-By`/`Build-Jdk-Spec` (the build-JDK line was the one thing
@@ -391,7 +392,8 @@ default id format (ADR-0004). Each break was decided in a numbered ADR under
 - `limesium-reactive-logging` — auto-configured WebFlux web filter (Reactor and
   coroutines), field- and configuration-identical twin of the servlet module.
 
-[Unreleased]: https://github.com/Inqudium/limesium/compare/3.0.0...HEAD
+[Unreleased]: https://github.com/Inqudium/limesium/compare/3.0.1...HEAD
+[3.0.1]: https://github.com/Inqudium/limesium/releases/tag/3.0.1
 [3.0.0]: https://github.com/Inqudium/limesium/releases/tag/3.0.0
 [2.0.0]: https://github.com/Inqudium/limesium/releases/tag/2.0.0
 [1.1.0]: https://github.com/Inqudium/limesium/releases/tag/1.1.0
