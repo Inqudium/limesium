@@ -77,6 +77,15 @@ internal class CapturingRequestWrapper(
         boundBodyCharset = charsetOrDefault(characterEncoding)
         val real = super.getInputStream()
         capture.markStarted()
+        // The declared length sizes the capture's buffer; -1 (none) and a container's answer to a
+        // malformed value both mean unknown to the buffer.
+        capture.expectBytes(
+            try {
+                contentLengthLong
+            } catch (e: NumberFormatException) {
+                BoundedBodyCapture.UNKNOWN_LENGTH
+            },
+        )
         return object : ServletInputStream() {
             override fun read(): Int {
                 val b = real.read()

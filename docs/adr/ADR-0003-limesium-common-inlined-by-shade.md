@@ -60,6 +60,7 @@ see.
 | `EndpointLogField` with its builder extensions, `EndpointLoggingMetrics`, `ExchangeLine` over `LoggedExchange`/`MeasuredBody` | 2026-09-05 | `ARCHITECTURE_REVIEW-2026-09-05T15-28-48.md`, findings 1 and 3 |
 | `MaskingKey` (the secret-bearing value the `masking-key` property binds to)                                    | 2026-09-05 | `CODE_STYLE-2026-09-05T17-08-39.md`, finding 5                               |
 | test-jar: `AwaitingAppender`, `installMdcAdapter`, `CapturedLogger` with `ILoggingEvent.keyValues()`           | 2026-09-05 | test-helper exception revoked; `CODE_STYLE-2026-09-05T17-08-39.md`, pattern S2 |
+| `BoundedByteBuffer` (the byte-bounded buffer beneath both `BoundedBodyCapture`s, with unit test and fuzz target) | 2026-09-17 | ported from the outbound sibling legatium                                    |
 
 Later residents that arrive with ordinary changes follow the same
 criterion; the module's source tree is the authoritative list. Moved
@@ -81,7 +82,9 @@ Everything whose twin copies genuinely differ:
 - the properties files, which keep only what actually differs (the
   reactive-only `variant` key and stack-specific wording);
 - `BoundedBodyCapture` and the wrappers: two different concurrency
-  designs;
+  designs - the shells; the bounded buffer beneath the captures (the
+  bytes, the cap, the truncated rendering) is one `BoundedByteBuffer`
+  in `limesium-common` since 2026-09-17;
 - the ENGINE-specific test infrastructure (`ServerContract`,
   `EndpointAccessorRegistryGuard`, `UndertowTestServer`).
 
@@ -224,3 +227,17 @@ Dokka runs, so the dependency resolves.
   copied into 24 test classes). It also closed the twins' visibility
   gap: the servlet tee classes (`BoundedBodyCapture`, both wrappers)
   are `internal` like their reactive counterparts (finding 1).
+- **2026-09-17:** the two `BoundedBodyCapture`s stay duplicated as
+  concurrency shells, but the buffer beneath them was the same
+  `ByteArrayOutputStream` twice - growing from 32 bytes by doubling,
+  synchronized under a lock or a volatile handoff that already guards
+  it, and copied once more for the truncated rendering. Ported from
+  legatium (which needed an array a `reset` can cut back):
+  `BoundedByteBuffer` moved to `limesium-common` with its unit test and
+  fuzz target - a cap-bounded array, allocated on the first buffered
+  byte and sized once by the declared `Content-Length` the wrappers and
+  decorators hand it, cut back for the servlet twin's response reset.
+  `decodeTruncated` takes a length and guards a decoder whose declared
+  maximum undershoots. Each twin keeps its count, read state and
+  locking; the truncation-boundary tests stay in the twins as tests of
+  the twin API.

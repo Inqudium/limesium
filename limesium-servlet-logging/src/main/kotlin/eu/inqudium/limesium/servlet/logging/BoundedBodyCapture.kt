@@ -1,9 +1,8 @@
 package eu.inqudium.limesium.servlet.logging
 
 import eu.inqudium.limesium.common.BodyReadState
+import eu.inqudium.limesium.common.BoundedByteBuffer
 import eu.inqudium.limesium.common.MeasuredBody
-import eu.inqudium.limesium.common.decodeTruncated
-import java.io.ByteArrayOutputStream
 import java.nio.charset.Charset
 
 /**
@@ -22,7 +21,9 @@ import java.nio.charset.Charset
  * synchronization instead proved unsafe).
  *
  * With `maxBytes = 0` the capture runs in COUNT-ONLY mode: nothing is buffered, [totalBytes] still
- * counts every byte - the mode the body-size metrics use when body logging is off.
+ * counts every byte - the mode the body-size metrics use when body logging is off. The bytes live in the
+ * shared [BoundedByteBuffer], sized once by the length the wrappers learned from `Content-Length`
+ * ([expectBytes]); this class adds the count, the read state and the servlet stack's concurrency model.
  *
  * Besides the bytes, the capture records HOW FAR the application consumed the body ([readState]): the
  * tee mirrors consumption, not transmission, so a body the application never read - or stopped reading
@@ -30,9 +31,9 @@ import java.nio.charset.Charset
  * the end of the stream; the emitter turns the state into the `endpoint.request.body.read` counter.
  */
 internal class BoundedBodyCapture(
-    private val maxBytes: Int,
+    maxBytes: Int,
 ) : MeasuredBody {
-    private val buffer = ByteArrayOutputStream()
+    private val buffer = BoundedByteBuffer(maxBytes)
 
     /**
      * How far the application consumed the body - see [BodyReadState]. Volatile for the same
@@ -52,10 +53,19 @@ internal class BoundedBodyCapture(
     override var totalBytes: Long = 0
         private set
 
+    /**
+     * The body length the client or the application declared, as the buffer's SIZING hint
+     * ([BoundedByteBuffer.expect]): ignored once a byte is buffered. A wrong hint costs allocation, never
+     * bytes - the cap and the count are unaffected.
+     */
+    fun expectBytes(length: Long) = buffer.expect(length)
+
+    /** The declared length the buffer is sized by, [UNKNOWN_LENGTH] without one - exposed for the tests. */
+    internal val expectedBytes: Long
+        get() = buffer.expectedBytes
+
     fun capture(b: Int) {
-        if (buffer.size() < maxBytes) {
-            buffer.write(b)
-        }
+        buffer.write(b)
         totalBytes += 1
     }
 
@@ -64,10 +74,7 @@ internal class BoundedBodyCapture(
         offset: Int,
         length: Int,
     ) {
-        val room = maxBytes - buffer.size()
-        if (room > 0) {
-            buffer.write(bytes, offset, minOf(length, room))
-        }
+        buffer.write(bytes, offset, length)
         totalBytes += length
     }
 
@@ -87,26 +94,22 @@ internal class BoundedBodyCapture(
      * Discards everything captured so far. Called by [CapturingResponseWrapper] when the application
      * resets an UNCOMMITTED response (`reset()`/`resetBuffer()`): nothing written before the reset ever
      * left the container's buffer, so dropping it keeps the logged body and the size metric aligned with
-     * what actually went out through the write path.
+     * what actually went out through the write path. [totalBytes] is written LAST, like every mutation.
      */
     fun clear() {
-        buffer.reset()
+        buffer.truncate(0)
         totalBytes = 0
     }
 
     /**
      * The captured bytes decoded with [charset], suffixed with a truncation note when the body was larger
      * than the capture limit. Returns `null` for a body of zero bytes, so the log emission can omit the
-     * key entirely instead of logging an empty string.
+     * key entirely instead of logging an empty string. Reads [totalBytes] FIRST (the handoff model).
      */
-    fun loggedValue(charset: Charset): String? {
-        if (totalBytes == 0L) {
-            return null
-        }
-        return if (totalBytes > buffer.size()) {
-            "${decodeTruncated(buffer.toByteArray(), charset)}... [truncated, $totalBytes bytes total]"
-        } else {
-            buffer.toString(charset)
-        }
+    fun loggedValue(charset: Charset): String? = buffer.render(charset, totalBytes)
+
+    companion object {
+        /** No trustworthy declared length: the buffer is sized by what flows. */
+        const val UNKNOWN_LENGTH = BoundedByteBuffer.UNKNOWN_LENGTH
     }
 }

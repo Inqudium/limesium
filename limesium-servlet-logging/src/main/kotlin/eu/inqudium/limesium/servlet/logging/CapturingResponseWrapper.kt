@@ -106,6 +106,47 @@ internal class CapturingResponseWrapper(
         teeWriter = null
     }
 
+    // The length the application declares sizes the capture's buffer. Observed through the setters
+    // rather than read back from the response: a container keeps Content-Length as a field, not as a
+    // header (Tomcat answers getHeader("Content-Length") with null after setContentLength), and Spring's
+    // ServletServerHttpResponse declares it through setContentLengthLong right before the first write.
+    // A value Long.parseLong refuses is unknown to the buffer, never an exception on the write path.
+
+    override fun setContentLength(len: Int) {
+        super.setContentLength(len)
+        capture.expectBytes(len.toLong())
+    }
+
+    override fun setContentLengthLong(len: Long) {
+        super.setContentLengthLong(len)
+        capture.expectBytes(len)
+    }
+
+    override fun setHeader(
+        name: String,
+        value: String?,
+    ) {
+        super.setHeader(name, value)
+        expectIfContentLength(name, value)
+    }
+
+    override fun addHeader(
+        name: String,
+        value: String?,
+    ) {
+        super.addHeader(name, value)
+        expectIfContentLength(name, value)
+    }
+
+    private fun expectIfContentLength(
+        name: String,
+        value: String?,
+    ) {
+        if (name.equals("Content-Length", ignoreCase = true)) {
+            capture.expectBytes(value?.trim()?.toLongOrNull() ?: BoundedBodyCapture.UNKNOWN_LENGTH)
+        }
+    }
+
     override fun resetBuffer() {
         super.resetBuffer()
         capture.clear()

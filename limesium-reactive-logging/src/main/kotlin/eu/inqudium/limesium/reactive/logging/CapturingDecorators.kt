@@ -2,6 +2,7 @@ package eu.inqudium.limesium.reactive.logging
 
 import org.reactivestreams.Publisher
 import org.springframework.core.io.buffer.DataBuffer
+import org.springframework.http.HttpHeaders
 import org.springframework.http.server.reactive.ServerHttpRequest
 import org.springframework.http.server.reactive.ServerHttpRequestDecorator
 import org.springframework.http.server.reactive.ServerHttpResponse
@@ -38,6 +39,19 @@ private fun tee(
 }
 
 /**
+ * The declared body length as the capture's sizing hint ([BoundedBodyCapture.expectBytes]): the
+ * request's at the claiming subscription, the response's at write time - `EncoderHttpMessageWriter`
+ * sets it for a single-buffer body right before `writeWith`. A value Spring cannot parse (peer- or
+ * application-controlled) is unknown to the buffer, never an exception on the body path.
+ */
+private fun HttpHeaders.declaredLengthOrUnknown(): Long =
+    try {
+        contentLength
+    } catch (e: NumberFormatException) {
+        BoundedBodyCapture.UNKNOWN_LENGTH
+    }
+
+/**
  * Tees the request body into [capture] as the APPLICATION subscribes and reads it - an unconsumed body
  * flows nowhere and is logged as absent, exactly like the servlet twin's read-side tee. The tee is
  * SUBSCRIPTION-AWARE: only the FIRST subscription to the body feeds the capture; a later subscription
@@ -61,6 +75,7 @@ internal class CapturingRequestDecorator(
             val source = super.getBody()
             if (teeClaimed.compareAndSet(false, true)) {
                 capture.markStarted()
+                capture.expectBytes(headers.declaredLengthOrUnknown())
                 source.map { tee(capture, it) }.doOnComplete { capture.markCompleted() }
             } else {
                 source
@@ -101,14 +116,18 @@ internal class CapturingResponseDecorator(
      * `ChannelSendOperator` coordination it needs for a `Flux`; wrapping every body in a `Flux` would
      * defeat that branch whenever capture is enabled.
      */
-    override fun writeWith(body: Publisher<out DataBuffer>): Mono<Void> =
-        when (body) {
+    override fun writeWith(body: Publisher<out DataBuffer>): Mono<Void> {
+        capture.expectBytes(headers.declaredLengthOrUnknown())
+        return when (body) {
             is Mono -> super.writeWith(body.map { tee(capture, it) })
             else -> super.writeWith(Flux.from(body).map { tee(capture, it) })
         }
+    }
 
-    override fun writeAndFlushWith(body: Publisher<out Publisher<out DataBuffer>>): Mono<Void> =
-        super.writeAndFlushWith(
+    override fun writeAndFlushWith(body: Publisher<out Publisher<out DataBuffer>>): Mono<Void> {
+        capture.expectBytes(headers.declaredLengthOrUnknown())
+        return super.writeAndFlushWith(
             Flux.from(body).map { inner -> Flux.from(inner).map { tee(capture, it) } },
         )
+    }
 }
