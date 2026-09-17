@@ -27,6 +27,14 @@ import java.nio.charset.StandardCharsets
  * contract itself, because the tee satisfies both APIs from ONE delegate stream and the delegate can
  * therefore no longer see which public API the application chose.
  *
+ * The tee stream is TRANSPARENT to the application: it forwards the delegate's `mark`/`reset`
+ * capability unchanged - the container streams of Tomcat, Jetty and Undertow have none, but a filter
+ * ahead of this one may hand down a rewindable stream (a caching wrapper over a byte array), and a
+ * parser that probes `markSupported()` must see the same answer with or without the logging. A reset
+ * rewinds the capture with the stream ([BoundedBodyCapture.reset]), so replayed bytes are neither
+ * counted nor logged twice. `skip` and the bulk reads keep their `InputStream` defaults, which go
+ * through `read`: a container's own skip would move bytes past the tee uncounted.
+ *
  * ASYNC boundary: the tee lives on THIS wrapper. Spring MVC's async support starts async with
  * `startAsync(currentRequest, currentResponse)` and keeps the wrappers; the Servlet-specified
  * zero-argument `startAsync()` initializes its context with the ORIGINAL request/response, so bytes a
@@ -123,8 +131,23 @@ internal class CapturingRequestWrapper(
 
             // Delegated, not inherited: InputStream's default answers a constant 0, which would make a
             // parser probing the stream behave differently the moment body capture is switched on -
-            // the one thing a passive tee must never do.
+            // the one thing a passive tee must never do. The same for mark/reset (defaults: false,
+            // no-op, IOException), see the class KDoc.
             override fun available(): Int = real.available()
+
+            override fun markSupported(): Boolean = real.markSupported()
+
+            override fun mark(readlimit: Int) {
+                real.mark(readlimit)
+                capture.mark()
+            }
+
+            // The capture rewinds only when the stream did: a reset the delegate refuses (no mark
+            // support, the read limit passed) throws through to the caller and leaves it untouched.
+            override fun reset() {
+                real.reset()
+                capture.reset()
+            }
 
             override fun setReadListener(listener: ReadListener?) = real.setReadListener(listener)
 

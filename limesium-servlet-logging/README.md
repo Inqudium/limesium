@@ -47,6 +47,7 @@ code it inlines:
 | Chain-wide MDC | thread-local for the **whole chain** — `endpoint_request_id`, `endpoint_method`, `endpoint_route`, previous values restored — plus the Spring MVC async worker thread | Reactor context under the same keys, opt-in `ThreadLocalAccessor`s with `context-propagation`, or `MDCContext` in the coroutine variant |
 | Body tee | stream/reader and stream/writer wrappers; `reset()`, `resetBuffer()` and `sendError` clear the capture, container error rendering bypasses it | `DataBuffer` map-tee; no reset analog, emitted buffers are on their way to the client |
 | Body capture concurrency | single writer, late reader; a volatile total as the happens-before edge | lock-guarded, frozen at emission |
+| Body stream contract | transparent: the request tee forwards the container stream's `mark`/`reset` capability, and a reset rewinds the capture with the stream, so replayed bytes count once | n/a — the body is a `Flux<DataBuffer>`, there is no stream to rewind |
 | Variant selection | one filter | `endpoint-logging.variant`: Reactor or coroutine |
 | Handler template attribute | Spring MVC's `HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE`, pinned by `HandlerMappingAttributeTest` | WebFlux's |
 

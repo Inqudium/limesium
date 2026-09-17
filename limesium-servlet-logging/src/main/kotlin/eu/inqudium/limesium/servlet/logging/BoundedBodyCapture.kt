@@ -29,6 +29,10 @@ import java.nio.charset.Charset
  * tee mirrors consumption, not transmission, so a body the application never read - or stopped reading
  * half-way - is invisible in the byte count alone. The request tee marks the start of consumption and
  * the end of the stream; the emitter turns the state into the `endpoint.request.body.read` counter.
+ *
+ * The request capture also mirrors the application's READ POSITION, so it follows a `mark`/`reset` of
+ * the tee stream: [mark] remembers the count, the buffered length and the read state, [reset] restores
+ * them, and the bytes the application then reads again are neither counted nor buffered twice.
  */
 internal class BoundedBodyCapture(
     maxBytes: Int,
@@ -78,11 +82,37 @@ internal class BoundedBodyCapture(
         totalBytes += length
     }
 
+    // The read position `reset` rewinds to - the start of the stream until `mark` moves it.
+    private var markedTotal: Long = 0
+    private var markedBuffered = 0
+    private var markedState: BodyReadState = BodyReadState.UNREAD
+
     /** The application selected the body stream or reader: from now on the body counts as (at least) partially read. */
     fun markStarted() {
         if (readState == BodyReadState.UNREAD) {
             readState = BodyReadState.PARTIAL
         }
+        // The default mark is the start of the stream in the state the selection left behind: a reset
+        // without a mark rewinds a mark-capable stream to its beginning.
+        markedState = readState
+    }
+
+    /** Remembers the read position for [reset] - the tee's `mark`, taken when the container stream took its own. */
+    fun mark() {
+        markedTotal = totalBytes
+        markedBuffered = buffer.size
+        markedState = readState
+    }
+
+    /**
+     * Rewinds the count, the buffer and the read state to the last [mark] (or to the start of the
+     * stream): the container stream rewound, so the bytes the application reads next are a REPLAY and
+     * must not count twice. [totalBytes] is written LAST, like every mutation.
+     */
+    fun reset() {
+        buffer.truncate(markedBuffered)
+        readState = markedState
+        totalBytes = markedTotal
     }
 
     /** The application observed the end of the stream: the body was consumed completely. */
@@ -94,10 +124,14 @@ internal class BoundedBodyCapture(
      * Discards everything captured so far. Called by [CapturingResponseWrapper] when the application
      * resets an UNCOMMITTED response (`reset()`/`resetBuffer()`): nothing written before the reset ever
      * left the container's buffer, so dropping it keeps the logged body and the size metric aligned with
-     * what actually went out through the write path. [totalBytes] is written LAST, like every mutation.
+     * what actually went out through the write path. A mark taken before the clear pointed into the
+     * discarded bytes and is re-anchored at the start. [totalBytes] is written LAST, like every
+     * mutation.
      */
     fun clear() {
         buffer.truncate(0)
+        markedTotal = 0
+        markedBuffered = 0
         totalBytes = 0
     }
 
