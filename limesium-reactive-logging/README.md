@@ -58,7 +58,8 @@ behaves exactly as documented once in the [common guide](../docs/GUIDE.md).
 The **stack-neutral** part of the twins' shared layer - the `traceparent` parser with its fuzz target,
 the injectable time/id/masker interfaces, the header selection and masking, the fail-open helpers, the
 MDC keys and scope, and since the architecture review of 2026-09-05 also the field enum, the meters
-(parameterized with the stack's own outcome) and the core of the exchange line (`ExchangeLine`) - lives
+(parameterized with the stack's own outcome), the core of the exchange line (`ExchangeLine`) and, since
+2026-09-18, the `endpoint-logging.*` binding itself (`RequestLoggingProperties`) - lives
 in the internal `limesium-common` module and is **inlined into this jar** by the Maven Shade plugin
 ([ADR-0003](../docs/adr/ADR-0003-limesium-common-inlined-by-shade.md)): consumers add exactly one
 artifact, the published POM carries no extra dependency, and `limesium-common` itself is never
@@ -165,7 +166,7 @@ registration, and it is the same in both variants.
 
 ```kotlin
 val filter = RequestLoggingWebFilter(
-    RequestLoggingProperties(),            // every default; or a copy(...) with the fields to change
+    RequestLoggingProperties(),            // eu.inqudium.limesium.common - every default; or a copy(...) with the fields to change
     NanoTimeSource.SYSTEM,
     CorrelationIdGenerator.DEFAULT,
     SimpleMeterRegistry(),                 // or the registry the surrounding code owns

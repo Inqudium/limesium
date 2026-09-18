@@ -180,7 +180,7 @@ reactive module's build binds them:
 
 | Contract | Shipped in | Pinned by |
 |---|---|---|
-| Configuration keys and defaults | [`/docs/endpoint-logging-reference.yml`](endpoint-logging-reference.yml) — the ONE place the property semantics are documented; the reactive module's [`docs/endpoint-logging-reference.yml`](https://github.com/Inqudium/limesium/blob/main/limesium-reactive-logging/docs/endpoint-logging-reference.yml) carries exactly its one `variant` key | `EndpointLoggingReferenceConfigTest` in both modules: binds the shared YAML against the module's `RequestLoggingProperties` (the reactive one also pins that its own file documents nothing but `variant`) |
+| Configuration keys and defaults | [`/docs/endpoint-logging-reference.yml`](endpoint-logging-reference.yml) — the ONE place the property semantics are documented; the reactive module's [`docs/endpoint-logging-reference.yml`](https://github.com/Inqudium/limesium/blob/main/limesium-reactive-logging/docs/endpoint-logging-reference.yml) carries exactly its one `variant` key | `EndpointLoggingReferenceConfigTest` in `limesium-common`: binds the shared YAML against the shared `RequestLoggingProperties`; the reactive module's test of the same name binds its own file against `RequestLoggingVariantProperties` and pins that it documents nothing but `variant` |
 | Field family and index mapping | [`/docs/elk/…component-template.json`](elk/README.md) | `EndpointLogFieldTest` in `limesium-common`: locks the one `EndpointLogField` enum both twins inline against the template |
 | Message text and meter names | the servlet module's emitter and metrics | `TwinContractTest` in both modules |
 
@@ -203,7 +203,7 @@ name and contract whose code genuinely differs:
 
 | Component | Responsibility | Shared how |
 |---|---|---|
-| `RequestLoggingProperties` | The `endpoint-logging.*` binding, validated in `init` | per-stack twin; the reactive one adds `variant` |
+| `RequestLoggingProperties` | The `endpoint-logging.*` binding, validated in `init` ([§4.6](#46-validation-at-startup)); host-visible, a hand-wired filter constructs it from `eu.inqudium.limesium.common` | byte-identical (`limesium-common`) since 2026-09-18; the reactive-only `variant` key binds beside it as the reactive module's own `RequestLoggingVariantProperties` |
 | `HeaderLogProperties` | One header section — `includes` / `excludes` / `masked` / `unmasked` — with the selection and the masking fingerprint ([§4.2](#42-header-sections)) | byte-identical (`limesium-common`) |
 | `ExchangeLogEmitter` | Resolves level, outcome and cause for the stack and emits the completion event; the arrival line, the message texts, the header rendering and the body measurements are the shared `ExchangeLine` | per-stack twin around a byte-identical core (`ExchangeLine`, `limesium-common`) |
 | `EndpointLogField` | The wire names and the exact JVM type of each structured field; a wrongly typed value drops the field with a warning, never the event | byte-identical (`limesium-common`), locked against the one template |
@@ -410,8 +410,9 @@ Rules that hold for a hand-wired filter on either stack:
   `RequestLoggingProperties()` (or a `copy(...)` with the fields to change), `NanoTimeSource.SYSTEM`,
   `CorrelationIdGenerator.DEFAULT`, a `SimpleMeterRegistry()` or the registry the surrounding code owns.
 - **Inside a Boot context with the auto-configuration switched off**, the host binds the properties
-  class itself (`@EnableConfigurationProperties(RequestLoggingProperties::class)`), because that
-  annotation lives on the auto-configuration that is now gone.
+  class itself (`@EnableConfigurationProperties(RequestLoggingProperties::class)`, the class in
+  `eu.inqudium.limesium.common`), because that annotation lives on the auto-configuration that is now
+  gone.
 
 Everything else is unchanged by the way the filter was wired: emission point, outcomes, meters, header
 sections, body capture and the fail-open contract behave exactly as under the automatic wiring — the
@@ -618,9 +619,9 @@ depends on the host's encoder layout; map them where the encoder configuration l
 All properties live under `endpoint-logging.*`, and the namespace is **identical** on both stacks — key
 for key and default for default; the only reactive-only addition is `variant`. The complete, commented
 reference with every default is [`/docs/endpoint-logging-reference.yml`](endpoint-logging-reference.yml)
-(the reactive module ships a copy that adds `variant`); `EndpointLoggingReferenceConfigTest` binds it
-against `RequestLoggingProperties` in both modules and fails the build on any drift — every key must
-exist, every value must be the built-in default.
+(the reactive module ships a file that adds `variant`); `EndpointLoggingReferenceConfigTest` in
+`limesium-common` binds it against the shared `RequestLoggingProperties` and fails the build on any
+drift — every key must exist, every value must be the built-in default.
 
 What a property means is the same on both stacks. Where the stack adds a nuance — what exactly an
 excluded request skips, against which path the patterns match, what the slow threshold measures — §4 of
@@ -1070,16 +1071,18 @@ the amendment of 2026-09-05 — the field enum `EndpointLogField`, the meters `E
 emitters (message texts, header rendering, the arrival line, the body measurements) over the two small
 interfaces `LoggedExchange` and `MeasuredBody` that both twins' `Exchange` and `BoundedBodyCapture`
 implement, and — since 2026-09-18 — `EndpointLoggingPropertyOrigins`, the TRACE half of the wiring
-report ([§4.5](#45-logger-levels)). The Maven Shade plugin inlines those
+report ([§4.5](#45-logger-levels)), and `RequestLoggingProperties` itself, the `endpoint-logging.*`
+binding with its unit test and the shared reference's `EndpointLoggingReferenceConfigTest` (the
+reactive-only `variant` key binds beside it as that module's `RequestLoggingVariantProperties`). The
+Maven Shade plugin inlines those
 classes into each module's jar at package time, the dependency-reduced POM drops the dependency, and
 `limesium-common` is never published — consumers keep adding exactly one artifact, and the shared
 classes stay `internal` (`-Xfriend-paths`).
 
 Everything whose twin copies genuinely differ stays deliberately duplicated, per the original
 architecture-review decision: the field enum and metrics (per-stack outcome vocabulary and meter
-descriptions), the emitters and exchanges, the properties (`variant` is reactive-only; the header
-sections themselves are the shared `HeaderLogProperties`), and `BoundedBodyCapture` (two different
-concurrency designs). For those the accepted cost is unchanged: a change is a conscious port in **both**
+descriptions), the emitters and exchanges, and `BoundedBodyCapture` (two different concurrency
+designs). For those the accepted cost is unchanged: a change is a conscious port in **both**
 directions, and the lockstep tests catch *named* contract drift (keys, field names, meter names,
 message text), not behavioural drift inside near-identical code.
 

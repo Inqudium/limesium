@@ -8,6 +8,7 @@ import eu.inqudium.limesium.common.BodyReadState
 import eu.inqudium.limesium.common.EndpointLoggingMetrics
 import eu.inqudium.limesium.common.HeaderValueMasker
 import eu.inqudium.limesium.common.MdcKeys
+import eu.inqudium.limesium.common.RequestLoggingProperties
 import eu.inqudium.limesium.common.TraceMdcKeys
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import jakarta.servlet.FilterChain

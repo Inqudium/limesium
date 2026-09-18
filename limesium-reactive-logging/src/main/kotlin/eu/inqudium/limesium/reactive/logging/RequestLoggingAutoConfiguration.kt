@@ -4,6 +4,7 @@ import eu.inqudium.limesium.common.CorrelationIdGenerator
 import eu.inqudium.limesium.common.EndpointLoggingPropertyOrigins
 import eu.inqudium.limesium.common.HeaderValueMasker
 import eu.inqudium.limesium.common.NanoTimeSource
+import eu.inqudium.limesium.common.RequestLoggingProperties
 import io.micrometer.context.ContextRegistry
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
@@ -24,9 +25,9 @@ import org.springframework.core.env.Environment
 /**
  * Registers the [RequestLoggingWebFilter] in a REACTIVE (WebFlux) Spring Boot application - drop the
  * module on the classpath and every exchange is logged; `endpoint-logging.enabled=false` removes it
- * again. The property namespace matches limesium-servlet-logging's key for key, plus the reactive-only
- * `endpoint-logging.variant` selector; the two auto-configurations can never clash, as each is
- * conditional on its own web-application type.
+ * again. The property namespace is the servlet twin's - one shared [RequestLoggingProperties] - plus the
+ * reactive-only `endpoint-logging.variant` selector ([RequestLoggingVariantProperties]); the two
+ * auto-configurations can never clash, as each is conditional on its own web-application type.
  *
  * Every bean backs off to a host-provided one. The meter registry arrives as an [ObjectProvider] and is
  * CONSUMED, never exported - a logging library must not define the host's `MeterRegistry`; without one
@@ -51,7 +52,7 @@ import org.springframework.core.env.Environment
 @AutoConfiguration
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.REACTIVE)
 @ConditionalOnProperty(prefix = "endpoint-logging", name = ["enabled"], havingValue = "true", matchIfMissing = true)
-@EnableConfigurationProperties(RequestLoggingProperties::class)
+@EnableConfigurationProperties(RequestLoggingProperties::class, RequestLoggingVariantProperties::class)
 class RequestLoggingAutoConfiguration {
     init {
         wiringLog.debug("Endpoint logging is enabled - the auto-configuration is active (endpoint-logging.enabled is not false)")
@@ -83,6 +84,7 @@ class RequestLoggingAutoConfiguration {
     @ConditionalOnMissingBean(EndpointLoggingFilter::class)
     fun requestLoggingWebFilter(
         properties: RequestLoggingProperties,
+        variantProperties: RequestLoggingVariantProperties,
         nanoTime: NanoTimeSource,
         correlationIds: CorrelationIdGenerator,
         masker: HeaderValueMasker,
@@ -90,7 +92,7 @@ class RequestLoggingAutoConfiguration {
         environment: Environment,
         boundProperties: ObjectProvider<BoundConfigurationProperties>,
     ): RequestLoggingWebFilter {
-        check(properties.variant != Variant.COROUTINE) {
+        check(variantProperties.variant != Variant.COROUTINE) {
             "endpoint-logging.variant=coroutine requires kotlinx-coroutines-reactor and kotlinx-coroutines-slf4j " +
                 "on the classpath; neither a coroutine filter nor those libraries were found"
         }

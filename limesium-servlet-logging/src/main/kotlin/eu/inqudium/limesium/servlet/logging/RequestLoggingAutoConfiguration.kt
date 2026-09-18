@@ -4,6 +4,7 @@ import eu.inqudium.limesium.common.CorrelationIdGenerator
 import eu.inqudium.limesium.common.EndpointLoggingPropertyOrigins
 import eu.inqudium.limesium.common.HeaderValueMasker
 import eu.inqudium.limesium.common.NanoTimeSource
+import eu.inqudium.limesium.common.RequestLoggingProperties
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import jakarta.servlet.ServletRequestListener

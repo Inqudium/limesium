@@ -10,6 +10,7 @@ import eu.inqudium.limesium.common.EndpointLoggingMetrics
 import eu.inqudium.limesium.common.HeaderValueMasker
 import eu.inqudium.limesium.common.MdcKeys
 import eu.inqudium.limesium.common.NanoTimeSource
+import eu.inqudium.limesium.common.RequestLoggingProperties
 import io.micrometer.context.ContextRegistry
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry

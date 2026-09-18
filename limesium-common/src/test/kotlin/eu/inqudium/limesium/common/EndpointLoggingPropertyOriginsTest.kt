@@ -6,7 +6,6 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.RegisterExtension
 import org.slf4j.LoggerFactory
 import org.springframework.boot.context.properties.BoundConfigurationProperties
-import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.context.ConfigurableApplicationContext
@@ -16,15 +15,15 @@ import org.springframework.core.env.SystemEnvironmentPropertySource
 
 /**
  * The TRACE half of the wiring report: every bound `endpoint-logging.*` value with its origin, shadowed
- * values included - against the [BoundConfigurationProperties] bean a real context fills while binding a
- * probe of the twins' properties class.
+ * values included - against the [BoundConfigurationProperties] bean a real context fills while binding
+ * the shared [RequestLoggingProperties].
  */
 class EndpointLoggingPropertyOriginsTest {
     @JvmField
     @RegisterExtension
     val log = CapturedLogger(LOGGER_NAME, Level.TRACE)
 
-    private val contextRunner = ApplicationContextRunner().withUserConfiguration(ProbeConfiguration::class.java)
+    private val contextRunner = ApplicationContextRunner().withUserConfiguration(PropertiesConfiguration::class.java)
 
     @Test
     fun `should name the origin of every bound value, list shadowed values and redact the masking key`() {
@@ -103,7 +102,7 @@ class EndpointLoggingPropertyOriginsTest {
         assertThat(log.events).hasSize(2)
     }
 
-    /** The tracker Boot filled while binding the probe - present in every context that enables configuration properties. */
+    /** The tracker Boot filled while binding the properties - present in every context that enables configuration properties. */
     private fun boundOf(context: ConfigurableApplicationContext): BoundConfigurationProperties = requireNotNull(BoundConfigurationProperties.get(context))
 
     private companion object {
@@ -111,15 +110,7 @@ class EndpointLoggingPropertyOriginsTest {
     }
 }
 
-/** A stand-in for the twins' properties class: the keys the tests set, bound under the shared prefix. */
-@ConfigurationProperties("endpoint-logging")
-internal data class ProbeProperties(
-    val loggerName: String = "endpoint-http-exchange",
-    val excludePathPrefixes: List<String> = emptyList(),
-    val maxBodyBytes: Int = 16384,
-    val maskingKey: String = "",
-)
-
+/** Binds the shared properties class the way both twins' auto-configurations do. */
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(ProbeProperties::class)
-internal class ProbeConfiguration
+@EnableConfigurationProperties(RequestLoggingProperties::class)
+internal class PropertiesConfiguration

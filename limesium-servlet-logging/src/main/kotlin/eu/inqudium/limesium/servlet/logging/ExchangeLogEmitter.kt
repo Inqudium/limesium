@@ -6,6 +6,7 @@ import eu.inqudium.limesium.common.ExchangeLine
 import eu.inqudium.limesium.common.HeaderValueMasker
 import eu.inqudium.limesium.common.MdcScope
 import eu.inqudium.limesium.common.NanoTimeSource
+import eu.inqudium.limesium.common.RequestLoggingProperties
 import eu.inqudium.limesium.common.addKeyValue
 import eu.inqudium.limesium.common.addKeyValueIfPresent
 import eu.inqudium.limesium.common.failOpen

@@ -8,6 +8,7 @@ import eu.inqudium.limesium.common.CapturedLogger
 import eu.inqudium.limesium.common.EndpointLoggingMetrics
 import eu.inqudium.limesium.common.HeaderValueMasker
 import eu.inqudium.limesium.common.NanoTimeSource
+import eu.inqudium.limesium.common.RequestLoggingProperties
 import eu.inqudium.limesium.common.keyValues
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import jakarta.servlet.AsyncEvent

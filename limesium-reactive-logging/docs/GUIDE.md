@@ -108,7 +108,7 @@ layers:
 ┌──────────────────────────────────────────────────────────────────────────────────┐
 │ Auto-configuration                                                               │
 │   CoRequestLoggingAutoConfiguration  (before)  RequestLoggingAutoConfiguration   │
-│   RequestLoggingProperties · Variant · HeaderLogProperties                       │
+│   RequestLoggingProperties · HeaderLogProperties (shared) · RequestLoggingVariantProperties │
 ├──────────────────────────────────────────────────────────────────────────────────┤
 │ Filter variants (exactly one active)                 EndpointLoggingFilter       │
 │   RequestLoggingWebFilter (Reactor)   CoRequestLoggingWebFilter (coroutines)     │
@@ -135,7 +135,7 @@ which of them are one shared class and which are per-stack twins is the
 |---|---|
 | `RequestLoggingAutoConfiguration` | Registers the Reactor variant, the default `NanoTimeSource`, `CorrelationIdGenerator` and `HeaderValueMasker`, and — when `io.micrometer:context-propagation` is on the classpath — the MDC `ThreadLocalAccessor`s plus the propagation-mode warning. |
 | `CoRequestLoggingAutoConfiguration` | Registers the coroutine variant when `kotlinx-coroutines-reactor` and `kotlinx-coroutines-slf4j` are present; ordered **before** the Reactor configuration so it claims the filter slot first. |
-| `RequestLoggingProperties` | The `endpoint-logging.*` binding, validated in `init`. `HeaderLogProperties` (shared, limesium-common — [common guide §6.4](../../docs/GUIDE.md#64-shared-code-limesium-common-inlined-by-shade)) is one header section; `Variant` the reactive-only selector. |
+| `RequestLoggingProperties` / `RequestLoggingVariantProperties` | The `endpoint-logging.*` binding, validated in `init` — shared with the servlet twin, one class in limesium-common ([common guide §6.4](../../docs/GUIDE.md#64-shared-code-limesium-common-inlined-by-shade)); a host wiring by hand imports it from `eu.inqudium.limesium.common`. `HeaderLogProperties` (shared too) is one header section. The reactive-only `variant` selector binds beside it, under the same prefix, as this module's own `RequestLoggingVariantProperties` with the `Variant` enum. |
 | `EndpointLoggingFilter` | Marker contract (`WebFilter + Ordered`) both variants implement; the `@ConditionalOnMissingBean` target that guarantees exactly one filter. |
 | `RequestLoggingWebFilter` | The **reference variant**: wires, runs the chain inside `Mono.defer`, maps `doOnError` / `doOnCancel` / `doFinally` to the lifecycle, and writes the identity into the Reactor context. |
 | `CoRequestLoggingWebFilter` | The coroutine variant (`CoWebFilter`): same lifecycle, chain invoked inside `withContext(MDCContext(...))`, signals mapped via `try`/`catch`. |
@@ -158,7 +158,9 @@ conditions:
 - `@ConditionalOnWebApplication(type = REACTIVE)` — the module never activates in a servlet
   application, so it cannot clash with the servlet twin even if both jars are present;
 - `@ConditionalOnProperty("endpoint-logging.enabled", matchIfMissing = true)` — the master switch;
-- `@EnableConfigurationProperties(RequestLoggingProperties::class)`.
+- `@EnableConfigurationProperties(RequestLoggingProperties::class)` — the shared class; the Reactor
+  configuration also enables `RequestLoggingVariantProperties`, the reactive-only `variant` key under
+  the same prefix.
 
 Variant selection works by **bean-slot claiming**:
 
@@ -506,7 +508,7 @@ omitted); every default is public:
 
 ```kotlin
 val filter = RequestLoggingWebFilter(
-    RequestLoggingProperties(),            // every default; or a copy(...) with the fields to change
+    RequestLoggingProperties(),            // eu.inqudium.limesium.common - every default; or a copy(...) with the fields to change
     NanoTimeSource.SYSTEM,
     CorrelationIdGenerator.DEFAULT,
     SimpleMeterRegistry(),                 // or the registry the surrounding code owns
@@ -526,7 +528,7 @@ Inside a Boot context with the auto-configuration switched off, the same constru
 
 ```kotlin
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(RequestLoggingProperties::class)
+@EnableConfigurationProperties(RequestLoggingProperties::class)   // eu.inqudium.limesium.common
 class EndpointLoggingConfiguration {
     @Bean
     fun requestLoggingWebFilter(properties: RequestLoggingProperties, registry: MeterRegistry): RequestLoggingWebFilter =
@@ -655,9 +657,10 @@ complete reference for both twins is the repository-shared
 [`/docs/endpoint-logging-reference.yml`](../../docs/endpoint-logging-reference.yml) — the one place the
 property semantics are documented; this module's
 [`docs/endpoint-logging-reference.yml`](endpoint-logging-reference.yml) carries exactly the `variant`
-key. `EndpointLoggingReferenceConfigTest` binds the shared reference against `RequestLoggingProperties`
-and pins that the own file documents nothing else, so neither file can drift from the code or from its
-twin. This section lists what the reactive stack adds to the meaning of
+key. `limesium-common`'s `EndpointLoggingReferenceConfigTest` binds the shared reference against the
+shared `RequestLoggingProperties`; this module's test of the same name binds the own file against
+`RequestLoggingVariantProperties` and pins that it documents nothing else, so neither file can drift from
+the code or from its twin. This section lists what the reactive stack adds to the meaning of
 individual properties.
 
 ### 4.1 Property notes
@@ -918,7 +921,7 @@ limesium-reactive-logging/
     ├── main/kotlin/eu/inqudium/limesium/reactive/logging/
     │   ├── RequestLoggingAutoConfiguration.kt     Reactor variant, defaults, MDC accessors
     │   ├── CoRequestLoggingAutoConfiguration.kt   coroutine variant (before the Reactor one)
-    │   ├── RequestLoggingProperties.kt            endpoint-logging.* binding, Variant (HeaderLogProperties: common guide §6.4)
+    │   ├── RequestLoggingVariantProperties.kt     the reactive-only variant key, Variant (the shared binding: common guide §6.4)
     │   ├── EndpointLoggingFilter.kt               WebFilter + Ordered marker
     │   ├── RequestLoggingWebFilter.kt             reference variant
     │   ├── CoRequestLoggingWebFilter.kt           coroutine variant
@@ -928,9 +931,10 @@ limesium-reactive-logging/
     │   ├── CapturingDecorators.kt                 request/response DataBuffer tee
     │   ├── BoundedBodyCapture.kt                  bounded, freezable capture target, BodyReadState
     │   └── EndpointMdcContextPropagation.kt       ThreadLocalAccessors and the propagation warning
-    │   (Traceparent, Mdc, NanoTimeSource, CorrelationIdGenerator, HeaderValueMasker, the fail-open
-    │    helpers, EndpointLogField, EndpointLoggingMetrics and ExchangeLine live in ../limesium-common -
-    │    inlined into this jar, common guide §6.4)
+    │   (RequestLoggingProperties - the endpoint-logging.* binding - Traceparent, Mdc, NanoTimeSource,
+    │    CorrelationIdGenerator, HeaderValueMasker, the fail-open helpers, EndpointLogField,
+    │    EndpointLoggingMetrics, ExchangeLine and EndpointLoggingPropertyOrigins live in
+    │    ../limesium-common - inlined into this jar, common guide §6.4)
     ├── main/resources/META-INF/spring/…AutoConfiguration.imports
     └── test/kotlin/eu/inqudium/limesium/reactive/logging/  see the suite overview below
 ```
@@ -946,7 +950,7 @@ lists every test with its rationale):
 | `CoRequestLoggingWebFilterCoroutineIntegrationTest` | the **coroutine variant**'s `MDCContext` handler-MDC parity across real dispatcher hops |
 | `RequestLoggingWebFilterTracingIntegrationTest` | ADR-0002 trace contract beside a real Brave bridge on Netty under Boot's default `limited` propagation: header-parse join, identity decision, the documented no-`traceparent` boundary, the commit-deferred error path |
 | `RequestLoggingWebFilterTracingAutoPropagationIntegrationTest` | the emission scope's ownership of the trace keys beside the same bridge under `spring.reactor.context-propagation=auto`, where the bridge's `traceId`/`spanId` are live around the terminal and commit callbacks: parsed pair wins, no `spanId`, no trace context on a traceless exchange |
-| Lockstep/contract tests (`TwinContractTest`, `EndpointLoggingReferenceConfigTest`, `HandlerMappingAttributeTest`; `EndpointLogFieldTest` lives in `limesium-common`) | pin the twin/wire/config contracts against the servlet twin and the shared reference YAML |
+| Lockstep/contract tests (`TwinContractTest`, `EndpointLoggingReferenceConfigTest` for the own `variant` reference, `HandlerMappingAttributeTest`; `EndpointLogFieldTest`, the shared reference's `EndpointLoggingReferenceConfigTest` and `RequestLoggingPropertiesTest` live in `limesium-common`) | pin the twin/wire/config contracts against the servlet twin and the shared reference YAML |
 
 Fuzzing of the shared `Traceparent` parser and header masking lives in limesium-common. This module's
 engine matrix is the three reactive servers Boot 4 ships - Reactor Netty natively, Tomcat and Jetty

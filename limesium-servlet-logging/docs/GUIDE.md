@@ -109,7 +109,7 @@ Fifteen Kotlin files in one package, `eu.inqudium.limesium.servlet.logging`, in 
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │ Auto-configuration                                                           │
 │   RequestLoggingAutoConfiguration                                            │
-│   RequestLoggingProperties · HeaderLogProperties                             │
+│   RequestLoggingProperties · HeaderLogProperties  (shared, limesium-common)  │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │ Servlet lifecycle                                                            │
 │   RequestLoggingFilter (OncePerRequestFilter)                                │
@@ -138,7 +138,7 @@ modules — which of them are one shared class and which are per-stack twins is 
 | Class | Responsibility |
 |---|---|
 | `RequestLoggingAutoConfiguration` | Registers the filter bean, its `FilterRegistrationBean` (order `HIGHEST_PRECEDENCE + 10`), the `ServletListenerRegistrationBean` for the completion listener, and the default `NanoTimeSource` / `CorrelationIdGenerator` / `HeaderValueMasker`. |
-| `RequestLoggingProperties` | The `endpoint-logging.*` binding, validated in `init`. `HeaderLogProperties` (shared, limesium-common — [common guide §6.4](../../docs/GUIDE.md#64-shared-code-limesium-common-inlined-by-shade)) is one header section with `includes` / `excludes` / `masked` / `unmasked` and the masking fingerprint. |
+| `RequestLoggingProperties` | The `endpoint-logging.*` binding, validated in `init` — shared with the reactive twin, one class in limesium-common ([common guide §6.4](../../docs/GUIDE.md#64-shared-code-limesium-common-inlined-by-shade)); a host wiring by hand imports it from `eu.inqudium.limesium.common`. `HeaderLogProperties` (shared too) is one header section with `includes` / `excludes` / `masked` / `unmasked` and the masking fingerprint. |
 | `RequestLoggingFilter` | Owns the **servlet side**: path activation, fail-open wiring, identity resolution (`traceparent` first, correlation header on traceless exchanges) with the traceless echo, the tee wrappers, the chain-wide `MdcScope`, the async dispatch pass, the breadcrumb, the handoff to destruction. |
 | `Exchange` / `AsyncDisposition` / `AsyncOutcomeMarker` | Per-exchange state from entry to emission; the async disposition as one atomic value with built-in precedence; the `AsyncListener` that marks timeout/error. |
 | `EndpointMdcCallableInterceptor` | Restores the `endpoint_*` MDC on the Spring MVC `Callable`/`WebAsyncTask` worker thread. |
@@ -498,7 +498,7 @@ mapped to `/*` and ordered before the application's own filters, and the complet
 class EndpointLoggingInitializer : WebApplicationInitializer {
     override fun onStartup(servletContext: ServletContext) {
         val filter = RequestLoggingFilter(
-            RequestLoggingProperties(),            // every default; or a copy(...) with the fields to change
+            RequestLoggingProperties(),            // eu.inqudium.limesium.common - every default; or a copy(...) with the fields to change
             NanoTimeSource.SYSTEM,
             CorrelationIdGenerator.DEFAULT,
             SimpleMeterRegistry(),                 // or the registry the surrounding code owns
@@ -516,7 +516,7 @@ the auto-configuration that is now gone:
 
 ```kotlin
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(RequestLoggingProperties::class)
+@EnableConfigurationProperties(RequestLoggingProperties::class)   // eu.inqudium.limesium.common
 class EndpointLoggingConfiguration {
     @Bean
     fun requestLoggingFilter(properties: RequestLoggingProperties, registry: MeterRegistry): RequestLoggingFilter =
@@ -596,7 +596,7 @@ The namespace, every property with its default, the header sections, the body mo
 the startup validation and the example configurations are the
 [common guide's §4](../../docs/GUIDE.md#4-configuration) — identical on both stacks by construction; the
 reference file is [`/docs/endpoint-logging-reference.yml`](../../docs/endpoint-logging-reference.yml),
-bound by this module's `EndpointLoggingReferenceConfigTest`. The reactive twin's one extra key,
+bound by `EndpointLoggingReferenceConfigTest` in `limesium-common`. The reactive twin's one extra key,
 `variant`, does not exist here. This section lists what the servlet stack adds to the meaning of
 individual properties.
 
@@ -866,7 +866,6 @@ limesium-servlet-logging/
 └── src/
     ├── main/kotlin/eu/inqudium/limesium/servlet/logging/
     │   ├── RequestLoggingAutoConfiguration.kt     filter, registration, listener, defaults
-    │   ├── RequestLoggingProperties.kt            endpoint-logging.* binding (HeaderLogProperties: common guide §6.4)
     │   ├── RequestLoggingFilter.kt                the servlet lifecycle, completion listener
     │   ├── Exchange.kt                            per-exchange state, AsyncDisposition, AsyncOutcomeMarker
     │   ├── EndpointMdcCallableInterceptor.kt      MDC on the MVC async worker
@@ -874,9 +873,10 @@ limesium-servlet-logging/
     │   ├── CapturingRequestWrapper.kt             request stream/reader tee
     │   ├── CapturingResponseWrapper.kt            response stream/writer tee
     │   └── BoundedBodyCapture.kt                  bounded capture target, BodyReadState
-    │   (Traceparent, Mdc, NanoTimeSource, CorrelationIdGenerator, HeaderValueMasker, the fail-open
-    │    helpers, EndpointLogField, EndpointLoggingMetrics and ExchangeLine live in ../limesium-common -
-    │    inlined into this jar, common guide §6.4)
+    │   (RequestLoggingProperties - the endpoint-logging.* binding - Traceparent, Mdc, NanoTimeSource,
+    │    CorrelationIdGenerator, HeaderValueMasker, the fail-open helpers, EndpointLogField,
+    │    EndpointLoggingMetrics, ExchangeLine and EndpointLoggingPropertyOrigins live in
+    │    ../limesium-common - inlined into this jar, common guide §6.4)
     ├── main/resources/META-INF/spring/…AutoConfiguration.imports
     └── test/kotlin/eu/inqudium/limesium/servlet/logging/   see the suite overview below
 ```
@@ -893,7 +893,7 @@ lists every test with its rationale):
 | `RequestLoggingFilterTomcatTracingIntegrationTest` | ADR-0002 trace contract beside a real Brave bridge on Tomcat, plus the container-independent bridge-propagation assertions |
 | `RequestLoggingFilterJettyTracingIntegrationTest` | trace-key suppression against Jetty's LIVE in-dispatch bridge MDC |
 | `RequestLoggingFilterUndertowTracingIntegrationTest` | trace-key suppression on Undertow's emission threads |
-| Lockstep/contract tests (`TwinContractTest`, `EndpointLoggingReferenceConfigTest`, `HandlerMappingAttributeTest`; `EndpointLogFieldTest` lives in `limesium-common`) | pin the twin/wire/config contracts |
+| Lockstep/contract tests (`TwinContractTest`, `HandlerMappingAttributeTest`; `EndpointLogFieldTest`, `EndpointLoggingReferenceConfigTest` and `RequestLoggingPropertiesTest` live in `limesium-common`) | pin the twin/wire/config contracts |
 | Fuzz targets (`src/test/java`: `BoundedBodyCaptureFuzzTest`; `Traceparent` and header-masking fuzzing lives in limesium-common) | Jazzer `@FuzzTest`, corpus replay in every build, nightly exploration |
 
 ### 7.2 Related documents
@@ -905,7 +905,7 @@ lists every test with its rationale):
   individually (destruction models, error paths, pinned deviations, suites).
 - [`README.md`](../README.md) — module summary and the twin decision.
 - [`/docs/endpoint-logging-reference.yml`](../../docs/endpoint-logging-reference.yml) — the complete commented
-  configuration reference; every key and default, bound by `EndpointLoggingReferenceConfigTest` here and
+  configuration reference; every key and default, bound by `EndpointLoggingReferenceConfigTest` in `limesium-common` and
   in the twin.
 - [`/docs/elk/README.md`](../../docs/elk/README.md) — the Elasticsearch component template for the `endpoint_*`
   fields and the access pattern behind each mapping decision.

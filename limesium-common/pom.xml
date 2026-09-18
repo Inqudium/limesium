@@ -71,7 +71,8 @@
         <sourceDirectory>${project.basedir}/src/main/kotlin</sourceDirectory>
         <testSourceDirectory>${project.basedir}/src/test/kotlin</testSourceDirectory>
         <!-- The cross-stack contract files live in the repository-shared /docs; the field-enum
-             lockstep test reads the ELK template from the TEST CLASSPATH, like the twins do. -->
+             lockstep test reads the ELK template and the reference-config test the shared reference
+             YAML from the TEST CLASSPATH, like the twins do. -->
         <testResources>
             <testResource>
                 <directory>${project.basedir}/src/test/resources</directory>
@@ -79,6 +80,7 @@
             <testResource>
                 <directory>${project.basedir}/../docs</directory>
                 <includes>
+                    <include>endpoint-logging-reference.yml</include>
                     <include>elk/limesium-servlet-logging-fields.component-template.json</include>
                 </includes>
             </testResource>

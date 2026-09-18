@@ -25,6 +25,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `endpoint-logging.enabled=false`. The auto-configuration tests pin the lines and the silence, the
   common module's test the rendering.
 
+### Changed
+
+- **BREAKING** - `RequestLoggingProperties` is ONE class for both twins, in `limesium-common`
+  (package `eu.inqudium.limesium.common`, inlined into both jars like `HeaderLogProperties`), the
+  two per-module copies are deleted without a deprecation period (ADR-0003 amendment of
+  2026-09-18). A host that constructs or imports the class for a hand-wired filter or for its own
+  `@EnableConfigurationProperties` changes the import; an `application.yml` changes nothing. The
+  reactive-only `variant` key binds beside the shared class, under the same prefix, as the reactive
+  module's own `RequestLoggingVariantProperties` (with the `Variant` enum, which moved there);
+  the Reactor auto-configuration reads its `variant=coroutine` check from that bean.
+  `RequestLoggingPropertiesTest` and the shared reference's `EndpointLoggingReferenceConfigTest`
+  moved to `limesium-common` and are pinned once; the reactive module keeps a test of that name for
+  its own `variant` reference file. The shared reference YAML is a test resource of
+  `limesium-common` now.
+
 ## [3.0.1] - 2026-09-17
 
 ### Changed
