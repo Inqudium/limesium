@@ -38,6 +38,13 @@
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-core</artifactId>
         </dependency>
+        <!-- ... plus Boot's property-origin API for the wiring report's TRACE half
+             (EndpointLoggingPropertyOrigins, ADR-0003 amendment of 2026-09-18). spring-boot only (no
+             autoconfigure); both twins bring it transitively, so the shaded jars add nothing. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.jetbrains.kotlin</groupId>
             <artifactId>kotlin-stdlib</artifactId>

@@ -212,6 +212,7 @@ name and contract whose code genuinely differs:
 | `Traceparent` | Strict W3C `traceparent` parsing to `(traceId, parentSpanId)` ([§5.6](#56-trace-correlation)) | byte-identical |
 | `MdcKeys` / `TraceMdcKeys` / `MdcScope` | The MDC key names; the scope that puts identity (and, for the emission, the trace keys) into the MDC and restores the previous values on close | byte-identical |
 | `NanoTimeSource` / `CorrelationIdGenerator` / `HeaderValueMasker` | Injectable time, id and header masking ([§2.5](#25-injectable-collaborators)) | byte-identical |
+| `EndpointLoggingPropertyOrigins` | The TRACE half of the auto-configurations' wiring report ([§4.5](#45-logger-levels)): renders every `endpoint-logging.*` value Boot bound with its origin, plus the shadowed values of lower-precedence sources, masking key redacted | byte-identical (`limesium-common`), ported from legatium |
 | `reportQuietly` / `reportFailOpen` | `reportQuietly` guards the diagnostics channel (counter + internal log) of every catch block; `reportFailOpen` is the one report every catch shares - the stage counter plus one line on the module's own logger, inside that guard | byte-identical |
 
 The per-stack component overviews — the filter classes, the async and variant machinery, the capture
@@ -570,6 +571,15 @@ depends on the host's encoder layout; map them where the encoder configuration l
 
 ### 3.7 Verifying the integration
 
+0. Before the first request, start the application with `logging.level.eu.inqudium.limesium=DEBUG`
+   and expect the **wiring report** on the twin's auto-configuration logger
+   ([§4.5](#45-logger-levels)): the "enabled" line, the filter bean line with the bound properties, and
+   — on the servlet stack — the filter registration and the completion listener, on the reactive stack
+   the variant that claimed the slot and, for the Reactor variant, the MDC accessors. No report means
+   the auto-configuration did not run: switched off, wrong web application type, or not on the
+   classpath. At TRACE instead of DEBUG the report also names the file, line or environment variable
+   each `endpoint-logging.*` value came from, and which values were shadowed.
+
 1. Start the application and call any endpoint:
 
    ```bash
@@ -752,6 +762,17 @@ Severity and semantic are decoupled: the level only decides how loud — and whe
 Level and outcome are resolved **before** the event is built, so a disabled level costs no assembly, no
 header selection, no body decoding. Metrics are recorded **before** the level gate and are unaffected by
 it — except `endpoint.logging.events`, which by definition counts emitted events only.
+
+Two further loggers are the modules' own, under `eu.inqudium.limesium`, and never carry an exchange:
+
+| Logger | Level | Says |
+|---|---|---|
+| `…RequestLoggingAutoConfiguration` (one per twin; on the reactive stack the coroutine auto-configuration reports on the same one) | DEBUG | the **wiring report**: that the module is enabled, the filter bean with its bound properties (masking key redacted), and what was wired around it — the filter registration and the completion listener on the servlet stack, the variant that claimed the slot and the `endpoint_*` MDC accessors on the reactive stack — how a host verifies from its own log that the library is on and actually in the chain (the twins' guides, §2.2; [§3.7](#37-verifying-the-integration)). Nothing at all with `endpoint-logging.enabled=false`; Boot's condition report (DEBUG on `org.springframework.boot.autoconfigure`) then names the property |
+| the same logger | TRACE | additionally the **origin** of every `endpoint-logging.*` value Boot bound — file and line, environment variable, property source — and every value of the same name a lower-precedence source also holds, marked as shadowed; masking key redacted, unset keys not listed (`EndpointLoggingPropertyOrigins`, [§6.4](#64-shared-code-limesium-common-inlined-by-shade)) |
+| the filter, emitter and metrics classes | WARN / ERROR | the fail-open diagnostics: a breadcrumb for a chain that threw, an emission that failed, a tee that broke ([§2.4](#24-fail-open-contract)) |
+
+`logging.level.eu.inqudium.limesium=DEBUG` switches the wiring report on for both twins, `TRACE` adds
+the property origins; the exchange lines are unaffected, they live on `logger-name`.
 
 ### 4.6 Validation at startup
 
@@ -1048,7 +1069,8 @@ the amendment of 2026-09-05 — the field enum `EndpointLogField`, the meters `E
 (parameterized with the stack's third outcome) and `ExchangeLine`, the stack-neutral core of the
 emitters (message texts, header rendering, the arrival line, the body measurements) over the two small
 interfaces `LoggedExchange` and `MeasuredBody` that both twins' `Exchange` and `BoundedBodyCapture`
-implement. The Maven Shade plugin inlines those
+implement, and — since 2026-09-18 — `EndpointLoggingPropertyOrigins`, the TRACE half of the wiring
+report ([§4.5](#45-logger-levels)). The Maven Shade plugin inlines those
 classes into each module's jar at package time, the dependency-reduced POM drops the dependency, and
 `limesium-common` is never published — consumers keep adding exactly one artifact, and the shared
 classes stay `internal` (`-Xfriend-paths`).

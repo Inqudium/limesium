@@ -170,6 +170,43 @@ listener ([§3.5](#35-replacing-the-filter-bean)); how the registrations work an
 is [§3.2](#32-automatic-wiring) and [§3.3](#33-manual-wiring). The servlet API is a `provided`
 dependency; the host's container supplies it.
 
+**Observing the wiring.** At DEBUG on the logger
+`eu.inqudium.limesium.servlet.logging.RequestLoggingAutoConfiguration` the auto-configuration reports
+what it did — the answer to "is the module on, and is the filter really in the chain?" from the host's
+own log:
+
+```
+Endpoint logging is enabled - the auto-configuration is active (endpoint-logging.enabled is not false)
+Endpoint logging registered its RequestLoggingFilter bean with RequestLoggingProperties(enabled=true, loggerName=endpoint-http-exchange, …, maskingKey=<redacted>)
+Endpoint logging registered the filter registration - the filter runs at order -2147483638 (HIGHEST_PRECEDENCE + 10) for every dispatcher type, mapped to /*
+Endpoint logging registered the exchange completion listener - the emission point, fired by the container at request destruction
+```
+
+All four appear once at context start (the bean line only when the bean is the module's own, not a
+host's — [§3.5](#35-replacing-the-filter-bean)). With `endpoint-logging.enabled=false` none of them
+appears; Boot's condition evaluation report (DEBUG on `org.springframework.boot.autoconfigure`) then
+names the property as the reason. Enable it with
+`logging.level.eu.inqudium.limesium.servlet.logging.RequestLoggingAutoConfiguration=DEBUG`, or
+`logging.level.eu.inqudium.limesium=DEBUG` for both twins at once.
+
+At **TRACE** the bean line is followed by where every `endpoint-logging.*` value came from — Boot's
+origin of each value it bound, one line per key, then every value of the same name a lower-precedence
+source also holds, marked as shadowed. The masking key is rendered redacted whatever its source; keys
+no source sets are the class defaults and are not listed:
+
+```
+Endpoint logging property endpoint-logging.exclude-path-prefixes[0] = /actuator (origin: class path resource [application.yml] - 20:7)
+Endpoint logging property endpoint-logging.logger-name = inbound (origin: class path resource [application-prod.yml] - 3:16)
+Endpoint logging property endpoint-logging.logger-name = endpoint-http-exchange (origin: class path resource [application.yml] - 12:16) is shadowed by class path resource [application-prod.yml] - 3:16
+Endpoint logging property endpoint-logging.masking-key = <redacted> (origin: System Environment Property "ENDPOINT_LOGGING_MASKING_KEY")
+```
+
+With no `endpoint-logging.*` key anywhere the report is one line saying so. The same information, per
+property source, is what the actuator's `env` endpoint shows for a key
+(`/actuator/env/endpoint-logging.logger-name`); the TRACE lines put it into the startup log of a host
+without the actuator. The rendering lives once in `limesium-common`
+([Common guide §6.4](https://github.com/Inqudium/limesium/blob/main/docs/GUIDE.md#64-shared-code-limesium-common-inlined-by-shade)).
+
 ### 2.3 Lifecycle of one exchange
 
 The UML activity diagram [`activity-diagram.svg`](activity-diagram.svg) shows the complete flow of one

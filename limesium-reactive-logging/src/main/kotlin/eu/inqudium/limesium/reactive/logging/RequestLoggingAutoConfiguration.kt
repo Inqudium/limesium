@@ -1,11 +1,13 @@
 package eu.inqudium.limesium.reactive.logging
 
 import eu.inqudium.limesium.common.CorrelationIdGenerator
+import eu.inqudium.limesium.common.EndpointLoggingPropertyOrigins
 import eu.inqudium.limesium.common.HeaderValueMasker
 import eu.inqudium.limesium.common.NanoTimeSource
 import io.micrometer.context.ContextRegistry
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.InitializingBean
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.AutoConfiguration
@@ -13,6 +15,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication
+import org.springframework.boot.context.properties.BoundConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -29,12 +32,31 @@ import org.springframework.core.env.Environment
  * CONSUMED, never exported - a logging library must not define the host's `MeterRegistry`; without one
  * (no actuator) a private [SimpleMeterRegistry] absorbs the counts and the module works unchanged. WebFlux picks the
  * `WebFilter` bean up automatically and orders it via its [org.springframework.core.Ordered] contract.
+ *
+ * ## Observing the wiring
+ *
+ * At DEBUG on this class's logger - ONE logger for both variants, the coroutine auto-configuration
+ * reports on it too - the auto-configurations report what they did, so a host can tell from its own
+ * log whether the module is switched on and which filter was actually wired: one line when this
+ * configuration is active (the switch is on), one when a filter bean is registered, naming the variant
+ * (with the bound properties, the masking key redacted), and one when the `endpoint_*` MDC accessors
+ * are registered. With `endpoint-logging.enabled=false` none of them appears - Boot's condition
+ * evaluation report (DEBUG on `org.springframework.boot.autoconfigure`) then names the property as
+ * the reason.
+ *
+ * At TRACE the bean line is followed by the ORIGIN of every `endpoint-logging.*` value Boot bound - the
+ * file and line, the environment variable, the property source - and by every value of the same name
+ * a lower-precedence source also holds, marked as shadowed ([EndpointLoggingPropertyOrigins]).
  */
 @AutoConfiguration
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.REACTIVE)
 @ConditionalOnProperty(prefix = "endpoint-logging", name = ["enabled"], havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(RequestLoggingProperties::class)
 class RequestLoggingAutoConfiguration {
+    init {
+        wiringLog.debug("Endpoint logging is enabled - the auto-configuration is active (endpoint-logging.enabled is not false)")
+    }
+
     @Bean
     @ConditionalOnMissingBean
     fun requestLoggingNanoTimeSource(): NanoTimeSource = NanoTimeSource.SYSTEM
@@ -65,11 +87,15 @@ class RequestLoggingAutoConfiguration {
         correlationIds: CorrelationIdGenerator,
         masker: HeaderValueMasker,
         meterRegistry: ObjectProvider<MeterRegistry>,
+        environment: Environment,
+        boundProperties: ObjectProvider<BoundConfigurationProperties>,
     ): RequestLoggingWebFilter {
         check(properties.variant != Variant.COROUTINE) {
             "endpoint-logging.variant=coroutine requires kotlinx-coroutines-reactor and kotlinx-coroutines-slf4j " +
                 "on the classpath; neither a coroutine filter nor those libraries were found"
         }
+        wiringLog.debug("Endpoint logging registered its RequestLoggingWebFilter bean (Reactor variant, ordered at HIGHEST_PRECEDENCE + 10, collected by WebFlux) with {}", properties)
+        EndpointLoggingPropertyOrigins.report(wiringLog, environment, boundProperties.ifAvailable)
         return RequestLoggingWebFilter(properties, nanoTime, correlationIds, meterRegistry.getIfAvailable { SimpleMeterRegistry() }, masker)
     }
 
@@ -101,10 +127,20 @@ class RequestLoggingAutoConfiguration {
             InitializingBean {
                 if (activeFilter.stream().anyMatch { it is RequestLoggingWebFilter }) {
                     EndpointMdcContextPropagation.registerAccessors()
+                    wiringLog.debug("Endpoint logging registered the endpoint_* MDC accessors with Micrometer's ContextRegistry (Reactor variant)")
                     EndpointMdcContextPropagation.warnUnlessAutomaticPropagation(
                         environment.getProperty(EndpointMdcContextPropagation.PROPAGATION_MODE_PROPERTY),
                     )
                 }
             }
+    }
+
+    companion object {
+        /**
+         * The wiring report of the class KDoc, at DEBUG and TRACE - shared with
+         * [CoRequestLoggingAutoConfiguration], so a host reads one logger per twin; the exchange lines
+         * have their own logger.
+         */
+        internal val wiringLog = LoggerFactory.getLogger(RequestLoggingAutoConfiguration::class.java)
     }
 }

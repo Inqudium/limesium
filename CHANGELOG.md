@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Both twins: a **wiring report** at DEBUG on the auto-configuration's own logger
+  (`eu.inqudium.limesium.<twin>.logging.RequestLoggingAutoConfiguration`; on the reactive stack the
+  coroutine auto-configuration reports on the same one), so a host can read from its log whether the
+  library is switched on and actually wired its filter: one line when the auto-configuration is
+  active, one when the filter bean is registered (with the bound properties, masking key redacted),
+  and on the servlet stack one for the filter registration with its order and one for the completion
+  listener, on the reactive stack the variant that claimed the slot and the registration of the
+  `endpoint_*` MDC accessors. At TRACE the bean line is followed by the **origin** of every
+  `endpoint-logging.*` value Boot bound - file and line, environment variable, property source - and
+  by every value of the same name a lower-precedence source also holds, marked as shadowed; the
+  masking key is redacted, unset keys are not listed (`EndpointLoggingPropertyOrigins` in
+  `limesium-common`, one rendering for both twins, ported from legatium; `limesium-common` now
+  depends on `spring-boot`, which both twins already bring). Nothing is logged with
+  `endpoint-logging.enabled=false`. The auto-configuration tests pin the lines and the silence, the
+  common module's test the rendering.
+
 ## [3.0.1] - 2026-09-17
 
 ### Changed

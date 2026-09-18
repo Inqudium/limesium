@@ -242,3 +242,12 @@ Dokka runs, so the dependency resolves.
   caller. Each twin keeps its count, read state and
   locking; the truncation-boundary tests stay in the twins as tests of
   the twin API.
+- **2026-09-18:** `EndpointLoggingPropertyOrigins`, the TRACE half of
+  the auto-configurations' wiring report (every bound `endpoint-logging.*`
+  value with Boot's origin, shadowed values of lower-precedence sources,
+  masking key redacted), ported from legatium's `ClientLoggingPropertyOrigins`
+  with its test. One rendering for both twins - the prefix is the same,
+  only the bound classes differ, and the class takes the bound map, not
+  the class. `limesium-common` gains `spring-boot` as a dependency for
+  Boot's property-origin API; both twins bring it transitively already,
+  so the shaded jars add nothing to a host.

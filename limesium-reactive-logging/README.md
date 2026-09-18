@@ -119,7 +119,12 @@ auto-configuration backs off; otherwise `RequestLoggingWebFilter` registers. `en
 makes the choice explicit when the classpath should not decide: `reactor` forces the Reactor variant
 although the libraries are present (pulled in transitively by a Reactor-only host), `coroutine` requires
 the coroutine variant and fails the context start with a message naming the missing libraries instead
-of silently falling back.
+of silently falling back. At DEBUG on
+`eu.inqudium.limesium.reactive.logging.RequestLoggingAutoConfiguration` the auto-configurations report
+which variant they wired and whether the MDC accessors are registered, so the host's own log answers
+whether the module is on and which filter is in the chain; at TRACE they add where each
+`endpoint-logging.*` value came from and which values were shadowed (the guide's
+[§2.2](docs/GUIDE.md#22-auto-configuration-and-variant-selection)).
 
 ```kotlin
 @RestController

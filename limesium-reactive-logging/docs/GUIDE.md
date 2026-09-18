@@ -188,6 +188,45 @@ The `NanoTimeSource`, `CorrelationIdGenerator` and `HeaderValueMasker` defaults 
 Reactor configuration but consumed by both variants — bean creation is independent of registration
 order.
 
+**Observing the wiring.** At DEBUG on the logger
+`eu.inqudium.limesium.reactive.logging.RequestLoggingAutoConfiguration` — one logger for both variants,
+the coroutine auto-configuration reports on it too — the auto-configurations report what they did: the
+answer to "is the module on, which variant is in the chain, and is handler MDC wired?" from the host's
+own log:
+
+```
+Endpoint logging is enabled - the auto-configuration is active (endpoint-logging.enabled is not false)
+Endpoint logging registered its CoRequestLoggingWebFilter bean (coroutine variant, ordered at HIGHEST_PRECEDENCE + 10, collected by WebFlux) with RequestLoggingProperties(enabled=true, loggerName=endpoint-http-exchange, …, maskingKey=<redacted>)
+```
+
+A Reactor host reads `RequestLoggingWebFilter bean (Reactor variant, …)` instead, followed by
+`Endpoint logging registered the endpoint_* MDC accessors with Micrometer's ContextRegistry (Reactor variant)`
+when `io.micrometer:context-propagation` is on the classpath ([§3.5](#35-enabling-handler-side-mdc)).
+The lines appear once at context start (the bean line only when the bean is the module's own, not a
+host's — [§3.6](#36-replacing-the-filter-bean)). With `endpoint-logging.enabled=false` none of them
+appears; Boot's condition evaluation report (DEBUG on `org.springframework.boot.autoconfigure`) then
+names the property as the reason. Enable it with
+`logging.level.eu.inqudium.limesium.reactive.logging.RequestLoggingAutoConfiguration=DEBUG`, or
+`logging.level.eu.inqudium.limesium=DEBUG` for both twins at once.
+
+At **TRACE** the bean line is followed by where every `endpoint-logging.*` value came from — Boot's
+origin of each value it bound, one line per key, then every value of the same name a lower-precedence
+source also holds, marked as shadowed. The masking key is rendered redacted whatever its source; keys
+no source sets are the class defaults and are not listed:
+
+```
+Endpoint logging property endpoint-logging.exclude-path-prefixes[0] = /actuator (origin: class path resource [application.yml] - 20:7)
+Endpoint logging property endpoint-logging.logger-name = inbound (origin: class path resource [application-prod.yml] - 3:16)
+Endpoint logging property endpoint-logging.logger-name = endpoint-http-exchange (origin: class path resource [application.yml] - 12:16) is shadowed by class path resource [application-prod.yml] - 3:16
+Endpoint logging property endpoint-logging.masking-key = <redacted> (origin: System Environment Property "ENDPOINT_LOGGING_MASKING_KEY")
+```
+
+With no `endpoint-logging.*` key anywhere the report is one line saying so. The same information, per
+property source, is what the actuator's `env` endpoint shows for a key
+(`/actuator/env/endpoint-logging.logger-name`); the TRACE lines put it into the startup log of a host
+without the actuator. The rendering lives once in `limesium-common`
+([Common guide §6.4](https://github.com/Inqudium/limesium/blob/main/docs/GUIDE.md#64-shared-code-limesium-common-inlined-by-shade)).
+
 ### 2.3 Lifecycle of one exchange
 
 The UML activity diagram [`activity-diagram.svg`](activity-diagram.svg) shows the complete flow of one
