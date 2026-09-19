@@ -199,13 +199,24 @@ own log:
 ```
 Endpoint logging is enabled - the auto-configuration is active (endpoint-logging.enabled is not false)
 Endpoint logging registered its CoRequestLoggingWebFilter bean (coroutine variant, ordered at HIGHEST_PRECEDENCE + 10, collected by WebFlux) with RequestLoggingProperties(enabled=true, loggerName=endpoint-http-exchange, …, maskingKey=<redacted>)
+Endpoint logging found Boot's server observation with Micrometer Tracing - the HttpWebHandlerAdapter observes every request outside all WebFilters, so every exchange runs inside the server observation: the handler lines carry the bridge's traceId and spanId, the exchange line the trace context of the incoming traceparent
 ```
 
 A Reactor host reads `RequestLoggingWebFilter bean (Reactor variant, …)` instead, followed by
 `Endpoint logging registered the endpoint_* MDC accessors with Micrometer's ContextRegistry (Reactor variant)`
 when `io.micrometer:context-propagation` is on the classpath ([§3.5](#35-enabling-handler-side-mdc)).
 The lines appear once at context start (the bean line only when the bean is the module's own, not a
-host's — [§3.6](#36-replacing-the-filter-bean)). With `endpoint-logging.enabled=false` none of them
+host's — [§3.6](#36-replacing-the-filter-bean)). The observation line is logged once every singleton
+exists, by the Reactor configuration for both variants, and states whether Boot's server observation
+and a tracing bridge are present — the two things that decide whether a server span exists and whether
+the host's handler lines carry a `traceId`, and that have no property. On this stack the observation
+is no `WebFilter`: WebFlux's `HttpWebHandlerAdapter` observes every request as soon as an
+`ObservationRegistry` bean exists, outside the whole filter chain, so no order is compared. Without a
+bridge the line reads
+`Endpoint logging found Boot's server observation but no Micrometer Tracing - the HttpWebHandlerAdapter observes every request outside all WebFilters, so every exchange runs inside the server observation: exchanges are measured, no server span is opened, and only the exchange line carries a trace context - that of the incoming traceparent`,
+without Boot's observation at all
+`Endpoint logging found no server observation - Boot's observation auto-configuration is not active (no ObservationRegistry bean, or the observation module is absent): exchanges run outside any server observation; the exchange line still carries the trace context of an incoming traceparent`.
+With `endpoint-logging.enabled=false` none of them
 appears; Boot's condition evaluation report (DEBUG on `org.springframework.boot.autoconfigure`) then
 names the property as the reason. Enable it with
 `logging.level.eu.inqudium.limesium.reactive.logging.RequestLoggingAutoConfiguration=DEBUG`, or
@@ -213,13 +224,13 @@ names the property as the reason. Enable it with
 
 At **TRACE** the bean line is followed by where every `endpoint-logging.*` value came from — Boot's
 origin of each value it bound, one line per key, then every value of the same name a lower-precedence
-source also holds, marked as shadowed. The masking key is rendered redacted whatever its source; keys
+source also holds, marked as shadowed and indented with `+- ` under the winner. The masking key is rendered redacted whatever its source; keys
 no source sets are the class defaults and are not listed:
 
 ```
 Endpoint logging property endpoint-logging.exclude-path-prefixes[0] = /actuator (origin: class path resource [application.yml] - 20:7)
 Endpoint logging property endpoint-logging.logger-name = inbound (origin: class path resource [application-prod.yml] - 3:16)
-Endpoint logging property endpoint-logging.logger-name = endpoint-http-exchange (origin: class path resource [application.yml] - 12:16) is shadowed by class path resource [application-prod.yml] - 3:16
++- Endpoint logging property endpoint-logging.logger-name = endpoint-http-exchange (origin: class path resource [application.yml] - 12:16) is shadowed by class path resource [application-prod.yml] - 3:16
 Endpoint logging property endpoint-logging.masking-key = <redacted> (origin: System Environment Property "ENDPOINT_LOGGING_MASKING_KEY")
 ```
 
@@ -724,7 +735,7 @@ The level/outcome decoupling and the cost model of a disabled level are the
 
 ### 4.6 Example: Reactor host with handler MDC
 
-The example configurations of the [common guide's §4.7](../../docs/GUIDE.md#47-example-configurations)
+The example configurations of the [common guide's §4.8](../../docs/GUIDE.md#48-example-configurations)
 apply unchanged (with `eu.inqudium.limesium.reactive.logging` as the module logger). One is
 reactive-only — a Reactor host that pins the variant and enables handler-side MDC
 ([§3.5](#35-enabling-handler-side-mdc)):

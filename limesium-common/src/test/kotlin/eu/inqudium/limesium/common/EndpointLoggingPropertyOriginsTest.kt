@@ -31,8 +31,8 @@ class EndpointLoggingPropertyOriginsTest {
         //   setting the logger name and the masking key, a lower source setting the logger name too
         //   and an excluded prefix - with the bound map Boot's own binder recorded.
         // Success criteria: one line per effective value, sorted by name, each naming its source; the
-        //   lower logger name reported as shadowed by the higher source's origin; the masking key
-        //   rendered redacted; the raw key nowhere in the output.
+        //   lower logger name reported as shadowed by the higher source's origin and indented with "+- "
+        //   under the effective value; the masking key rendered redacted; the raw key nowhere in the output.
         // Why it matters: "why is my application.yml value not in effect" is answered by the shadowed
         //   line; a leaked masking key would turn a TRACE report into a secret dump.
         // Given/When
@@ -46,7 +46,7 @@ class EndpointLoggingPropertyOriginsTest {
                 assertThat(lines).containsExactly(
                     "Endpoint logging property endpoint-logging.exclude-path-prefixes[0] = /actuator (origin: \"endpoint-logging.exclude-path-prefixes[0]\" from property source \"lower\")",
                     "Endpoint logging property endpoint-logging.logger-name = outbound (origin: \"endpoint-logging.logger-name\" from property source \"test\")",
-                    "Endpoint logging property endpoint-logging.logger-name = base (origin: \"endpoint-logging.logger-name\" from property source \"lower\") " +
+                    "+- Endpoint logging property endpoint-logging.logger-name = base (origin: \"endpoint-logging.logger-name\" from property source \"lower\") " +
                         "is shadowed by \"endpoint-logging.logger-name\" from property source \"test\"",
                     "Endpoint logging property endpoint-logging.masking-key = <redacted> (origin: \"endpoint-logging.masking-key\" from property source \"test\")",
                 )
@@ -91,7 +91,9 @@ class EndpointLoggingPropertyOriginsTest {
         // Then
         assertThat(log.events.map { it.formattedMessage }).containsExactly(
             "Endpoint logging properties: no endpoint-logging.* key is set in any property source - every key is at its default",
-            "Endpoint logging property origins are unavailable - no BoundConfigurationProperties bean in this context",
+            "Endpoint logging cannot tell where its endpoint-logging.* values came from (which file, environment " +
+                "variable or command-line argument set them); the values above are in effect nonetheless. " +
+                "Endpoint logging property origins are unavailable - no BoundConfigurationProperties bean in this context",
         )
 
         // And when: the logger above TRACE

@@ -24,6 +24,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   depends on `spring-boot`, which both twins already bring). Nothing is logged with
   `endpoint-logging.enabled=false`. The auto-configuration tests pin the lines and the silence, the
   common module's test the rendering.
+- Both twins: the wiring report states whether Boot's **server observation** and Micrometer Tracing
+  sit around the filter - what decides whether the exchange runs inside a server span and whether the
+  host's handler lines carry a `traceId`, which has no property and was so far readable nowhere at
+  startup (the exchange identity is unaffected, ADR-0002). One of three lines, logged once every
+  singleton exists: observation with tracing, observation without a bridge, no observation; on the
+  servlet stack with Boot's `ServerHttpObservationFilter` order against the module's, so a host's
+  re-registration behind the filter is named, on the reactive stack for the `HttpWebHandlerAdapter`
+  that observes outside all `WebFilter`s (`EndpointObservationWiring` in `limesium-common`, matching
+  by class name so the optional libraries stay optional). Pinned by the auto-configuration tests
+  against Boot's real observation and Brave auto-configurations.
 
 ### Changed
 

@@ -180,10 +180,21 @@ Endpoint logging is enabled - the auto-configuration is active (endpoint-logging
 Endpoint logging registered its RequestLoggingFilter bean with RequestLoggingProperties(enabled=true, loggerName=endpoint-http-exchange, …, maskingKey=<redacted>)
 Endpoint logging registered the filter registration - the filter runs at order -2147483638 (HIGHEST_PRECEDENCE + 10) for every dispatcher type, mapped to /*
 Endpoint logging registered the exchange completion listener - the emission point, fired by the container at request destruction
+Endpoint logging found Boot's server observation with Micrometer Tracing - the observation filter is registered at order -2147483647 against this filter's -2147483638, so every exchange runs inside the server observation: the handler lines carry the bridge's traceId and spanId, the exchange line the trace context of the incoming traceparent
 ```
 
-All four appear once at context start (the bean line only when the bean is the module's own, not a
-host's — [§3.5](#35-replacing-the-filter-bean)). With `endpoint-logging.enabled=false` none of them
+All five appear once at context start (the bean line only when the bean is the module's own, not a
+host's — [§3.5](#35-replacing-the-filter-bean)). The observation line is logged once every singleton
+exists and states whether Boot's `ServerHttpObservationFilter` wraps this filter — the order
+relation of [§3.4](#34-filter-order-and-other-filters) and [§6.8](#68-the--10-order-is-load-bearing) —
+and whether a tracing bridge is present, the two things that decide what an operator sees next to the
+exchange line and that have no property. Without a bridge it reads
+`Endpoint logging found Boot's server observation but no Micrometer Tracing - the observation filter is registered at order -2147483647 against this filter's -2147483638, so every exchange runs inside the server observation: exchanges are measured, no server span is opened, and only the exchange line carries a trace context - that of the incoming traceparent`;
+without Boot's observation at all
+`Endpoint logging found no server observation - Boot's observation auto-configuration is not active (no ObservationRegistry bean, or the observation module is absent): exchanges run outside any server observation; the exchange line still carries the trace context of an incoming traceparent`;
+and when a host registered the observation filter itself, behind this one,
+`Endpoint logging found Boot's server observation but no Micrometer Tracing - the observation filter is registered at order 0 against this filter's -2147483638, so the exchange runs outside the server observation and its duration is not part of the measurement: exchanges are measured, no server span is opened, and only the exchange line carries a trace context - that of the incoming traceparent`
+— the one rendering that names a deviation. With `endpoint-logging.enabled=false` none of them
 appears; Boot's condition evaluation report (DEBUG on `org.springframework.boot.autoconfigure`) then
 names the property as the reason. Enable it with
 `logging.level.eu.inqudium.limesium.servlet.logging.RequestLoggingAutoConfiguration=DEBUG`, or
@@ -191,13 +202,13 @@ names the property as the reason. Enable it with
 
 At **TRACE** the bean line is followed by where every `endpoint-logging.*` value came from — Boot's
 origin of each value it bound, one line per key, then every value of the same name a lower-precedence
-source also holds, marked as shadowed. The masking key is rendered redacted whatever its source; keys
+source also holds, marked as shadowed and indented with `+- ` under the winner. The masking key is rendered redacted whatever its source; keys
 no source sets are the class defaults and are not listed:
 
 ```
 Endpoint logging property endpoint-logging.exclude-path-prefixes[0] = /actuator (origin: class path resource [application.yml] - 20:7)
 Endpoint logging property endpoint-logging.logger-name = inbound (origin: class path resource [application-prod.yml] - 3:16)
-Endpoint logging property endpoint-logging.logger-name = endpoint-http-exchange (origin: class path resource [application.yml] - 12:16) is shadowed by class path resource [application-prod.yml] - 3:16
++- Endpoint logging property endpoint-logging.logger-name = endpoint-http-exchange (origin: class path resource [application.yml] - 12:16) is shadowed by class path resource [application-prod.yml] - 3:16
 Endpoint logging property endpoint-logging.masking-key = <redacted> (origin: System Environment Property "ENDPOINT_LOGGING_MASKING_KEY")
 ```
 

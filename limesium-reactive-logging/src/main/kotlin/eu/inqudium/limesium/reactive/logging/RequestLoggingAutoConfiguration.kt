@@ -2,6 +2,7 @@ package eu.inqudium.limesium.reactive.logging
 
 import eu.inqudium.limesium.common.CorrelationIdGenerator
 import eu.inqudium.limesium.common.EndpointLoggingPropertyOrigins
+import eu.inqudium.limesium.common.EndpointObservationWiring
 import eu.inqudium.limesium.common.HeaderValueMasker
 import eu.inqudium.limesium.common.NanoTimeSource
 import eu.inqudium.limesium.common.RequestLoggingProperties
@@ -10,7 +11,9 @@ import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.InitializingBean
+import org.springframework.beans.factory.ListableBeanFactory
 import org.springframework.beans.factory.ObjectProvider
+import org.springframework.beans.factory.SmartInitializingSingleton
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
@@ -136,6 +139,27 @@ class RequestLoggingAutoConfiguration {
                 }
             }
     }
+
+    /**
+     * The observation line of the wiring report ([EndpointObservationWiring]) - logged once every singleton
+     * exists, for both variants (this configuration is active whichever claimed the slot). On this stack
+     * the server observation is no `WebFilter`: WebFlux's `HttpWebHandlerAdapter` observes every request
+     * as soon as an `ObservationRegistry` bean exists, outside the whole filter chain - so it always
+     * wraps the module's filter and no order is compared.
+     */
+    @Bean
+    fun endpointLoggingObservationReport(beanFactory: ListableBeanFactory): SmartInitializingSingleton =
+        SmartInitializingSingleton {
+            if (wiringLog.isDebugEnabled) {
+                val observation =
+                    if (EndpointObservationWiring.hasBean(beanFactory, EndpointObservationWiring.OBSERVATION_REGISTRY)) {
+                        EndpointObservationWiring.Observation("the HttpWebHandlerAdapter observes every request outside all WebFilters", wraps = true)
+                    } else {
+                        null
+                    }
+                wiringLog.debug(EndpointObservationWiring.describe(beanFactory, observation))
+            }
+        }
 
     companion object {
         /**

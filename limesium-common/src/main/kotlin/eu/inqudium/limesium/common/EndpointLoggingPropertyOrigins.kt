@@ -30,8 +30,9 @@ internal object EndpointLoggingPropertyOrigins {
 
     /**
      * Logs [describe] line by line at TRACE on [log] - nothing is computed unless TRACE is enabled - or
-     * one line saying the origins are unavailable when the context has no [BoundConfigurationProperties]
-     * bean ([bound] null: a host that bound the properties without `@EnableConfigurationProperties`).
+     * one line saying - first in plain words, then in Spring terms - that the origins are unavailable when
+     * the context has no [BoundConfigurationProperties] bean ([bound] null: a host that bound the
+     * properties without `@EnableConfigurationProperties`).
      */
     fun report(
         log: Logger,
@@ -42,7 +43,11 @@ internal object EndpointLoggingPropertyOrigins {
             return
         }
         if (bound == null) {
-            log.trace("Endpoint logging property origins are unavailable - no BoundConfigurationProperties bean in this context")
+            log.trace(
+                "Endpoint logging cannot tell where its endpoint-logging.* values came from (which file, environment " +
+                    "variable or command-line argument set them); the values above are in effect nonetheless. " +
+                    "Endpoint logging property origins are unavailable - no BoundConfigurationProperties bean in this context",
+            )
             return
         }
         describe(bound.all, environment).forEach(log::trace)
@@ -50,9 +55,9 @@ internal object EndpointLoggingPropertyOrigins {
 
     /**
      * One line per `endpoint-logging.*` value in [bound] (the effective value and its origin), followed by
-     * one line per value of the same name a lower-precedence source of [environment] also holds; or a
-     * single line saying that no key is set anywhere. Sorted by name, so a report reads like the
-     * reference configuration.
+     * one line per value of the same name a lower-precedence source of [environment] also holds - indented
+     * with `+- ` under the effective value, so the shadowed values read as a tree; or a single line saying
+     * that no key is set anywhere. Sorted by name, so a report reads like the reference configuration.
      */
     fun describe(
         bound: Map<ConfigurationPropertyName, ConfigurationProperty>,
@@ -73,7 +78,7 @@ internal object EndpointLoggingPropertyOrigins {
                     .drop(1)
                     .forEach { shadowed ->
                         add(
-                            "Endpoint logging property ${shadowed.name} = ${render(shadowed)} " +
+                            "+- Endpoint logging property ${shadowed.name} = ${render(shadowed)} " +
                                 "(origin: ${shadowed.origin?.toString() ?: "unknown origin"}) is shadowed by $effectiveOrigin",
                         )
                     }

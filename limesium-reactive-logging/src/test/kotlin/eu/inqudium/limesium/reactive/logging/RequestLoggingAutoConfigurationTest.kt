@@ -22,6 +22,9 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.RegisterExtension
 import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.AutoConfigurations
+import org.springframework.boot.micrometer.observation.autoconfigure.ObservationAutoConfiguration
+import org.springframework.boot.micrometer.tracing.autoconfigure.MicrometerTracingAutoConfiguration
+import org.springframework.boot.micrometer.tracing.brave.autoconfigure.BraveAutoConfiguration
 import org.springframework.boot.test.context.FilteredClassLoader
 import org.springframework.boot.test.context.runner.ReactiveWebApplicationContextRunner
 import org.springframework.context.annotation.Bean
@@ -108,12 +111,13 @@ class RequestLoggingAutoConfigurationTest {
     fun `should report at DEBUG that it is enabled and which variant it wired`() {
         // What is tested: the wiring report on the twin's one wiring logger, across both shipped
         //   auto-configurations - the enabled line from the Reactor configuration, the bean line from
-        //   whichever variant claimed the slot (the coroutine one on this classpath), and the accessor
-        //   line only for the Reactor variant.
-        // Success criteria: on the shipped pair the DEBUG events contain the enabled line and the
-        //   coroutine bean line with the bound logger name and a redacted masking key, no Reactor bean
-        //   line and no accessor line; on the Reactor configuration alone, the Reactor bean line and
-        //   the accessor line.
+        //   whichever variant claimed the slot (the coroutine one on this classpath), the accessor
+        //   line only for the Reactor variant, and the observation line for a context without Boot's
+        //   server observation.
+        // Success criteria: on the shipped pair the DEBUG events contain the enabled line, the
+        //   coroutine bean line with the bound logger name and a redacted masking key and the
+        //   no-observation line, no Reactor bean line and no accessor line; on the Reactor configuration
+        //   alone, the Reactor bean line and the accessor line.
         // Why it matters: "which variant is in the chain, and is handler MDC wired?" is the first
         //   question on the reactive stack; the report answers it from the host's log at DEBUG.
         // Given/When: the shipped pair on the full classpath (coroutine variant)
@@ -122,7 +126,10 @@ class RequestLoggingAutoConfigurationTest {
 
             // Then
             val messages = wiringLog.events.filter { it.level == Level.DEBUG }.map { it.formattedMessage }
-            assertThat(messages).contains("Endpoint logging is enabled - the auto-configuration is active (endpoint-logging.enabled is not false)")
+            assertThat(messages).contains(
+                "Endpoint logging is enabled - the auto-configuration is active (endpoint-logging.enabled is not false)",
+                "Endpoint logging found no server observation - Boot's observation auto-configuration is not active (no ObservationRegistry bean, or the observation module is absent): exchanges run outside any server observation; the exchange line still carries the trace context of an incoming traceparent",
+            )
             assertThat(messages).anySatisfy { message ->
                 assertThat(message)
                     .startsWith("Endpoint logging registered its CoRequestLoggingWebFilter bean (coroutine variant, ordered at HIGHEST_PRECEDENCE + 10, collected by WebFlux) with RequestLoggingProperties(")
@@ -142,6 +149,36 @@ class RequestLoggingAutoConfigurationTest {
                 assertThat(message).startsWith("Endpoint logging registered its RequestLoggingWebFilter bean (Reactor variant, ordered at HIGHEST_PRECEDENCE + 10, collected by WebFlux) with RequestLoggingProperties(")
             }
             assertThat(messages).contains("Endpoint logging registered the endpoint_* MDC accessors with Micrometer's ContextRegistry (Reactor variant)")
+        }
+    }
+
+    @Test
+    fun `should report at DEBUG whether Boot's server observation and a bridge are wired`() {
+        // What is tested: the observation line of the wiring report against Boot's REAL observation
+        //   and tracing auto-configurations - with a Brave bridge, and with the observation registry
+        //   alone. On this stack the observation is the HttpWebHandlerAdapter's, outside every WebFilter,
+        //   so the line compares no order.
+        // Success criteria: with tracing, the line says the adapter observes every request outside
+        //   all WebFilters, "inside", and that the handler lines carry the bridge's ids; without a
+        //   tracer, the measured-only line with the exchange line as the only traced one.
+        // Why it matters: whether a server span exists and whether handler lines carry a traceId has
+        //   no property; this line is where an operator reads it from the startup log.
+        // Given: Boot's observation auto-configuration on the Reactor configuration
+        val observed = contextRunner.withConfiguration(AutoConfigurations.of(ObservationAutoConfiguration::class.java))
+
+        // When: with a tracing bridge
+        observed
+            .withConfiguration(AutoConfigurations.of(BraveAutoConfiguration::class.java, MicrometerTracingAutoConfiguration::class.java))
+            .run { context ->
+                assertThat(context).hasNotFailed()
+                assertThat(wiringLog.events.map { it.formattedMessage }).contains("Endpoint logging found Boot's server observation with Micrometer Tracing - the HttpWebHandlerAdapter observes every request outside all WebFilters, so every exchange runs inside the server observation: the handler lines carry the bridge's traceId and spanId, the exchange line the trace context of the incoming traceparent")
+            }
+
+        // And when: the observation registry alone
+        wiringLog.clear()
+        observed.run { context ->
+            assertThat(context).hasNotFailed()
+            assertThat(wiringLog.events.map { it.formattedMessage }).contains("Endpoint logging found Boot's server observation but no Micrometer Tracing - the HttpWebHandlerAdapter observes every request outside all WebFilters, so every exchange runs inside the server observation: exchanges are measured, no server span is opened, and only the exchange line carries a trace context - that of the incoming traceparent")
         }
     }
 
@@ -169,7 +206,7 @@ class RequestLoggingAutoConfigurationTest {
                     assertThat(line).startsWith("Endpoint logging property endpoint-logging.logger-name = inbound (origin: ").contains("from property source \"test\"")
                 }
                 assertThat(traces).anySatisfy { line ->
-                    assertThat(line).startsWith("Endpoint logging property endpoint-logging.logger-name = base (origin: ").contains("host-defaults").contains(") is shadowed by ")
+                    assertThat(line).startsWith("+- Endpoint logging property endpoint-logging.logger-name = base (origin: ").contains("host-defaults").contains(") is shadowed by ")
                 }
                 assertThat(traces).anySatisfy { line ->
                     assertThat(line).startsWith("Endpoint logging property endpoint-logging.masking-key = <redacted> (origin: ")

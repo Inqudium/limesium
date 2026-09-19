@@ -2,6 +2,7 @@ package eu.inqudium.limesium.servlet.logging
 
 import eu.inqudium.limesium.common.CorrelationIdGenerator
 import eu.inqudium.limesium.common.EndpointLoggingPropertyOrigins
+import eu.inqudium.limesium.common.EndpointObservationWiring
 import eu.inqudium.limesium.common.HeaderValueMasker
 import eu.inqudium.limesium.common.NanoTimeSource
 import eu.inqudium.limesium.common.RequestLoggingProperties
@@ -9,7 +10,9 @@ import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import jakarta.servlet.ServletRequestListener
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.ListableBeanFactory
 import org.springframework.beans.factory.ObjectProvider
+import org.springframework.beans.factory.SmartInitializingSingleton
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -20,6 +23,7 @@ import org.springframework.boot.web.servlet.FilterRegistrationBean
 import org.springframework.boot.web.servlet.ServletListenerRegistrationBean
 import org.springframework.context.annotation.Bean
 import org.springframework.core.Ordered
+import org.springframework.core.annotation.OrderUtils
 import org.springframework.core.env.Environment
 
 /**
@@ -104,7 +108,7 @@ class RequestLoggingAutoConfiguration {
     @Bean
     fun requestLoggingFilterRegistration(filter: RequestLoggingFilter): FilterRegistrationBean<RequestLoggingFilter> =
         FilterRegistrationBean(filter).apply {
-            order = Ordered.HIGHEST_PRECEDENCE + 10
+            order = FILTER_ORDER
             log.debug("Endpoint logging registered the filter registration - the filter runs at order {} (HIGHEST_PRECEDENCE + 10) for every dispatcher type, mapped to /*", order)
         }
 
@@ -119,7 +123,46 @@ class RequestLoggingAutoConfiguration {
         return ServletListenerRegistrationBean(filter.exchangeCompletionListener())
     }
 
+    /**
+     * The observation line of the wiring report ([EndpointObservationWiring]) - logged once every singleton
+     * exists, because Boot's observation filter lives inside a `FilterRegistrationBean` whose filter is
+     * known only once the registration is built. Independent of the filter bean above: the line is about
+     * the context, and appears also when a host replaced the bean.
+     */
+    @Bean
+    fun endpointLoggingObservationReport(beanFactory: ListableBeanFactory): SmartInitializingSingleton =
+        SmartInitializingSingleton {
+            if (log.isDebugEnabled) {
+                log.debug(EndpointObservationWiring.describe(beanFactory, serverObservation(beanFactory)))
+            }
+        }
+
+    /**
+     * Boot's `ServerHttpObservationFilter` and its order against [FILTER_ORDER]: inside the registration
+     * bean Boot's observation auto-configuration builds (`HIGHEST_PRECEDENCE + 1`), or a bare filter bean
+     * a host registered itself (its `@Order`, `LOWEST_PRECEDENCE` without one - as Boot registers it).
+     */
+    private fun serverObservation(beanFactory: ListableBeanFactory): EndpointObservationWiring.Observation? {
+        val type = EndpointObservationWiring.loadClass(beanFactory, SERVER_OBSERVATION_FILTER) ?: return null
+        val registered = beanFactory.getBeansOfType(FilterRegistrationBean::class.java).values.firstOrNull { type.isInstance(it.filter) }
+        val bare = beanFactory.getBeansOfType(type).values.firstOrNull()
+        val order =
+            registered?.order
+                ?: bare?.let { (it as? Ordered)?.order ?: OrderUtils.getOrder(it.javaClass, Ordered.LOWEST_PRECEDENCE) }
+                ?: return null
+        return EndpointObservationWiring.Observation(
+            "the observation filter is registered at order $order against this filter's $FILTER_ORDER",
+            wraps = order < FILTER_ORDER,
+        )
+    }
+
     companion object {
+        /** Very early, but behind the infrastructure that must precede logging - see [requestLoggingFilterRegistration]. */
+        const val FILTER_ORDER = Ordered.HIGHEST_PRECEDENCE + 10
+
+        /** Boot's server observation filter, by name - `spring-web`'s class, observed only with an `ObservationRegistry` bean. */
+        private const val SERVER_OBSERVATION_FILTER = "org.springframework.web.filter.ServerHttpObservationFilter"
+
         /** The wiring report of the class KDoc, at DEBUG and TRACE; the exchange lines have their own logger. */
         private val log = LoggerFactory.getLogger(RequestLoggingAutoConfiguration::class.java)
     }
