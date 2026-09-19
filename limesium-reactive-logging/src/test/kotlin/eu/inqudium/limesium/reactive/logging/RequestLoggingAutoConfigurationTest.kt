@@ -312,6 +312,33 @@ class RequestLoggingAutoConfigurationTest {
     }
 
     @Test
+    fun `should wire no MDC accessors and report none when context-propagation is missing`() {
+        // What is tested: the classpath branch of the handler-MDC parity - io.micrometer:context-
+        //   propagation is an OPTIONAL dependency, and @ConditionalOnClass decides against the
+        //   context's class loader.
+        // Success criteria: with ContextRegistry hidden from the class loader, the initializer bean is
+        //   absent, the Reactor bean line is reported, the accessor line is not, and the JVM-global
+        //   registry carries no endpoint_* accessor.
+        // Why it matters: a host without the library must start with the Reactor variant and read from
+        //   its log that handler MDC is not wired - never fail on a missing class, never claim accessors
+        //   it did not register.
+        // Given/When: the context-propagation class hidden from the class loader, the Reactor variant active
+        contextRunner
+            .withClassLoader(FilteredClassLoader(ContextRegistry::class.java))
+            .run { context ->
+                // Then
+                assertThat(context).hasNotFailed()
+                assertThat(context).doesNotHaveBean("endpointMdcContextPropagationInitializer")
+                val messages = wiringLog.events.filter { it.level == Level.DEBUG }.map { it.formattedMessage }
+                assertThat(messages).anySatisfy { message ->
+                    assertThat(message).startsWith("Endpoint logging registered its RequestLoggingWebFilter bean (Reactor variant, ordered at HIGHEST_PRECEDENCE + 10, collected by WebFlux) with RequestLoggingProperties(")
+                }
+                assertThat(messages).noneMatch { it.contains("MDC accessors") }
+                assertThat(ContextRegistry.getInstance().threadLocalAccessors.map { it.key() }).doesNotContain(MdcKeys.REQUEST_ID, MdcKeys.REQUEST_METHOD, MdcKeys.ROUTE)
+            }
+    }
+
+    @Test
     fun `should select the coroutine variant when the coroutine libraries are present`() {
         // What is tested: the shipped two-auto-configuration system on the full classpath (both
         //   kotlinx-coroutines libraries present, as on this test classpath).
