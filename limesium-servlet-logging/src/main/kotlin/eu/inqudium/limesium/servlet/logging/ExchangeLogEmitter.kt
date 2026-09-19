@@ -7,6 +7,7 @@ import eu.inqudium.limesium.common.HeaderValueMasker
 import eu.inqudium.limesium.common.MdcScope
 import eu.inqudium.limesium.common.NanoTimeSource
 import eu.inqudium.limesium.common.RequestLoggingProperties
+import eu.inqudium.limesium.common.StatusClassification
 import eu.inqudium.limesium.common.addKeyValue
 import eu.inqudium.limesium.common.addKeyValueIfPresent
 import eu.inqudium.limesium.common.failOpen
@@ -29,9 +30,10 @@ import java.time.Duration
  *
  * The level carries severity only, `endpoint_outcome` the semantic: ERROR when the chain threw, WARN for
  * a 5xx, a container timeout, or an exchange that reached
- * [RequestLoggingProperties.slowRequestThreshold], INFO otherwise. Severity and outcome are resolved
- * BEFORE the event is built, so an exchange whose level is disabled costs neither the key-value assembly
- * nor the header rendering.
+ * [RequestLoggingProperties.slowRequestThreshold], INFO otherwise - a 4xx included, which is `rejected`
+ * at INFO (the status half is the shared [StatusClassification], ADR-0007). Severity and outcome are
+ * resolved BEFORE the event is built, so an exchange whose level is disabled costs neither the key-value
+ * assembly nor the header rendering.
  *
  * ## Fail-open
  *
@@ -115,7 +117,9 @@ internal class ExchangeLogEmitter(
         // The SLF4J level carries the severity, endpoint_outcome the semantic - decoupled on purpose (see
         // EndpointLogField.OUTCOME): a 5xx without a chain exception is WARN (the application already
         // handled it), a thrown chain is ERROR, a container timeout is WARN; all of the first two carry
-        // "failure". A slow but otherwise healthy exchange escalates INFO -> WARN without changing outcome.
+        // "failure". A 4xx is "rejected" at INFO (the caller's request was refused), success below 400 -
+        // the status half is StatusClassification, shared with the reactive twin. A slow but otherwise
+        // healthy exchange escalates INFO -> WARN without changing outcome.
         //
         // The async disposition is classified by WHICH CALLBACK occurred (Exchange.asyncDisposition),
         // never by throwable presence: onTimeout MAY carry a throwable (attached as cause, still a
@@ -136,12 +140,9 @@ internal class ExchangeLogEmitter(
                     Classification(Level.ERROR, EndpointLoggingMetrics.OUTCOME_FAILURE, exchange.asyncFailure)
                 }
 
-                status >= 500 -> {
-                    Classification(Level.WARN, EndpointLoggingMetrics.OUTCOME_FAILURE, null)
-                }
-
                 else -> {
-                    Classification(Level.INFO, EndpointLoggingMetrics.OUTCOME_SUCCESS, null)
+                    val (level, outcome) = StatusClassification.levelAndOutcome(status)
+                    Classification(level, outcome, null)
                 }
             }
         val outcome = classification.outcome
@@ -169,10 +170,11 @@ internal class ExchangeLogEmitter(
                         ?.joinToString(", ")
                 }
             // Body fields only when the direction's mode admits THIS outcome: `on-failure` captured the
-            // bytes (the outcome is unknown while they flow) and discards them here for a clean exchange (success outcome, no 4xx). A
+            // bytes (the outcome is unknown while they flow) and discards them here for a clean exchange
+            // (success outcome; a rejected 4xx logs its bodies through its own outcome, ADR-0007). A
             // capture may also exist in count-only mode for the size metrics, and its empty buffer must
             // not surface as a truncated-looking field.
-            val failed = outcome != EndpointLoggingMetrics.OUTCOME_SUCCESS || status in 400..499
+            val failed = outcome != EndpointLoggingMetrics.OUTCOME_SUCCESS
             val requestBody =
                 if (properties.logRequestBody.logs(failed)) {
                     exchange.requestCapture?.loggedValue(exchange.requestWrapper?.bodyCharset ?: StandardCharsets.UTF_8)

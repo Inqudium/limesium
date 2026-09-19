@@ -408,6 +408,54 @@ class RequestLoggingWebFilterTest {
         }
 
         @Test
+        fun `should log INFO with outcome rejected for a 4xx`() {
+            // What is tested: the shared status classification wired into this twin - a chain that
+            //   answers 404 without an error signal is `rejected` at INFO (ADR-0007).
+            // Success criteria: INFO with outcome rejected and status 404.
+            // Why it matters: the caller's request was refused, which is the caller's problem, not the
+            //   operator's; the outcome lets a dashboard split it from a success without raising the
+            //   severity.
+            // Given: a chain that answers 404 itself
+            val exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/api/things"))
+            val chain =
+                WebFilterChain { ex ->
+                    ex.response.statusCode = HttpStatus.NOT_FOUND
+                    Mono.empty()
+                }
+
+            // When / Then
+            filter.filter(exchange, chain).block()
+            val event = exchangeLog.events.single()
+            assertThat(event.level).isEqualTo(Level.INFO)
+            assertThat(event.keyValues()).containsEntry("endpoint_outcome", "rejected").containsEntry("endpoint_response_status_code", 404)
+        }
+
+        @Test
+        fun `should keep every 4xx at INFO, the escalation of the outbound sibling included`() {
+            // What is tested: 401, 403, 408 and 429 - WARN on the outbound line of legatium, where the
+            //   caller is the application itself - stay INFO here, where the caller is the foreign party.
+            // Success criteria: four INFO events, each with outcome rejected.
+            // Why it matters: scanners, expired tokens and rate-limited clients produce these all day on
+            //   an exposed API; at WARN they would drown the 5xx and cancellations WARN exists for.
+            // Given/When
+            for (status in listOf(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN, HttpStatus.REQUEST_TIMEOUT, HttpStatus.TOO_MANY_REQUESTS)) {
+                val exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/api/things"))
+                filter
+                    .filter(
+                        exchange,
+                        WebFilterChain { ex ->
+                            ex.response.statusCode = status
+                            Mono.empty()
+                        },
+                    ).block()
+            }
+
+            // Then
+            assertThat(exchangeLog.events).hasSize(4).allSatisfy { assertThat(it.level).isEqualTo(Level.INFO) }
+            assertThat(exchangeLog.events.map { it.keyValues()["endpoint_outcome"] }).containsOnly("rejected")
+        }
+
+        @Test
         fun `should escalate to WARN and flag a slow but successful exchange`() {
             // What is tested: the slow threshold reached by a successful exchange.
             // Success criteria: WARN, endpoint_slow true, outcome still success.

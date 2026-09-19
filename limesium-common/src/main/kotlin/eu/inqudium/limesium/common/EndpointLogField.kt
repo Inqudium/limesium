@@ -31,7 +31,7 @@ import kotlin.reflect.KClass
  * Headers and bodies are display-only (`index: false`): they are the widest data-leak surface of the
  * family, and a value that reaches the log should at least not be searchable for deliberately.
  *
- * Stack-specific SEMANTICS live on the twins' emitters, not here: the servlet twin's third outcome is
+ * Stack-specific SEMANTICS live on the twins' emitters, not here: the servlet twin's fourth outcome is
  * `timeout` and it always emits [ASYNC] and a status; the reactive twin's is `cancelled`, it never emits
  * [ASYNC] and may omit the status of a never-committed cancellation. The constants are the same so both
  * stacks map the identical template.
@@ -42,11 +42,12 @@ internal enum class EndpointLogField(
     private val type: KClass<out Any>,
 ) {
     /**
-     * ELK: `keyword`, index true, doc_values ON - aggregate. Three values per stack (`success`, `failure`
-     * and the stack's own disposition - `timeout` on the servlet twin, `cancelled` on the reactive twin),
-     * and the field a dashboard splits by - deliberately NOT the log level: a 5xx without a chain
-     * exception/error signal logs at WARN while a thrown chain logs at ERROR, yet both carry `failure`.
-     * Panels key off this field, the level only carries severity.
+     * ELK: `keyword`, index true, doc_values ON - aggregate. Four values per stack (`success`, `rejected`
+     * for a 4xx, `failure`, and the stack's own disposition - `timeout` on the servlet twin, `cancelled`
+     * on the reactive twin), naming who is responsible (ADR-0007), and the field a dashboard splits by -
+     * deliberately NOT the log level: a 5xx without a chain exception/error signal logs at WARN while a
+     * thrown chain logs at ERROR, yet both carry `failure`. Panels key off this field, the level only
+     * carries severity.
      */
     OUTCOME("endpoint_outcome", String::class),
 

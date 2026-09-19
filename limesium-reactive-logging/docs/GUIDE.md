@@ -761,7 +761,7 @@ stack decides within them.
 
 | Field | On this stack |
 |---|---|
-| `endpoint_outcome` | `success` / `failure` / **`cancelled`** — a cancelled subscription, typically a client disconnect ([§5.3](#53-levels-and-outcomes)). |
+| `endpoint_outcome` | `success` / `rejected` / `failure` / **`cancelled`** — a cancelled subscription, typically a client disconnect ([§5.3](#53-levels-and-outcomes)). |
 | `endpoint_duration_ms` | Measured until the terminal signal or, for a deferred error, the commit. |
 | `endpoint_response_status_code` | Present when a status is known; **absent** for a cancellation that never committed ([§6.1](#61-cancellation-and-the-missing-status)). Dashboards must treat `endpoint_outcome` as the authoritative disposition. |
 | `endpoint_async` | **Never emitted** — everything is asynchronous here, the flag would carry no information; the enum keeps the constant so both modules map the same template. |
@@ -788,9 +788,9 @@ of `MdcScope`.
 ### 5.3 Levels and outcomes
 
 The resolution order of the [common guide's §5.3](../../docs/GUIDE.md#53-levels-and-outcomes) — a
-signalled error first, a 5xx the application handled after the stack's own disposition, `success`
-otherwise, slowness raising severity — has one reactive-specific row, resolved between the error signal
-and the 5xx:
+signalled error first, after the stack's own disposition a 5xx the application handled, a 4xx as
+`rejected`, `success` otherwise, slowness raising severity — has one reactive-specific row, resolved
+between the error signal and the status classes:
 
 | Condition | Level | `endpoint_outcome` |
 |---|---|---|
@@ -803,7 +803,7 @@ the caught exception in the coroutine variant.
 
 | Meter | On this stack |
 |---|---|
-| `endpoint.logging.events` | the `outcome` tag carries `cancelled` as the third value |
+| `endpoint.logging.events` | the `outcome` tag carries `cancelled` as the fourth value |
 | `endpoint.logging.exchanges.open` | counts exchanges between filter entry (wiring) and the exactly-once completion — the terminal signal, or the commit for a deferred error |
 | `endpoint.logging.failopen{stage=wiring}` | includes an unarmed deferral — a failed commit-callback registration, after which the event completes at the terminal signal instead ([§2.7](#27-fail-open-stages)) |
 | `endpoint.request.body.read{state=partial}` | a subscription exists but no completion signal was observed — a cancelled subscription such as `take`, a client disconnect, an error mid-stream |

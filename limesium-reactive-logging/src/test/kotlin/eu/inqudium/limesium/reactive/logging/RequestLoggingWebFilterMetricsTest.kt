@@ -73,11 +73,12 @@ class RequestLoggingWebFilterMetricsTest {
         fun `should pre-register the reactive outcome vocabulary and count emitted events per outcome`() {
             // What is tested: the reactive events counter carries the cancelled outcome the servlet twin
             //   does not have, pre-registered like everything else.
-            // Success criteria: success/failure/cancelled exist at zero; a success and a cancellation count
-            //   one each on their side.
+            // Success criteria: success/rejected/failure/cancelled exist at zero; a success and a
+            //   cancellation count one each on their side.
             // Why it matters: the reconciliation ground truth must cover every disposition this stack emits.
-            // Given: a fresh registry - all three outcomes already exist at zero
+            // Given: a fresh registry - all four outcomes already exist at zero
             assertThat(eventCount("success")).isEqualTo(0.0)
+            assertThat(eventCount("rejected")).isEqualTo(0.0)
             assertThat(eventCount("failure")).isEqualTo(0.0)
             assertThat(eventCount("cancelled")).isEqualTo(0.0)
 

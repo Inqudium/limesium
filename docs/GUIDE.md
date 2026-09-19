@@ -643,11 +643,11 @@ has it.
 | `log-request-start` | boolean | `false` | Additionally log an arrival line before the chain runs, at INFO, with the identity in the MDC. Carries no outcome/status/duration. |
 | `include-path-patterns` | list of `PathPattern` | `[]` | Endpoints the filter is active for at all; empty = every endpoint. Parsed once at startup; an invalid pattern fails the context. |
 | `exclude-path-prefixes` | list of strings | `[]` | Request-path prefixes the filter skips entirely — no event, no MDC, no correlation echo, no gauge movement. Prefix match against the decoded request path. An exclude always wins over an include. |
-| `slow-request-threshold` | duration | `5s` | At/above this duration an INFO exchange escalates to WARN and is flagged `endpoint_slow: true`; the outcome stays `success`. Measured from filter entry to the emission point. Must be ≥ 1 ms. |
+| `slow-request-threshold` | duration | `5s` | At/above this duration an INFO exchange escalates to WARN and is flagged `endpoint_slow: true`; the outcome is unchanged. Measured from filter entry to the emission point. Must be ≥ 1 ms. |
 | `request-headers.includes` / `.excludes` / `.masked` / `.unmasked` | lists of header names | see [§4.2](#42-header-sections) | The request-header section. |
 | `response-headers.includes` / `.excludes` / `.masked` / `.unmasked` | lists of header names | see [§4.2](#42-header-sections) | The response-header section. |
-| `log-request-body` | `never` \| `on-failure` \| `always` | `never` | Tee the request body into `endpoint_request_body`, up to `max-body-bytes` — on every line (`always`) or only when the outcome is not `success` or the status is a 4xx (`on-failure`, [§4.3](#43-body-logging-and-body-measuring)). |
-| `log-response-body` | `never` \| `on-failure` \| `always` | `never` | Tee the response body into `endpoint_response_body`, up to `max-body-bytes` — on every line or only when the outcome is not `success` or the status is a 4xx. |
+| `log-request-body` | `never` \| `on-failure` \| `always` | `never` | Tee the request body into `endpoint_request_body`, up to `max-body-bytes` — on every line (`always`) or only when the outcome is not `success` (`on-failure`, [§4.3](#43-body-logging-and-body-measuring)). |
+| `log-response-body` | `never` \| `on-failure` \| `always` | `never` | Tee the response body into `endpoint_response_body`, up to `max-body-bytes` — on every line or only when the outcome is not `success`. |
 | `measure-request-body-size` | boolean | `false` | Record `endpoint.request.body.size`; independent of `log-request-body`. |
 | `measure-response-body-size` | boolean | `false` | Record `endpoint.response.body.size`; independent of `log-response-body`. |
 | `max-body-bytes` | int > 0 | `16384` | Capture limit per body. Bounds **memory**, not the exchange: bytes beyond it still flow; the logged value is truncated with a note of the total size. |
@@ -683,21 +683,21 @@ measured — independent of each other:
 |---|---|---|---|---|
 | `never` | off | no | — | chain gets the original request/response, zero overhead |
 | `always` | off | yes, limit `max-body-bytes` | up to the limit | field logged on every line; no size sample |
-| `on-failure` | off | yes, limit `max-body-bytes` | up to the limit | field logged only when `endpoint_outcome` is not `success` or the status is a 4xx; no size sample |
+| `on-failure` | off | yes, limit `max-body-bytes` | up to the limit | field logged only when `endpoint_outcome` is not `success`; no size sample |
 | `never` | on | yes, limit `0` (count-only) | nothing | size sample recorded; no field |
 | `always` / `on-failure` | on | yes, limit `max-body-bytes` | up to the limit | both |
 
 **`on-failure` is the volume switch** ([ADR-0006](adr/ADR-0006-bodies-logged-by-outcome.md)).
 `always` means every body of every exchange; what is nearly always wanted is bodies for the exchanges that
-went wrong — `failure`, and the stack's own disposition (`timeout` on the servlet stack, `cancelled` on
-the reactive stack) — which cuts the volume by orders of magnitude and hits exactly the lines a body is
-wanted for. The emitter decides when the outcome is final. The request body flows before the outcome is
-known, so `on-failure` captures it exactly like `always` does (bounded by `max-body-bytes`) and discards
-it for a success: the capture is paid, the output is saved — and the output is what burdens the log
-pipeline. The gate is wider than the outcome vocabulary ([§5.3](#53-levels-and-outcomes)) by one status
-class: a `4xx` response keeps its `success` outcome — the application answered — but its bodies are logged in
-`on-failure`, because the client's error is exactly what the body explains; a `5xx` is `failure` and logs as
-well. A slow but healthy exchange stays `success` and logs no bodies.
+went wrong — `rejected`, `failure`, and the stack's own disposition (`timeout` on the servlet stack,
+`cancelled` on the reactive stack) — which cuts the volume by orders of magnitude and hits exactly the
+lines a body is wanted for. The emitter decides when the outcome is final. The request body flows before
+the outcome is known, so `on-failure` captures it exactly like `always` does (bounded by `max-body-bytes`)
+and discards it for a success: the capture is paid, the output is saved — and the output is what burdens
+the log pipeline. The gate is the outcome vocabulary ([§5.3](#53-levels-and-outcomes)): a `4xx` response
+is `rejected` — the application answered, the client's request was refused — and its bodies are logged in
+`on-failure`, because the client's error is exactly what the body explains; a `5xx` is `failure` and logs
+as well. A slow but healthy exchange stays `success` and logs no bodies.
 
 Rules that hold for every combination on both stacks:
 
@@ -1015,7 +1015,7 @@ keeps each module's enum in lockstep with it.
 
 | Field | Type | Index | doc_values | When present | Notes |
 |---|---|---|---|---|---|
-| `endpoint_outcome` | keyword | yes | on | always | `success` / `failure` plus the stack's own disposition — `timeout` (servlet) or `cancelled` (reactive); the field dashboards split by; decoupled from the level |
+| `endpoint_outcome` | keyword | yes | on | always | `success` / `rejected` / `failure` plus the stack's own disposition — `timeout` (servlet) or `cancelled` (reactive); the field dashboards split by, naming who is responsible ([§5.3](#53-levels-and-outcomes)); decoupled from the level |
 | `endpoint_duration_ms` | long | yes | on | always | from the injected monotonic source; measured from filter entry to the emission point |
 | `endpoint_request_method` | keyword | yes | on | always | |
 | `endpoint_response_status_code` | short | yes | on | always — except a reactive cancellation that never committed | the final status at emission — a numeric label, never summed |
@@ -1066,10 +1066,17 @@ Resolved in this order in `ExchangeLogEmitter`:
 | the chain threw or signalled an error | `ERROR` | `failure` | the exception |
 | the stack's own disposition — servlet: async cycle timed out (`WARN`, `timeout`) or errored (`ERROR`, `failure`); reactive: subscription cancelled (`WARN`, `cancelled`) | see the module guide's §5.3 | | |
 | status ≥ 500 without any of the above (the application handled it) | `WARN` | `failure` | — |
+| status 4xx without any of the above (the caller's request was refused; the application answered as designed) | `INFO` | `rejected` | — |
 | otherwise | `INFO` | `success` | — |
 | … and the duration reached `slow-request-threshold` | `INFO → WARN` | unchanged, plus `endpoint_slow: true` | — |
 
-Slowness raises severity; it never turns a completed exchange into a failure.
+The outcome names who is responsible — nobody, the caller, the application, the clock or the caller's
+disconnect — and the level carries the severity separately. A 4xx is `rejected` at INFO on every status
+of the class: inbound, the caller is the foreign party, its refused request is not the operator's to act
+on, and at WARN scanners, expired tokens and stale links would drown the channel. The outbound sibling
+legatium escalates four rejections (401, 403, 408, 429) to WARN, because there the caller is the
+application itself; this line does not, and the twins' suites pin the asymmetry
+([ADR-0007](adr/ADR-0007-a-4xx-response-is-rejected.md)). Slowness raises severity; it never turns a completed exchange into a failure.
 
 ### 5.4 Meters
 
@@ -1082,7 +1089,7 @@ identical on both stacks and pinned by `TwinContractTest`.
 | Meter | Type | Tags | Meaning |
 |---|---|---|---|
 | `endpoint.logging.failopen` | counter | `stage` = `emission` \| `arrival` \| `wiring` | Logging failures the fail-open path swallowed ([§2.4](#24-fail-open-contract)). `emission`: an exchange event was **lost**. `arrival`: a start line was lost. `wiring`: bookkeeping failed (pass-through degradation, a lost MDC scope, a lost sample or counter) — the event usually still follows. A lost log line cannot report itself through the same pipeline; this counter is the independent channel. |
-| `endpoint.logging.events` | counter | `outcome` = `success` \| `failure` \| the stack's own disposition (`timeout` / `cancelled`) | Exchange events actually **emitted** on the exchange logger — after the level gate, arrival lines excluded. The reconciliation ground truth against the log index. |
+| `endpoint.logging.events` | counter | `outcome` = `success` \| `rejected` \| `failure` \| the stack's own disposition (`timeout` / `cancelled`) | Exchange events actually **emitted** on the exchange logger — after the level gate, arrival lines excluded. The reconciliation ground truth against the log index. |
 | `endpoint.logging.exchanges.open` | gauge | — | Exchanges between filter entry and the exactly-once completion (request destruction on the servlet stack, the terminal signal or commit on the reactive stack). Hovers near the active-request count in health. |
 | `endpoint.logging.correlation.id` | counter | `source` = `trace` \| `header` \| `generated` | Origin of each exchange's request id ([§2.2](#22-exchange-identity)); the meter name predates ADR-0002 and stays stable. |
 | `endpoint.request.body.read` | counter | `uri` = handler pattern, `UNKNOWN` without one; `state` = `unread` \| `partial` \| `complete` | How far the application **consumed** the request body, opt-in via `measure-request-body-size`. Recorded once per exchange whenever the measuring tee exists — including bodyless requests the application never touched, which is the `unread` share the counter exists to show. `partial` = consumption started but the end of the body was never observed (what that looks like per stack is the module guide's §5.4). Bodies the framework parses itself (form and multipart requests read through the parameter/form-data API) never pass the tee and always count as `unread` — read the share per `uri` with that in mind. Created lazily per `uri`/`state` on first use, like the size summaries. |
@@ -1105,6 +1112,7 @@ The meters are designed to cover each other's blind spots:
 | Is the **log pipeline** (appender, broker, index) losing events? | `sum(endpoint.logging.events)` over a window ≠ count of indexed `endpoint-http-exchange` documents for the same window |
 | Did the upstream stop propagating identity (`traceparent` or correlation ids)? | the `generated` share of `correlation.id` rises |
 | Are async cycles timing out (servlet) / are clients disconnecting (reactive)? | `events{outcome="timeout"}` resp. `events{outcome="cancelled"}` |
+| Are callers being refused (a client with a broken contract, a scanner, expired tokens)? | the `rejected` share of `events` rises; the log index splits it by `endpoint_response_status_code` and `endpoint_url_template` |
 | Is an endpoint ignoring or abandoning the payload it is handed? | the `unread` or `partial` share of `request.body.read{uri=...}` rises — the logged body and the size sample cannot show this, both describe only what was consumed. Form and multipart endpoints sit at `unread` by construction (the framework parses those bodies beside the tee), so judge the share per `uri`, not globally |
 | Are payloads growing beyond what the log captures? | `body.size` percentiles vs. `max-body-bytes` |
 
@@ -1173,7 +1181,7 @@ module guide that explains the stack's side.
 
 | Concern | Servlet module | Reactive module |
 |---|---|---|
-| Disposition vocabulary | `success` / `failure` / **`timeout`** — the container's async timeout | `success` / `failure` / **`cancelled`** — a client disconnect, the reactive reality; there is no container async timeout in WebFlux ([§6.1](https://github.com/Inqudium/limesium/blob/main/limesium-reactive-logging/docs/GUIDE.md#61-cancellation-and-the-missing-status)) |
+| Disposition vocabulary | `success` / `rejected` / `failure` / **`timeout`** — the container's async timeout | `success` / `rejected` / `failure` / **`cancelled`** — a client disconnect, the reactive reality; there is no container async timeout in WebFlux ([§6.1](https://github.com/Inqudium/limesium/blob/main/limesium-reactive-logging/docs/GUIDE.md#61-cancellation-and-the-missing-status)) |
 | `endpoint_async` | emitted, always | never emitted — everything is asynchronous, the flag would carry no information |
 | `endpoint_response_status_code` | always present | absent for a never-committed cancellation |
 | Emission point | `requestDestroyed`, after the container's error dispatch and after async completion ([§2.4](https://github.com/Inqudium/limesium/blob/main/limesium-servlet-logging/docs/GUIDE.md#24-emission-point-request-destruction)) | the terminal signal; on an error with an uncommitted response deferred to the `beforeCommit` callback ([§2.4](https://github.com/Inqudium/limesium/blob/main/limesium-reactive-logging/docs/GUIDE.md#24-emission-point-terminal-signal-commit-deferred-on-error)) |
@@ -1217,7 +1225,7 @@ tests and fuzz target), `HeaderLogProperties` (selection and masking fingerprint
 fuzz target — ADR-0003 amendment 2026-08-31), `NanoTimeSource`, `CorrelationIdGenerator`,
 `HeaderValueMasker`, `CorrelationHeaderValue`, `MaskingKey`, the fail-open helpers, the MDC keys and scope, and — since
 the amendment of 2026-09-05 — the field enum `EndpointLogField`, the meters `EndpointLoggingMetrics`
-(parameterized with the stack's third outcome) and `ExchangeLine`, the stack-neutral core of the
+(parameterized with the stack's fourth outcome) and `ExchangeLine`, the stack-neutral core of the
 emitters (message texts, header rendering, the arrival line, the body measurements) over the two small
 interfaces `LoggedExchange` and `MeasuredBody` that both twins' `Exchange` and `BoundedBodyCapture`
 implement, and — since 2026-09-18 — `EndpointLoggingPropertyOrigins`, the TRACE half of the wiring

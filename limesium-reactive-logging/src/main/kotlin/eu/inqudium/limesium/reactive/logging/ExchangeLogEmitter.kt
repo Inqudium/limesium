@@ -7,6 +7,7 @@ import eu.inqudium.limesium.common.HeaderValueMasker
 import eu.inqudium.limesium.common.MdcScope
 import eu.inqudium.limesium.common.NanoTimeSource
 import eu.inqudium.limesium.common.RequestLoggingProperties
+import eu.inqudium.limesium.common.StatusClassification
 import eu.inqudium.limesium.common.addKeyValue
 import eu.inqudium.limesium.common.addKeyValueIfPresent
 import eu.inqudium.limesium.common.failOpen
@@ -28,8 +29,9 @@ import java.time.Duration
  *
  * The level carries severity only, `endpoint_outcome` the semantic: ERROR when the chain errored, WARN
  * for a 5xx, a cancellation, or an exchange that reached
- * [RequestLoggingProperties.slowRequestThreshold], INFO otherwise. Severity and outcome are resolved
- * BEFORE the event is built, so a disabled level costs no assembly.
+ * [RequestLoggingProperties.slowRequestThreshold], INFO otherwise - a 4xx included, which is `rejected`
+ * at INFO (the status half is the shared [StatusClassification], ADR-0007). Severity and outcome are
+ * resolved BEFORE the event is built, so a disabled level costs no assembly.
  *
  * ## Fail-open
  *
@@ -102,15 +104,15 @@ internal class ExchangeLogEmitter(
             properties.measureResponseBodySize,
         )
         // Severity and semantic decoupled, exactly like the servlet twin - with `cancelled` where the
-        // servlet stack has `timeout`: an error signal is ERROR, a 5xx without one is WARN (the
-        // application already handled it), a client disconnect is WARN; slow escalates INFO -> WARN
-        // without changing the outcome.
+        // servlet stack has `timeout`: an error signal is ERROR, a client disconnect is WARN, and an
+        // answered exchange resolves by its status through the shared StatusClassification (a 5xx WARN
+        // failure - the application already handled it -, a 4xx INFO rejected, success below 400); slow
+        // escalates INFO -> WARN without changing the outcome.
         val (baseLevel, outcome) =
             when {
                 failure != null -> Level.ERROR to EndpointLoggingMetrics.OUTCOME_FAILURE
                 cancelled -> Level.WARN to EndpointLoggingMetrics.OUTCOME_CANCELLED
-                (status ?: 0) >= 500 -> Level.WARN to EndpointLoggingMetrics.OUTCOME_FAILURE
-                else -> Level.INFO to EndpointLoggingMetrics.OUTCOME_SUCCESS
+                else -> StatusClassification.levelAndOutcome(status)
             }
         val level = if (slow && baseLevel == Level.INFO) Level.WARN else baseLevel
         if (!exchangeLog.isEnabledForLevel(level)) {
@@ -143,9 +145,10 @@ internal class ExchangeLogEmitter(
                 }
             // Body fields only when the direction's mode admits THIS outcome: `on-failure` captured the
             // bytes (the outcome is unknown while they flow) and discards them here for a clean
-            // exchange (success outcome, no 4xx). A capture may also exist in count-only mode for the size metrics, and its empty buffer
-            // must not surface as a truncated-looking field.
-            val failed = outcome != EndpointLoggingMetrics.OUTCOME_SUCCESS || (status ?: 0) in 400..499
+            // exchange (success outcome; a rejected 4xx logs its bodies through its own outcome,
+            // ADR-0007). A capture may also exist in count-only mode for the size metrics, and its empty
+            // buffer must not surface as a truncated-looking field.
+            val failed = outcome != EndpointLoggingMetrics.OUTCOME_SUCCESS
             val requestBody =
                 if (properties.logRequestBody.logs(failed)) exchange.requestCapture?.loggedValue(exchange.requestCharset) else null
             val responseBody =

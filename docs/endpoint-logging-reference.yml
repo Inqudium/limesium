@@ -63,7 +63,7 @@ endpoint-logging:
   #  - /actuator/health
 
   # At or above this duration the exchange escalates from INFO to WARN and is flagged
-  # `endpoint_slow: true` - the outcome stays `success`, slowness raises severity, it does not turn a
+  # `endpoint_slow: true` - the outcome is unchanged, slowness raises severity, it does not turn a
   # completed exchange into a failure. Duration is measured until the request is fully finished
   # (request occupancy including error rendering), not bare handler time. Compared at millisecond
   # resolution: values below 1ms are rejected at startup.
@@ -102,8 +102,8 @@ endpoint-logging:
     #  - Content-Type
 
   # Body logging per direction - a MODE, not a switch (ADR-0006): `never` (the default), `on-failure`
-  # or `always`. `on-failure` logs the body only for a failed exchange (outcome not `success`, or a 4xx
-  # status) - the volume switch; what each mode captures and when it logs is the contract of the type
+  # or `always`. `on-failure` logs the body only for a failed exchange (outcome not `success`: a
+  # rejected 4xx, a failure, a timeout or a cancellation) - the volume switch; what each mode captures and when it logs is the contract of the type
   # `BodyLogMode` (normative KDoc). The bodies are TEED as they flow - never pre-read, never replayed,
   # so streaming and async behaviour are untouched and the log shows exactly the bytes that actually
   # moved (an unread request body is logged as absent). Fields `endpoint_request_body` /

@@ -39,7 +39,7 @@ The servlet module is the reference implementation; its documentation applies he
 
 | Concern | Servlet twin | This module |
 |---|---|---|
-| Disposition vocabulary | `success` / `failure` / `timeout` | `success` / `failure` / **`cancelled`** (client disconnect — the reactive reality; there is no container async timeout) |
+| Disposition vocabulary | `success` / `rejected` / `failure` / `timeout` | `success` / `rejected` / `failure` / **`cancelled`** (client disconnect — the reactive reality; there is no container async timeout) |
 | `endpoint_async` field | emitted | **never emitted** — everything is asynchronous here, the flag would carry no information |
 | Final-status emission | at `requestDestroyed`, after the error dispatch | at the terminal signal; for an error on an **uncommitted** response deferred to the commit callback, which sees the upstream handler's **rendered 500**. A commit that never happens leaves the exchange open on the gauge (the liveness signal) instead of logging a wrong status; a never-committed cancellation logs `-> -` and omits the status field |
 | Chain-wide MDC | `endpoint_request_id`/`endpoint_method`/`endpoint_route` during the chain | Reactor **context** under the same keys; with `io.micrometer:context-propagation` on the classpath (an optional dependency — its presence is the opt-in) the auto-configuration registers matching `ThreadLocalAccessor`s and automatic propagation restores the identity into handler-side MDC, restoring parity. Both the accessors and the startup warning about the propagation mode are installed only while the Reactor variant owns the filter slot. Without the library: emission-scope MDC and the message inline only |

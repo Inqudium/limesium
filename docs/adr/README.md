@@ -23,6 +23,7 @@ each exchange line carries, and finally the cluster you are touching.
 |-----|-------|--------|
 | [0002](ADR-0002-trace-id-is-the-request-id.md) | The trace id is the request id; the correlation echo is the traceless fallback | Accepted |
 | [0004](ADR-0004-counting-correlation-id-default.md) | The default correlation id is a counting id, not a UUID | Accepted |
+| [0007](ADR-0007-a-4xx-response-is-rejected.md) | A 4xx response is `rejected`, at INFO on every status | Accepted |
 
 ### Module structure & build
 
@@ -35,7 +36,7 @@ each exchange line carries, and finally the cluster you are touching.
 | ADR | Title | Status |
 |-----|-------|--------|
 | [0005](ADR-0005-headers-masked-by-default.md) | Logged header values are masked by default; plaintext is an explicit allowlist | Accepted |
-| [0006](ADR-0006-bodies-logged-by-outcome.md) | Body logging is a mode per direction, gated by the outcome | Accepted |
+| [0006](ADR-0006-bodies-logged-by-outcome.md) | Body logging is a mode per direction, gated by the outcome | Accepted; last updated 2026-09-19 |
 
 ### Conventions & project process
 

@@ -37,6 +37,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Both twins: a 4xx response is **`endpoint_outcome=rejected`**, a new value of the outcome
+  vocabulary, in place of `success` — the outcome names who is responsible for the disposition
+  (nobody, the caller, the application, the clock or the caller's disconnect), and a refused request
+  is the caller's. The level stays INFO on every status of the class: inbound, the caller is the
+  foreign party, and at WARN scanners, expired tokens and stale links would drown the channel; the
+  four statuses the outbound sibling legatium escalates (401, 403, 408, 429) are pinned at INFO here.
+  The status half of both twins' classification is one function in `limesium-common`
+  (`StatusClassification`), pinned by `StatusClassificationTest`; each twin pins that it calls it. The
+  `outcome` tag of `endpoint.logging.events` carries `rejected`, pre-registered at zero like the
+  others. The `on-failure` body gate reads `outcome != success` again: a `rejected` exchange logs its
+  bodies as a 4xx did before, without the status range the gate had to carry. **A dashboard or alert
+  that keyed on `success` as "the application answered" sees the 4xx share move to `rejected`.** The
+  decision is [ADR-0007](docs/adr/ADR-0007-a-4xx-response-is-rejected.md); ADR-0006 is amended.
 - **BREAKING** - `RequestLoggingProperties` is ONE class for both twins, in `limesium-common`
   (package `eu.inqudium.limesium.common`, inlined into both jars like `HeaderLogProperties`), the
   two per-module copies are deleted without a deprecation period (ADR-0003 amendment of

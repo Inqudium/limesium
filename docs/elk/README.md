@@ -25,7 +25,7 @@ directions — a field added to the enum without a mapping, and a mapping left b
 
 | Field | Type | `index` | `doc_values` | Access pattern |
 |---|---|---|---|---|
-| `endpoint_outcome` | `keyword` | true | on | aggregate — `success` / `failure` / `timeout`; decoupled from the level |
+| `endpoint_outcome` | `keyword` | true | on | aggregate — `success` / `rejected` / `failure` / `timeout` (`cancelled` on the reactive stack); decoupled from the level |
 | `endpoint_duration_ms` | `long` | true | on | **compute** — percentiles; request occupancy, not bare handler time |
 | `endpoint_request_method` | `keyword` | true | on | aggregate — closed set of HTTP verbs |
 | `endpoint_response_status_code` | `short` | true | on | aggregate — a numeric **label**, never summed |

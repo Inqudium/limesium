@@ -80,12 +80,13 @@ class RequestLoggingMetricsTest {
         @Test
         fun `should pre-register all outcomes at zero and count an emitted success event`() {
             // What is tested: pre-registration (alerts must see the zeros) and the happy-path increment.
-            // Success criteria: before any request all three outcomes read 0; after one clean exchange
+            // Success criteria: before any request all four outcomes read 0; after one clean exchange
             //   success reads 1 and the others stay 0.
             // Why it matters: the counter is the metric-side half of the reconciliation against the log
             //   index - it must count exactly the events that were emitted, per outcome.
             // Given: a fresh registry - all outcomes already exist at zero
             assertThat(eventCount("success")).isEqualTo(0.0)
+            assertThat(eventCount("rejected")).isEqualTo(0.0)
             assertThat(eventCount("failure")).isEqualTo(0.0)
             assertThat(eventCount("timeout")).isEqualTo(0.0)
 
