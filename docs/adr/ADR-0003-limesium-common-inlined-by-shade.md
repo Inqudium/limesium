@@ -63,6 +63,7 @@ see.
 | `BoundedByteBuffer` (the byte-bounded buffer beneath both `BoundedBodyCapture`s, with unit test and fuzz target) | 2026-09-17 | ported from the outbound sibling legatium                                    |
 | `EndpointLoggingPropertyOrigins` (the TRACE half of the wiring report)                                          | 2026-09-18 | ported from the outbound sibling legatium                                    |
 | `RequestLoggingProperties` (the `endpoint-logging.*` binding) with `RequestLoggingPropertiesTest` and the shared reference's `EndpointLoggingReferenceConfigTest` | 2026-09-18 | maintainer decision; the reactive-only `variant` key split off into the reactive module's `RequestLoggingVariantProperties` |
+| `StatusClassification` (one `rejected` and one status table on both stacks) with `StatusClassificationTest`      | 2026-09-19 | ADR-0007                                                                     |
 
 Later residents that arrive with ordinary changes follow the same
 criterion; the module's source tree is the authoritative list. Moved
@@ -214,7 +215,7 @@ Dokka runs, so the dependency resolves.
   that near-identical remainder. Now in `limesium-common`:
   `EndpointLogField` with its builder extensions (one enum, one
   `EndpointLogFieldTest`), `EndpointLoggingMetrics` parameterized with
-  the stack's third outcome (`forRegistry(registry, OUTCOME_TIMEOUT |
+  the stack's fourth outcome (`forRegistry(registry, OUTCOME_TIMEOUT |
   OUTCOME_CANCELLED)`), and `ExchangeLine`, the stack-neutral core of
   the emitters, over the two small interfaces `LoggedExchange` and
   `MeasuredBody` that both twins' `Exchange` and `BoundedBodyCapture`
@@ -272,3 +273,8 @@ Dokka runs, so the dependency resolves.
   hosts that construct or import the class for a hand-wired filter:
   the package is `eu.inqudium.limesium.common`, like
   `HeaderLogProperties` before it - a major version.
+- **2026-09-19:** `StatusClassification` joined common (ADR-0007): the
+  status half of both twins' level/outcome resolution is one function,
+  so a 4xx is `rejected` on the servlet line and the reactive line by
+  construction, and the `on-failure` gate of both emitters reads
+  `outcome != success` again.

@@ -91,11 +91,12 @@ class TwinContractTest {
     fun `should pin the shared outcome vocabulary plus this stack's own disposition`() {
         // What is tested: the outcome literals of the reactive stack - the shared success and
         //   failure plus cancelled.
-        // Success criteria: the three literals match the values dashboards filter on.
+        // Success criteria: the four literals match the values dashboards filter on.
         // Why it matters: endpoint_outcome and the events counter's tag are the closed vocabulary
         //   every alert keys on; a renamed value would silently zero an alert.
         // Given/When/Then: the literal outcome vocabulary, pinned
         assertThat(EndpointLoggingMetrics.OUTCOME_SUCCESS).isEqualTo("success")
+        assertThat(EndpointLoggingMetrics.OUTCOME_REJECTED).isEqualTo("rejected")
         assertThat(EndpointLoggingMetrics.OUTCOME_FAILURE).isEqualTo("failure")
         assertThat(EndpointLoggingMetrics.OUTCOME_CANCELLED).isEqualTo("cancelled")
     }

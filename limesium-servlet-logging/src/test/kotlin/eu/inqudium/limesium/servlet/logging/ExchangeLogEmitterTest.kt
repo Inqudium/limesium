@@ -112,6 +112,41 @@ class ExchangeLogEmitterTest {
         }
 
         @Test
+        fun `should classify a 4xx as INFO rejected without a cause`() {
+            // What is tested: the shared status classification wired into this twin - an exchange the
+            //   application answered with 404 and no exception is `rejected` at INFO (ADR-0007).
+            // Success criteria: INFO, outcome rejected, no throwable attached.
+            // Why it matters: the caller's request was refused, which is the caller's problem, not the
+            //   operator's; the outcome lets a dashboard split it from a success without raising the
+            //   severity.
+            // Given/When: the application rendered a 404 itself
+            emitter.logExchange(exchange(404))
+
+            // Then
+            val event = exchangeLog.events.single()
+            assertThat(event.level).isEqualTo(Level.INFO)
+            assertThat(event.throwableProxy).isNull()
+            assertThat(event.keyValues()).containsEntry("endpoint_outcome", "rejected")
+        }
+
+        @Test
+        fun `should keep every 4xx at INFO, the escalation of the outbound sibling included`() {
+            // What is tested: 401, 403, 408 and 429 - WARN on the outbound line of legatium, where the
+            //   caller is the application itself - stay INFO here, where the caller is the foreign party.
+            // Success criteria: four INFO events, each with outcome rejected.
+            // Why it matters: scanners, expired tokens and rate-limited clients produce these all day on
+            //   an exposed API; at WARN they would drown the 5xx and timeouts WARN exists for.
+            // Given/When
+            for (status in listOf(401, 403, 408, 429)) {
+                emitter.logExchange(exchange(status))
+            }
+
+            // Then
+            assertThat(exchangeLog.events).hasSize(4).allSatisfy { assertThat(it.level).isEqualTo(Level.INFO) }
+            assertThat(exchangeLog.events.map { it.keyValues()["endpoint_outcome"] }).containsOnly("rejected")
+        }
+
+        @Test
         fun `should classify a thrown chain as ERROR failure carrying the cause`() {
             // What is tested: an exchange whose chain failed with an exception recorded on it.
             // Success criteria: ERROR, outcome failure, the exception attached as the event's

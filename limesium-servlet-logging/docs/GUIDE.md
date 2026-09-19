@@ -689,7 +689,7 @@ stack decides within them.
 
 | Field | On this stack |
 |---|---|
-| `endpoint_outcome` | `success` / `failure` / **`timeout`** — the container's async timeout ([§5.3](#53-levels-and-outcomes)). |
+| `endpoint_outcome` | `success` / `rejected` / `failure` / **`timeout`** — the container's async timeout ([§5.3](#53-levels-and-outcomes)). |
 | `endpoint_duration_ms` | Request occupancy until destruction ([§6.1](#61-duration-is-request-occupancy)). |
 | `endpoint_response_status_code` | Always present — the final status at destruction, after the error dispatch. |
 | `endpoint_async` | Emitted on every event: `true` when the chain returned with async processing started ([§2.5](#25-async-exchanges), [§6.5](#65-async-started-and-completed-inside-the-chain)). |
@@ -711,8 +711,9 @@ its cause (`setCause`).
 ### 5.3 Levels and outcomes
 
 The resolution order of the [common guide's §5.3](../../docs/GUIDE.md#53-levels-and-outcomes) — a thrown
-chain first, a 5xx the application handled after the stack's own dispositions, `success` otherwise, slowness
-raising severity — has two servlet-specific rows, resolved between the thrown chain and the 5xx:
+chain first, after the stack's own dispositions a 5xx the application handled, a 4xx as `rejected`,
+`success` otherwise, slowness raising severity — has two servlet-specific rows, resolved between the
+thrown chain and the status classes:
 
 | Condition | Level | `endpoint_outcome` | Cause attached |
 |---|---|---|---|
@@ -727,7 +728,7 @@ raising severity — has two servlet-specific rows, resolved between the thrown 
 
 | Meter | On this stack |
 |---|---|
-| `endpoint.logging.events` | the `outcome` tag carries `timeout` as the third value |
+| `endpoint.logging.events` | the `outcome` tag carries `timeout` as the fourth value |
 | `endpoint.logging.exchanges.open` | counts exchanges between filter entry and **request destruction** |
 | `endpoint.logging.failopen{stage=wiring}` | includes a lost chain or worker MDC scope ([§2.8](#28-fail-open-stages)) |
 | `endpoint.request.body.read{state=partial}` | consumption started but the end of the stream was never observed — an early-exiting parser, an exception mid-read, a read loop that never asked for the final EOF |

@@ -2,6 +2,7 @@
 
 **Status:** Accepted  
 **Date:** 2026-09-03  
+**Last updated:** 2026-09-19  
 **Deciders:** Dirk Haase (maintainer)  
 **Related:** ADR-0003 (`BodyLogMode` lives in `limesium-common` by
 its criterion), ADR-0005 (the companion configuration break of the
@@ -38,15 +39,15 @@ not a switch.**
 `never` is the default.
 
 **The gate.** `on-failure` writes the bodies when `endpoint_outcome`
-is not `success` (`failure`, `timeout`, and on the reactive twin
-`cancelled`), or when the status is a 4xx. The emitter decides when
-the outcome is final; the request side captures ahead and discards.
-The gate is wider than the outcome vocabulary by exactly one status
-class: a 4xx response keeps its `success` outcome (the application
-answered; the client's request was wrong), so levels, metrics and
-dashboards are untouched, but its bodies are logged, because a
-client's error is exactly the case a body explains. A 5xx is a
-`failure` and logs as well. A slow but healthy exchange stays
+is not `success`: `rejected` (a 4xx, since ADR-0007), `failure`,
+`timeout`, and on the reactive twin `cancelled`. The emitter decides
+when the outcome is final; the request side captures ahead and
+discards. A 4xx logs its bodies because a client's error is exactly
+the case a body explains; between 2026-09-03 and 2026-09-19 the
+vocabulary had no value for it and the gate was widened by hand
+(`outcome != success || status in 400..499`) - the `rejected`
+outcome of ADR-0007 made that widening the plain rule again. A 5xx
+is a `failure` and logs as well. A slow but healthy exchange stays
 `success` and logs no bodies.
 
 **Binding.** The former booleans are refused at binding time (`true`
@@ -82,8 +83,8 @@ first and whose namespace mirrors this one, gate the same way.
 
 - `measure-*-body-size` is unchanged: it still measures what flowed, in
   every mode.
-- A 4xx is logged like a failure for bodies only; its outcome, level
-  and metrics stay those of a `success`.
+- A 4xx logs its bodies through its own outcome, `rejected`
+  (ADR-0007); the gate no longer needs to know a status range.
 
 ## History
 
@@ -91,3 +92,5 @@ first and whose namespace mirrors this one, gate the same way.
   the outcome vocabulary strictly and withheld 4xx bodies.
 - **2026-09-03 (PR #51):** the gate widened to 4xx responses. The
   strict version hid validation errors, the bodies most often wanted.
+- **2026-09-19:** the 4xx widening became the `rejected` outcome
+  (ADR-0007); the gate reads `outcome != success` again.

@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicLong
 /**
  * The module's meters (the `*_METER` constants below), all fed from the host's registry - ONE class for
  * both endpoint-logging twins (ADR-0003 amendment of 2026-09-05), parameterized by the one thing that
- * differs per stack: the third value of the outcome vocabulary ([OUTCOME_TIMEOUT] on the servlet twin,
+ * differs per stack: the fourth value of the outcome vocabulary ([OUTCOME_TIMEOUT] on the servlet twin,
  * [OUTCOME_CANCELLED] on the reactive twin). Every meter here observes what neither
  * `http.server.requests` nor the log fields can show; rates, latencies and status distributions are
  * deliberately left to those.
@@ -39,7 +39,7 @@ import java.util.concurrent.atomic.AtomicLong
  */
 internal class EndpointLoggingMetrics private constructor(
     private val meterRegistry: MeterRegistry,
-    /** The stack's own third outcome ([OUTCOME_TIMEOUT] or [OUTCOME_CANCELLED]), pre-registered beside success and failure. */
+    /** The stack's own fourth outcome ([OUTCOME_TIMEOUT] or [OUTCOME_CANCELLED]), pre-registered beside success, rejected and failure. */
     stackOutcome: String,
 ) {
     private val fallbackRegistry = SimpleMeterRegistry()
@@ -87,7 +87,7 @@ internal class EndpointLoggingMetrics private constructor(
     // ground truth to reconcile against the log index: any difference is loss in the log pipeline
     // (appender overflow, broker loss, index rejection), isolated from application behavior.
     private val eventCounters =
-        listOf(OUTCOME_SUCCESS, OUTCOME_FAILURE, stackOutcome).associateWith { outcome ->
+        listOf(OUTCOME_SUCCESS, OUTCOME_REJECTED, OUTCOME_FAILURE, stackOutcome).associateWith { outcome ->
             registerOrFallback(EVENTS_METER) { registry ->
                 Counter
                     .builder(EVENTS_METER)
@@ -254,7 +254,7 @@ internal class EndpointLoggingMetrics private constructor(
          * filters while the counters merge as before. One STACK per registry: the owner keeps the
          * [stackOutcome] of its first caller (the auto-configurations activate exactly one twin per
          * application, so the case never arises there; a hand-wired mix would count the other twin's
-         * third outcome as a lost bookkeeping update, never as a lost event).
+         * fourth outcome as a lost bookkeeping update, never as a lost event).
          */
         fun forRegistry(
             registry: MeterRegistry,
@@ -320,14 +320,22 @@ internal class EndpointLoggingMetrics private constructor(
          */
         const val CORRELATION_METER = "endpoint.logging.correlation.id"
 
-        /** The closed outcome vocabulary - shared with the emitters, so counter keys and log field agree. */
+        /**
+         * The closed outcome vocabulary - shared with the emitters, so counter keys and log field agree.
+         * The value names WHO is responsible for the disposition (ADR-0007): nobody for a success, the
+         * caller for a rejected 4xx, the application for a failure, the clock or the caller's disconnect
+         * for the stack's own fourth value.
+         */
         const val OUTCOME_SUCCESS = "success"
+
+        /** A 4xx: the application answered that the caller's request was refused ([StatusClassification]). */
+        const val OUTCOME_REJECTED = "rejected"
         const val OUTCOME_FAILURE = "failure"
 
-        /** The servlet twin's third outcome: the container's async timeout. */
+        /** The servlet twin's fourth outcome: the container's async timeout. */
         const val OUTCOME_TIMEOUT = "timeout"
 
-        /** The reactive twin's third outcome: a client disconnect, the reactive reality. */
+        /** The reactive twin's fourth outcome: a client disconnect, the reactive reality. */
         const val OUTCOME_CANCELLED = "cancelled"
 
         private const val STAGE_EMISSION = "emission"

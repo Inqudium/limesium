@@ -528,10 +528,11 @@ class RequestLoggingWebFilterBodyAndHeaderTest {
         }
 
         @Test
-        fun `should log both bodies of a 4xx response although its outcome stays success`() {
-            // What is tested: the gate is wider than the outcome vocabulary by one status class - a 4xx keeps
-            //   its success outcome (the application answered; the client's request was wrong) but is exactly the case a body explains.
-            // Success criteria: outcome success, and BOTH bodies on the line.
+        fun `should log both bodies of a 4xx response, a rejected exchange`() {
+            // What is tested: the gate follows the outcome alone - a 4xx is `rejected` (the application
+            //   answered; the client's request was wrong, ADR-0007), which is not `success` and exactly the
+            //   case a body explains.
+            // Success criteria: outcome rejected, and BOTH bodies on the line.
             // Why it matters: a validation error\'s response body is the most wanted body of all; hiding it
             //   behind the outcome vocabulary would make on-failure useless for client errors.
             // Given/When: a 404 with a body
@@ -539,7 +540,7 @@ class RequestLoggingWebFilterBodyAndHeaderTest {
 
             // Then
             assertThat(keyValues())
-                .containsEntry("endpoint_outcome", "success")
+                .containsEntry("endpoint_outcome", "rejected")
                 .containsEntry("endpoint_request_body", "sent")
                 .containsEntry("endpoint_response_body", "answer")
         }

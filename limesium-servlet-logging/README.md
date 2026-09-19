@@ -40,7 +40,7 @@ code it inlines:
 
 | Concern | This module | Reactive twin |
 |---|---|---|
-| Disposition vocabulary | `success` / `failure` / **`timeout`** — the container's async timeout | `success` / `failure` / **`cancelled`** — a client disconnect, the reactive reality; there is no container async timeout |
+| Disposition vocabulary | `success` / `rejected` / `failure` / **`timeout`** — the container's async timeout | `success` / `rejected` / `failure` / **`cancelled`** — a client disconnect, the reactive reality; there is no container async timeout |
 | `endpoint_async` | emitted, always | never emitted — everything is asynchronous there |
 | `endpoint_response_status_code` | always present | absent for a never-committed cancellation |
 | Emission point | **request destruction** (`ServletRequestListener.requestDestroyed`) — after the container's error dispatch and, for `suspend` controllers, `DeferredResult` and `Callable`, after async completion; so a crashed exchange logs the rendered `500`, not the pre-dispatch `200`, and `endpoint_duration_ms` is **request occupancy** including error rendering, not bare chain time. A burst of terminal events still yields exactly one line | the terminal signal; an error on an uncommitted response is deferred to the commit callback, a commit that never happens leaves the exchange open on the gauge |
