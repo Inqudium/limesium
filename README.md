@@ -18,6 +18,47 @@ named after the Roman Limes, the watched frontier where every crossing was recor
 Two auto-configured Spring Boot twins with identical fields and configuration: a servlet filter 
 and a WebFlux/coroutines web filter. No starter, no forced transitives.
 
+## What sets it apart
+
+- **One line, when the request is truly over.** The servlet twin emits at request destruction, after
+  the container's error dispatch and after async completion; the reactive twin at the terminal signal,
+  deferred to the commit when an error leaves the response uncommitted. Status, headers and bodies are
+  final on the line, and `endpoint_duration_ms` is request occupancy including error rendering, not
+  bare handler time.
+- **Two paradigm twins, one contract.** The servlet filter and the WebFlux filter, in a Reactor and a
+  coroutines variant, emit the same fields under the same names with the same shapes, bound by the
+  same `endpoint-logging.*` keys, and lockstep tests pin every literal: a field, a message format or a
+  meter that drifts between the twins fails the build.
+- **Fail-open, and the loss reports itself.** A logging failure never reaches the handler and never
+  changes the response. It is swallowed, counted in `endpoint.logging.failopen` by stage, and the
+  events counter is the ground truth to reconcile against the log index, so a lost line is visible
+  through a channel that does not depend on the line.
+- **Identity across every thread of the exchange.** The trace id is the request id, and the
+  `endpoint_*` identity is in the MDC for the whole chain, on the async worker of a `Callable` or
+  `DeferredResult`, in the async re-dispatch, and in the Reactor context of the reactive stack, so every
+  application log line of a request carries it. A client line the sibling Legatium emits during the
+  request inherits it, and the two join in one document.
+- **Header values masked by default, bodies teed as they flow.** A logged header value is a stable keyed
+  fingerprint unless it is on an explicit plaintext allowlist; the same `masking-key` on both sides of
+  the family makes a masked token read identically on the inbound and the outbound line. Bodies are
+  never pre-read or replayed: they are teed as the application reads and writes them, bounded by
+  `max-body-bytes`, `on-failure` logs them only for the exchanges that went wrong, and a read-state
+  meter shows whether an endpoint left a payload unread or half read.
+- **An outcome that names who is responsible, meters that are consumed, not exported.** `success`,
+  `rejected` (a 4xx), `failure`, and `timeout` or `cancelled` say which side the disposition belongs to;
+  the level carries severity separately. Six meters are fed into the host's own registry,
+  pre-registered at zero so a `rate()` alert sees the baseline before the first occurrence; rates,
+  latencies and status distributions are left to `http.server.requests` on purpose.
+- **The logger level is the volume control, at runtime.** Because the level carries severity only, the
+  level of the `endpoint-http-exchange` logger decides how much is logged without changing what a line
+  means: `INFO` every exchange, `WARN` failures the application handled, the stack's own disposition and
+  slow exchanges, `ERROR` only chains that threw, `OFF` nothing. Level and outcome are resolved before
+  the event is built, so a disabled level costs no assembly, no header selection, no body decoding, and
+  the meters are recorded before the gate. Turn it up during an incident through the host's logging
+  backend (Boot's loggers endpoint included) and down again, no restart, no redeploy; the module's own
+  logger under `eu.inqudium.limesium` reports at `DEBUG` how it is wired and at `TRACE` where every
+  property value came from.
+
 ## The name
 
 *Limesium* is named after the **Limes**, the fortified frontier of the Roman Empire —
