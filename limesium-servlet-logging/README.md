@@ -64,14 +64,15 @@ both twins ship, documented once in the [common guide](../docs/GUIDE.md).
 The **stack-neutral** part of the twins' shared layer - the `traceparent` parser with its fuzz target,
 the injectable time/id/masker interfaces, the header selection and masking, the fail-open helpers, the
 MDC keys and scope, and since the architecture review of 2026-09-05 also the field enum, the meters
-(parameterized with the stack's own outcome) and the core of the exchange line (`ExchangeLine`) - lives
+(parameterized with the stack's own outcome), the core of the exchange line (`ExchangeLine`) and, since
+2026-09-18, the `endpoint-logging.*` binding itself (`RequestLoggingProperties`) - lives
 in the internal `limesium-common` module and is **inlined into this jar** by the Maven Shade plugin
 ([ADR-0003](../docs/adr/ADR-0003-limesium-common-inlined-by-shade.md)): consumers add exactly one
 artifact, the published POM carries no extra dependency, and `limesium-common` itself is never
 published.
 
 Everything whose twin copies genuinely differ - the filters and lifecycles, the exchange state, the
-per-stack classification in the emitters, the properties, the body capture with its own concurrency
+per-stack classification in the emitters, the body capture with its own concurrency
 design - stays **deliberately duplicated**, per the original architecture-review decision: one twin per
 host, standalone jars, contract-level code that changes rarely. For that remainder every change is a
 conscious port in both directions; the pins in `TwinContractTest` / `EndpointLoggingReferenceConfigTest`
@@ -112,7 +113,11 @@ registers the filter bean **and** the two registrations that make it work: a `Fi
 that puts the filter into the container's chain at `Ordered.HIGHEST_PRECEDENCE + 10` for every request,
 and a `ServletListenerRegistrationBean` for the filter's completion listener — the **emission point**,
 fired by the container at request destruction. Both go through Boot's `ServletContextInitializer`
-mechanism, so an embedded container and a WAR on an external Tomcat or Jetty are wired alike.
+mechanism, so an embedded container and a WAR on an external Tomcat or Jetty are wired alike. At DEBUG
+on `eu.inqudium.limesium.servlet.logging.RequestLoggingAutoConfiguration` the auto-configuration reports
+each of these steps, so the host's own log answers whether the module is on and the filter is in the
+chain; at TRACE it adds where each `endpoint-logging.*` value came from and which values were shadowed
+(the guide's [§2.2](docs/GUIDE.md#22-auto-configuration-and-registration)).
 
 There is nothing to inject and nothing to build: every request the container dispatches passes the
 filter, and path activation (`include-path-patterns`, `exclude-path-prefixes`) is evaluated inside it,
@@ -167,7 +172,7 @@ gauge grows with every request:
 class EndpointLoggingInitializer : WebApplicationInitializer {
     override fun onStartup(servletContext: ServletContext) {
         val filter = RequestLoggingFilter(
-            RequestLoggingProperties(),            // every default; or a copy(...) with the fields to change
+            RequestLoggingProperties(),            // eu.inqudium.limesium.common - every default; or a copy(...) with the fields to change
             NanoTimeSource.SYSTEM,
             CorrelationIdGenerator.DEFAULT,
             SimpleMeterRegistry(),                 // or the registry the surrounding code owns

@@ -9,6 +9,7 @@ import eu.inqudium.limesium.common.CorrelationIdGenerator
 import eu.inqudium.limesium.common.HeaderLogProperties
 import eu.inqudium.limesium.common.MdcKeys
 import eu.inqudium.limesium.common.NanoTimeSource
+import eu.inqudium.limesium.common.RequestLoggingProperties
 import eu.inqudium.limesium.common.keyValues
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.assertj.core.api.Assertions.assertThat

@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Both twins: a **wiring report** at DEBUG on the auto-configuration's own logger
+  (`eu.inqudium.limesium.<twin>.logging.RequestLoggingAutoConfiguration`; on the reactive stack the
+  coroutine auto-configuration reports on the same one), so a host can read from its log whether the
+  library is switched on and actually wired its filter: one line when the auto-configuration is
+  active, one when the filter bean is registered (with the bound properties, masking key redacted),
+  and on the servlet stack one for the filter registration with its order and one for the completion
+  listener, on the reactive stack the variant that claimed the slot and the registration of the
+  `endpoint_*` MDC accessors. At TRACE the bean line is followed by the **origin** of every
+  `endpoint-logging.*` value Boot bound - file and line, environment variable, property source - and
+  by every value of the same name a lower-precedence source also holds, marked as shadowed; the
+  masking key is redacted, unset keys are not listed (`EndpointLoggingPropertyOrigins` in
+  `limesium-common`, one rendering for both twins, ported from legatium; `limesium-common` now
+  depends on `spring-boot`, which both twins already bring). Nothing is logged with
+  `endpoint-logging.enabled=false`. The auto-configuration tests pin the lines and the silence, the
+  common module's test the rendering.
+- Both twins: the wiring report states whether Boot's **server observation** and Micrometer Tracing
+  sit around the filter - what decides whether the exchange runs inside a server span and whether the
+  host's handler lines carry a `traceId`, which has no property and was so far readable nowhere at
+  startup (the exchange identity is unaffected, ADR-0002). One of three lines, logged once every
+  singleton exists: observation with tracing, observation without a bridge, no observation; on the
+  servlet stack with Boot's `ServerHttpObservationFilter` order against the module's, so a host's
+  re-registration behind the filter is named, on the reactive stack for the `HttpWebHandlerAdapter`
+  that observes outside all `WebFilter`s (`EndpointObservationWiring` in `limesium-common`, matching
+  by class name so the optional libraries stay optional). Pinned by the auto-configuration tests
+  against Boot's real observation and Brave auto-configurations.
+
+### Changed
+
+- **BREAKING** - `RequestLoggingProperties` is ONE class for both twins, in `limesium-common`
+  (package `eu.inqudium.limesium.common`, inlined into both jars like `HeaderLogProperties`), the
+  two per-module copies are deleted without a deprecation period (ADR-0003 amendment of
+  2026-09-18). A host that constructs or imports the class for a hand-wired filter or for its own
+  `@EnableConfigurationProperties` changes the import; an `application.yml` changes nothing. The
+  reactive-only `variant` key binds beside the shared class, under the same prefix, as the reactive
+  module's own `RequestLoggingVariantProperties` (with the `Variant` enum, which moved there);
+  the Reactor auto-configuration reads its `variant=coroutine` check from that bean.
+  `RequestLoggingPropertiesTest` and the shared reference's `EndpointLoggingReferenceConfigTest`
+  moved to `limesium-common` and are pinned once; the reactive module keeps a test of that name for
+  its own `variant` reference file. The shared reference YAML is a test resource of
+  `limesium-common` now.
+
 ## [3.0.1] - 2026-09-17
 
 ### Changed

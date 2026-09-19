@@ -1,8 +1,10 @@
 package eu.inqudium.limesium.reactive.logging
 
 import eu.inqudium.limesium.common.CorrelationIdGenerator
+import eu.inqudium.limesium.common.EndpointLoggingPropertyOrigins
 import eu.inqudium.limesium.common.HeaderValueMasker
 import eu.inqudium.limesium.common.NanoTimeSource
+import eu.inqudium.limesium.common.RequestLoggingProperties
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import kotlinx.coroutines.slf4j.MDCContext
@@ -13,10 +15,12 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication
 import org.springframework.boot.autoconfigure.condition.NoneNestedConditions
+import org.springframework.boot.context.properties.BoundConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Conditional
 import org.springframework.context.annotation.ConfigurationCondition
+import org.springframework.core.env.Environment
 import org.springframework.web.server.CoWebFilter
 
 /**
@@ -35,6 +39,9 @@ import org.springframework.web.server.CoWebFilter
  * this configuration back off although the libraries are present (see [NotForcedToReactor]);
  * `endpoint-logging.variant=coroutine` is enforced by the Reactor auto-configuration, which refuses to
  * register its fallback when the coroutine variant was demanded but its libraries are missing.
+ *
+ * Reports on the Reactor configuration's wiring logger ([RequestLoggingAutoConfiguration.wiringLog]):
+ * the bean line naming this variant at DEBUG, the property origins at TRACE - one logger per twin.
  */
 @AutoConfiguration(before = [RequestLoggingAutoConfiguration::class])
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.REACTIVE)
@@ -61,5 +68,12 @@ class CoRequestLoggingAutoConfiguration {
         correlationIds: CorrelationIdGenerator,
         masker: HeaderValueMasker,
         meterRegistry: ObjectProvider<MeterRegistry>,
-    ): CoRequestLoggingWebFilter = CoRequestLoggingWebFilter(properties, nanoTime, correlationIds, meterRegistry.getIfAvailable { SimpleMeterRegistry() }, masker)
+        environment: Environment,
+        boundProperties: ObjectProvider<BoundConfigurationProperties>,
+    ): CoRequestLoggingWebFilter {
+        val log = RequestLoggingAutoConfiguration.wiringLog
+        log.debug("Endpoint logging registered its CoRequestLoggingWebFilter bean (coroutine variant, ordered at HIGHEST_PRECEDENCE + 10, collected by WebFlux) with {}", properties)
+        EndpointLoggingPropertyOrigins.report(log, environment, boundProperties.ifAvailable)
+        return CoRequestLoggingWebFilter(properties, nanoTime, correlationIds, meterRegistry.getIfAvailable { SimpleMeterRegistry() }, masker)
+    }
 }

@@ -1,17 +1,15 @@
-package eu.inqudium.limesium.reactive.logging
+package eu.inqudium.limesium.common
 
-import eu.inqudium.limesium.common.BodyLogMode
-import eu.inqudium.limesium.common.HeaderLogProperties
-import eu.inqudium.limesium.common.MaskingKey
 import org.springframework.boot.context.properties.ConfigurationProperties
 import java.time.Duration
 
 /**
- * Configuration surface of the endpoint-logging WebFilter, bound from the `endpoint-logging.*`
- * namespace - the SHARED keys and defaults are identical to limesium-servlet-logging's, key for key
- * and default for default, plus exactly one reactive-only key: [variant].
- * `EndpointLoggingReferenceConfigTest` enforces exactly that contract by binding the servlet module's
- * reference YAML against THIS class.
+ * Configuration surface of the endpoint-logging filters, bound from the `endpoint-logging.*` namespace -
+ * ONE class for both twins (ADR-0003 amendment of 2026-09-18): the namespace is one cross-stack contract
+ * by design, key for key and default for default. The reactive twin's single stack-only key, `variant`,
+ * binds separately (its `RequestLoggingVariantProperties`, same prefix), so nothing stack-specific lives
+ * here. Host-visible, like [HeaderLogProperties]: a host wiring a filter by hand constructs it from this
+ * package.
  *
  * Everything an operator may tune is a Boot property with a safe default, and everything a host
  * application may want to replace wholesale (time source, id generator, the filter itself) is an
@@ -24,14 +22,12 @@ import java.time.Duration
  *
  * Every property's semantics, rules and default are documented ONCE, in the repository-shared reference
  * configuration `/docs/endpoint-logging-reference.yml` (bound against this class by
- * `EndpointLoggingReferenceConfigTest`); the KDoc here names the key.
+ * `EndpointLoggingReferenceConfigTest`, here in `limesium-common`); the KDoc here names the key.
  */
 @ConfigurationProperties("endpoint-logging")
 data class RequestLoggingProperties(
     /** Master switch; `false` backs the auto-configuration off entirely - `enabled`. */
     val enabled: Boolean = true,
-    /** Which filter variant this module registers - the ONE reactive-only key, `variant` in this module's own reference file. */
-    val variant: Variant = Variant.AUTO,
     /** Logger the exchange lines are emitted on - `logger-name`. */
     val loggerName: String = "endpoint-http-exchange",
     /** Header the correlation id is read from on traceless exchanges (ADR-0002; a value outside `CorrelationHeaderValue` counts as absent) - `correlation-id-header`. */
@@ -91,6 +87,3 @@ data class RequestLoggingProperties(
         private val HTTP_FIELD_NAME = Regex("[!#$%&'*+\\-.^_`|~0-9A-Za-z]+")
     }
 }
-
-/** The filter variants of this module; see [RequestLoggingProperties.variant]. */
-enum class Variant { AUTO, REACTOR, COROUTINE }

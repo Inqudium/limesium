@@ -5,7 +5,8 @@
 # value and the reasoning behind it. Copy the block into an application.yml and change only what you
 # need: every value shown here is
 # the built-in default, so an entry you leave out (or delete) behaves exactly like an entry you keep.
-# Bound by RequestLoggingProperties; invalid values (blank names, non-positive sizes/durations) fail
+# Bound by RequestLoggingProperties (one class for both modules, eu.inqudium.limesium.common); invalid
+# values (blank names, non-positive sizes/durations) fail
 # the context start with a message naming the property.
 # =====================================================================================================
 

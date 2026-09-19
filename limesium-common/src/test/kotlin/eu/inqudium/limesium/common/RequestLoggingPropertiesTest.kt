@@ -1,6 +1,5 @@
-package eu.inqudium.limesium.servlet.logging
+package eu.inqudium.limesium.common
 
-import eu.inqudium.limesium.common.MaskingKey
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.catchThrowable
 import org.junit.jupiter.api.Nested

@@ -1,6 +1,5 @@
-package eu.inqudium.limesium.servlet.logging
+package eu.inqudium.limesium.common
 
-import eu.inqudium.limesium.common.BodyLogMode
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
@@ -13,15 +12,17 @@ import org.springframework.core.env.MapPropertySource
 import org.springframework.core.io.ClassPathResource
 
 /**
- * Lockstep between the repository-shared `/docs/endpoint-logging-reference.yml` and [RequestLoggingProperties]: the reference
- * documents every property WITH ITS DEFAULT, so this test fails whenever a property is added, renamed or
+ * Lockstep between the repository-shared `/docs/endpoint-logging-reference.yml` and [RequestLoggingProperties],
+ * pinned ONCE here since the class is shared (ADR-0003 amendment of 2026-09-18): the reference documents
+ * every property WITH ITS DEFAULT, so this test fails whenever a property is added, renamed or
  * re-defaulted without the reference following - and whenever the reference documents a key that does not
  * exist. The file is loaded exactly as Boot would load it (YamlPropertySourceLoader + Binder), so what the
- * docs show is what an application.yml would do.
+ * docs show is what an application.yml would do. The reactive twin's own reference file, with its one
+ * `variant` key, is pinned by that module's test of the same name.
  */
 class EndpointLoggingReferenceConfigTest {
-    // The shared reference reaches this module's test classpath through the declared test resource in
-    // the POM (like the reactive twin) - no dependency on the working directory of the test run.
+    // The shared reference reaches the test classpath through the declared test resource in the POM -
+    // no dependency on the working directory of the test run.
     private val referenceSources =
         YamlPropertySourceLoader().load("reference", ClassPathResource("endpoint-logging-reference.yml"))
 

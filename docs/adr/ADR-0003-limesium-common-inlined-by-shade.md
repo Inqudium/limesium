@@ -61,13 +61,16 @@ see.
 | `MaskingKey` (the secret-bearing value the `masking-key` property binds to)                                    | 2026-09-05 | `CODE_STYLE-2026-09-05T17-08-39.md`, finding 5                               |
 | test-jar: `AwaitingAppender`, `installMdcAdapter`, `CapturedLogger` with `ILoggingEvent.keyValues()`           | 2026-09-05 | test-helper exception revoked; `CODE_STYLE-2026-09-05T17-08-39.md`, pattern S2 |
 | `BoundedByteBuffer` (the byte-bounded buffer beneath both `BoundedBodyCapture`s, with unit test and fuzz target) | 2026-09-17 | ported from the outbound sibling legatium                                    |
+| `EndpointLoggingPropertyOrigins` (the TRACE half of the wiring report)                                          | 2026-09-18 | ported from the outbound sibling legatium                                    |
+| `RequestLoggingProperties` (the `endpoint-logging.*` binding) with `RequestLoggingPropertiesTest` and the shared reference's `EndpointLoggingReferenceConfigTest` | 2026-09-18 | maintainer decision; the reactive-only `variant` key split off into the reactive module's `RequestLoggingVariantProperties` |
 
 Later residents that arrive with ordinary changes follow the same
 criterion; the module's source tree is the authoritative list. Moved
 classes are `internal` where the twins' copies were `internal`; the
 host-visible types (`CorrelationIdGenerator`, `NanoTimeSource`,
-`HeaderLogProperties`, `HeaderValueMasker`, `MaskingKey`) keep their
-visibility and are the ones whose package move is source-breaking.
+`HeaderLogProperties`, `HeaderValueMasker`, `MaskingKey`,
+`RequestLoggingProperties`) keep their visibility and are the ones
+whose package move is source-breaking.
 
 ### What deliberately stays duplicated
 
@@ -79,8 +82,8 @@ Everything whose twin copies genuinely differ:
   exactly-once guard shape; `ExchangeLine` carries only the
   stack-neutral core (message texts, header rendering, the arrival
   line, the body measurements);
-- the properties files, which keep only what actually differs (the
-  reactive-only `variant` key and stack-specific wording);
+- the reactive-only `variant` key, as the reactive module's own
+  `RequestLoggingVariantProperties` beside the shared binding;
 - `BoundedBodyCapture` and the wrappers: two different concurrency
   designs - the shells; the bounded buffer beneath the captures (the
   bytes, the cap, the truncated rendering) is one `BoundedByteBuffer`
@@ -242,3 +245,30 @@ Dokka runs, so the dependency resolves.
   caller. Each twin keeps its count, read state and
   locking; the truncation-boundary tests stay in the twins as tests of
   the twin API.
+- **2026-09-18:** `EndpointLoggingPropertyOrigins`, the TRACE half of
+  the auto-configurations' wiring report (every bound `endpoint-logging.*`
+  value with Boot's origin, shadowed values of lower-precedence sources,
+  masking key redacted), ported from legatium's `ClientLoggingPropertyOrigins`
+  with its test. One rendering for both twins - the prefix is the same,
+  only the bound classes differ, and the class takes the bound map, not
+  the class. `limesium-common` gains `spring-boot` as a dependency for
+  Boot's property-origin API; both twins bring it transitively already,
+  so the shaded jars add nothing to a host.
+- **2026-09-18 (second):** `RequestLoggingProperties` moved to
+  `limesium-common`, by maintainer decision and without a deprecation
+  period. The two copies had differed by the reactive-only `variant`
+  key and by KDoc wording only - the same situation in which legatium
+  shared its `ClientLoggingProperties` from the start, minus the one
+  key. That key now binds beside the shared class, under the same
+  prefix, as the reactive module's own `RequestLoggingVariantProperties`
+  (two `@ConfigurationProperties` beans on one prefix: each binds the
+  keys it knows and ignores the rest), so the servlet namespace carries
+  no key it cannot honour. `RequestLoggingPropertiesTest` and the
+  shared reference's `EndpointLoggingReferenceConfigTest` moved along
+  and are pinned once; the reactive module keeps a test of the same
+  name for its own `variant` reference file and the single-source rule.
+  The shared reference YAML is a test resource of `limesium-common`
+  now, the servlet module no longer declares it. Source-breaking for
+  hosts that construct or import the class for a hand-wired filter:
+  the package is `eu.inqudium.limesium.common`, like
+  `HeaderLogProperties` before it - a major version.

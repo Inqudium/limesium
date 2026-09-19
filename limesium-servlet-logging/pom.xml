@@ -151,7 +151,6 @@
             <testResource>
                 <directory>${project.basedir}/../docs</directory>
                 <includes>
-                    <include>endpoint-logging-reference.yml</include>
                     <include>elk/limesium-servlet-logging-fields.component-template.json</include>
                 </includes>
             </testResource>

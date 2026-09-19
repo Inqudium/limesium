@@ -8,9 +8,10 @@
 # This file carries exactly the ONE reactive-only key. Copy the shared block into an application.yml,
 # add the key below when the classpath should not decide the variant, and change only what you need.
 #
-# Bound by this module's RequestLoggingProperties; this module's EndpointLoggingReferenceConfigTest
-# binds the shared file against that class (the cross-stack proof that the namespace is identical)
-# and pins that this file documents nothing but the variant key.
+# Bound by this module's RequestLoggingVariantProperties, beside the shared RequestLoggingProperties
+# (limesium-common) under the same prefix; this module's EndpointLoggingReferenceConfigTest binds this
+# file against the variant class and pins that it documents nothing but the variant key, the shared
+# file's test in limesium-common binds the shared class.
 # =====================================================================================================
 
 endpoint-logging:

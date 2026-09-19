@@ -127,7 +127,7 @@ internal class EndpointLoggingMetrics private constructor(
                     .tag("source", source)
                     .description(
                         "Origin of the exchange's request id: the traceparent trace id, " +
-                            "the correlation header, or generated (ADR-0002)",
+                            "the correlation header, or generated",
                     ).register(registry)
             }
         }

@@ -53,8 +53,9 @@ collects them all.
    3. [Body logging and body measuring](#43-body-logging-and-body-measuring)
    4. [Path activation](#44-path-activation)
    5. [Logger levels](#45-logger-levels)
-   6. [Validation at startup](#46-validation-at-startup)
-   7. [Example configurations](#47-example-configurations)
+   6. [The configuration report at DEBUG and TRACE](#46-the-configuration-report-at-debug-and-trace)
+   7. [Validation at startup](#47-validation-at-startup)
+   8. [Example configurations](#48-example-configurations)
 5. [Metrics and observation](#5-metrics-and-observation)
    1. [Log fields](#51-log-fields)
    2. [MDC keys](#52-mdc-keys)
@@ -180,7 +181,7 @@ reactive module's build binds them:
 
 | Contract | Shipped in | Pinned by |
 |---|---|---|
-| Configuration keys and defaults | [`/docs/endpoint-logging-reference.yml`](endpoint-logging-reference.yml) — the ONE place the property semantics are documented; the reactive module's [`docs/endpoint-logging-reference.yml`](https://github.com/Inqudium/limesium/blob/main/limesium-reactive-logging/docs/endpoint-logging-reference.yml) carries exactly its one `variant` key | `EndpointLoggingReferenceConfigTest` in both modules: binds the shared YAML against the module's `RequestLoggingProperties` (the reactive one also pins that its own file documents nothing but `variant`) |
+| Configuration keys and defaults | [`/docs/endpoint-logging-reference.yml`](endpoint-logging-reference.yml) — the ONE place the property semantics are documented; the reactive module's [`docs/endpoint-logging-reference.yml`](https://github.com/Inqudium/limesium/blob/main/limesium-reactive-logging/docs/endpoint-logging-reference.yml) carries exactly its one `variant` key | `EndpointLoggingReferenceConfigTest` in `limesium-common`: binds the shared YAML against the shared `RequestLoggingProperties`; the reactive module's test of the same name binds its own file against `RequestLoggingVariantProperties` and pins that it documents nothing but `variant` |
 | Field family and index mapping | [`/docs/elk/…component-template.json`](elk/README.md) | `EndpointLogFieldTest` in `limesium-common`: locks the one `EndpointLogField` enum both twins inline against the template |
 | Message text and meter names | the servlet module's emitter and metrics | `TwinContractTest` in both modules |
 
@@ -203,7 +204,7 @@ name and contract whose code genuinely differs:
 
 | Component | Responsibility | Shared how |
 |---|---|---|
-| `RequestLoggingProperties` | The `endpoint-logging.*` binding, validated in `init` | per-stack twin; the reactive one adds `variant` |
+| `RequestLoggingProperties` | The `endpoint-logging.*` binding, validated in `init` ([§4.7](#47-validation-at-startup)); host-visible, a hand-wired filter constructs it from `eu.inqudium.limesium.common` | byte-identical (`limesium-common`) since 2026-09-18; the reactive-only `variant` key binds beside it as the reactive module's own `RequestLoggingVariantProperties` |
 | `HeaderLogProperties` | One header section — `includes` / `excludes` / `masked` / `unmasked` — with the selection and the masking fingerprint ([§4.2](#42-header-sections)) | byte-identical (`limesium-common`) |
 | `ExchangeLogEmitter` | Resolves level, outcome and cause for the stack and emits the completion event; the arrival line, the message texts, the header rendering and the body measurements are the shared `ExchangeLine` | per-stack twin around a byte-identical core (`ExchangeLine`, `limesium-common`) |
 | `EndpointLogField` | The wire names and the exact JVM type of each structured field; a wrongly typed value drops the field with a warning, never the event | byte-identical (`limesium-common`), locked against the one template |
@@ -212,6 +213,8 @@ name and contract whose code genuinely differs:
 | `Traceparent` | Strict W3C `traceparent` parsing to `(traceId, parentSpanId)` ([§5.6](#56-trace-correlation)) | byte-identical |
 | `MdcKeys` / `TraceMdcKeys` / `MdcScope` | The MDC key names; the scope that puts identity (and, for the emission, the trace keys) into the MDC and restores the previous values on close | byte-identical |
 | `NanoTimeSource` / `CorrelationIdGenerator` / `HeaderValueMasker` | Injectable time, id and header masking ([§2.5](#25-injectable-collaborators)) | byte-identical |
+| `EndpointObservationWiring` | The observation line of the auto-configurations' wiring report ([§4.6](#46-the-configuration-report-at-debug-and-trace)): whether Boot's server observation and a Micrometer `Tracer` sit around the filter, rendered from the context's beans and the placement the twin resolved (Boot's filter order on the servlet stack, the `HttpWebHandlerAdapter` on the reactive stack) — the classes are named as strings, so the common module compiles without the optional observation and tracing libraries. |
+| `EndpointLoggingPropertyOrigins` | The TRACE half of the auto-configurations' wiring report ([§4.5](#45-logger-levels)): renders every `endpoint-logging.*` value Boot bound with its origin, plus the shadowed values of lower-precedence sources, masking key redacted | byte-identical (`limesium-common`), ported from legatium |
 | `reportQuietly` / `reportFailOpen` | `reportQuietly` guards the diagnostics channel (counter + internal log) of every catch block; `reportFailOpen` is the one report every catch shares - the stage counter plus one line on the module's own logger, inside that guard | byte-identical |
 
 The per-stack component overviews — the filter classes, the async and variant machinery, the capture
@@ -409,8 +412,9 @@ Rules that hold for a hand-wired filter on either stack:
   `RequestLoggingProperties()` (or a `copy(...)` with the fields to change), `NanoTimeSource.SYSTEM`,
   `CorrelationIdGenerator.DEFAULT`, a `SimpleMeterRegistry()` or the registry the surrounding code owns.
 - **Inside a Boot context with the auto-configuration switched off**, the host binds the properties
-  class itself (`@EnableConfigurationProperties(RequestLoggingProperties::class)`), because that
-  annotation lives on the auto-configuration that is now gone.
+  class itself (`@EnableConfigurationProperties(RequestLoggingProperties::class)`, the class in
+  `eu.inqudium.limesium.common`), because that annotation lives on the auto-configuration that is now
+  gone.
 
 Everything else is unchanged by the way the filter was wired: emission point, outcomes, meters, header
 sections, body capture and the fail-open contract behave exactly as under the automatic wiring — the
@@ -570,6 +574,15 @@ depends on the host's encoder layout; map them where the encoder configuration l
 
 ### 3.7 Verifying the integration
 
+0. Before the first request, start the application with `logging.level.eu.inqudium.limesium=DEBUG`
+   and expect the **wiring report** on the twin's auto-configuration logger
+   ([§4.5](#45-logger-levels)): the "enabled" line, the filter bean line with the bound properties, and
+   — on the servlet stack — the filter registration and the completion listener, on the reactive stack
+   the variant that claimed the slot and, for the Reactor variant, the MDC accessors. No report means
+   the auto-configuration did not run: switched off, wrong web application type, or not on the
+   classpath. At TRACE instead of DEBUG the report also names the file, line or environment variable
+   each `endpoint-logging.*` value came from, and which values were shadowed.
+
 1. Start the application and call any endpoint:
 
    ```bash
@@ -608,9 +621,9 @@ depends on the host's encoder layout; map them where the encoder configuration l
 All properties live under `endpoint-logging.*`, and the namespace is **identical** on both stacks — key
 for key and default for default; the only reactive-only addition is `variant`. The complete, commented
 reference with every default is [`/docs/endpoint-logging-reference.yml`](endpoint-logging-reference.yml)
-(the reactive module ships a copy that adds `variant`); `EndpointLoggingReferenceConfigTest` binds it
-against `RequestLoggingProperties` in both modules and fails the build on any drift — every key must
-exist, every value must be the built-in default.
+(the reactive module ships a file that adds `variant`); `EndpointLoggingReferenceConfigTest` in
+`limesium-common` binds it against the shared `RequestLoggingProperties` and fails the build on any
+drift — every key must exist, every value must be the built-in default.
 
 What a property means is the same on both stacks. Where the stack adds a nuance — what exactly an
 excluded request skips, against which path the patterns match, what the slow threshold measures — §4 of
@@ -753,7 +766,163 @@ Level and outcome are resolved **before** the event is built, so a disabled leve
 header selection, no body decoding. Metrics are recorded **before** the level gate and are unaffected by
 it — except `endpoint.logging.events`, which by definition counts emitted events only.
 
-### 4.6 Validation at startup
+Two further loggers are the modules' own, under `eu.inqudium.limesium`, and never carry an exchange:
+
+| Logger | Level | Says |
+|---|---|---|
+| `…RequestLoggingAutoConfiguration` (one per twin; on the reactive stack the coroutine auto-configuration reports on the same one) | DEBUG | the **wiring report**: that the module is enabled, the filter bean with its bound properties (masking key redacted), and what was wired around it — the filter registration and the completion listener on the servlet stack, the variant that claimed the slot and the `endpoint_*` MDC accessors on the reactive stack — how a host verifies from its own log that the library is on and actually in the chain (the twins' guides, §2.2; [§3.7](#37-verifying-the-integration)). Nothing at all with `endpoint-logging.enabled=false`; Boot's condition report (DEBUG on `org.springframework.boot.autoconfigure`) then names the property |
+| the same logger | TRACE | additionally the **origin** of every `endpoint-logging.*` value Boot bound — file and line, environment variable, property source — and every value of the same name a lower-precedence source also holds, marked as shadowed; masking key redacted, unset keys not listed (`EndpointLoggingPropertyOrigins`, [§6.4](#64-shared-code-limesium-common-inlined-by-shade)) |
+| the filter, emitter and metrics classes | WARN / ERROR | the fail-open diagnostics: a breadcrumb for a chain that threw, an emission that failed, a tee that broke ([§2.4](#24-fail-open-contract)) |
+
+`logging.level.eu.inqudium.limesium=DEBUG` switches the wiring report on for both twins, `TRACE` adds
+the property origins; the exchange lines are unaffected, they live on `logger-name`.
+
+### 4.6 The configuration report at DEBUG and TRACE
+
+Both twins report their own configuration once at context start, on the auto-configuration logger of
+[§4.5](#45-logger-levels), in two stages that answer two different questions:
+
+| Level | Question answered | Lines |
+|---|---|---|
+| DEBUG | **What** is in effect — is the module on, is the filter in the chain, which values does it run with, does the exchange run inside the server span? | the wiring report: the "enabled" line, the bean line with every bound property, the registration lines of the stack, the observation line |
+| TRACE | **Where** did each value come from — which file and line, which environment variable, which command-line argument, and which value lost against which? | one line per set `endpoint-logging.*` key with its origin, shadowed values indented beneath it |
+
+Switch the report on for both twins at once, or per stack:
+
+```yaml
+logging:
+  level:
+    eu.inqudium.limesium: DEBUG                 # or TRACE; both twins
+    # eu.inqudium.limesium.servlet.logging.RequestLoggingAutoConfiguration: TRACE   # servlet stack only
+    # eu.inqudium.limesium.reactive.logging.RequestLoggingAutoConfiguration: TRACE  # reactive stack, both variants
+```
+
+For a one-off diagnosis the same works from the command line without touching a file:
+`java -jar app.jar --logging.level.eu.inqudium.limesium=TRACE`. The report is computed once, only
+when the level is enabled, and never per request; the exchange lines on `logger-name` are unaffected.
+
+**DEBUG — what is in effect.** A servlet host started with the "minimal production profile" of
+[§4.8](#48-example-configurations) logs
+(`eu.inqudium.limesium.servlet.logging.RequestLoggingAutoConfiguration`):
+
+```
+Endpoint logging is enabled - the auto-configuration is active (endpoint-logging.enabled is not false)
+Endpoint logging registered its RequestLoggingFilter bean with RequestLoggingProperties(enabled=true, loggerName=endpoint-http-exchange, correlationIdHeader=X-Correlation-Id, includeQueryString=true, logRequestStart=false, includePathPatterns=[], excludePathPrefixes=[/actuator/health], slowRequestThreshold=PT2S, requestHeaders=HeaderLogProperties(includes=[], excludes=[], masked=[*], unmasked=[]), responseHeaders=HeaderLogProperties(includes=[], excludes=[], masked=[*], unmasked=[]), logRequestBody=NEVER, logResponseBody=NEVER, measureRequestBodySize=false, measureResponseBodySize=false, maxBodyBytes=16384, maskingKey=)
+Endpoint logging registered the filter registration - the filter runs at order -2147483638 (HIGHEST_PRECEDENCE + 10) for every dispatcher type, mapped to /*
+Endpoint logging registered the exchange completion listener - the emission point, fired by the container at request destruction
+Endpoint logging found Boot's server observation with Micrometer Tracing - the observation filter is registered at order -2147483647 against this filter's -2147483638, so every exchange runs inside the server observation: the handler lines carry the bridge's traceId and spanId, the exchange line the trace context of the incoming traceparent
+```
+
+A reactive host with the same profile logs on
+`eu.inqudium.limesium.reactive.logging.RequestLoggingAutoConfiguration` — one logger for both variants
+— and which lines appear depends on the variant that claimed the filter slot
+([reactive guide §2.2](https://github.com/Inqudium/limesium/blob/main/limesium-reactive-logging/docs/GUIDE.md#22-auto-configuration-and-variant-selection)).
+With `kotlinx-coroutines-reactor` on the classpath the **coroutine variant** wins:
+
+```
+Endpoint logging is enabled - the auto-configuration is active (endpoint-logging.enabled is not false)
+Endpoint logging registered its CoRequestLoggingWebFilter bean (coroutine variant, ordered at HIGHEST_PRECEDENCE + 10, collected by WebFlux) with RequestLoggingProperties(enabled=true, loggerName=endpoint-http-exchange, correlationIdHeader=X-Correlation-Id, includeQueryString=true, logRequestStart=false, includePathPatterns=[], excludePathPrefixes=[/actuator/health], slowRequestThreshold=PT2S, requestHeaders=HeaderLogProperties(includes=[], excludes=[], masked=[*], unmasked=[]), responseHeaders=HeaderLogProperties(includes=[], excludes=[], masked=[*], unmasked=[]), logRequestBody=NEVER, logResponseBody=NEVER, measureRequestBodySize=false, measureResponseBodySize=false, maxBodyBytes=16384, maskingKey=)
+Endpoint logging found Boot's server observation with Micrometer Tracing - the HttpWebHandlerAdapter observes every request outside all WebFilters, so every exchange runs inside the server observation: the handler lines carry the bridge's traceId and spanId, the exchange line the trace context of the incoming traceparent
+```
+
+Without the coroutine library, or with `endpoint-logging.variant=reactor`, the **Reactor variant**
+takes the slot; with `io.micrometer:context-propagation` on the classpath it also registers the
+handler-side MDC accessors
+([reactive guide §3.5](https://github.com/Inqudium/limesium/blob/main/limesium-reactive-logging/docs/GUIDE.md#35-enabling-handler-side-mdc)):
+
+```
+Endpoint logging is enabled - the auto-configuration is active (endpoint-logging.enabled is not false)
+Endpoint logging registered its RequestLoggingWebFilter bean (Reactor variant, ordered at HIGHEST_PRECEDENCE + 10, collected by WebFlux) with RequestLoggingProperties(enabled=true, loggerName=endpoint-http-exchange, correlationIdHeader=X-Correlation-Id, includeQueryString=true, logRequestStart=false, includePathPatterns=[], excludePathPrefixes=[/actuator/health], slowRequestThreshold=PT2S, requestHeaders=HeaderLogProperties(includes=[], excludes=[], masked=[*], unmasked=[]), responseHeaders=HeaderLogProperties(includes=[], excludes=[], masked=[*], unmasked=[]), logRequestBody=NEVER, logResponseBody=NEVER, measureRequestBodySize=false, measureResponseBodySize=false, maxBodyBytes=16384, maskingKey=)
+Endpoint logging registered the endpoint_* MDC accessors with Micrometer's ContextRegistry (Reactor variant)
+Endpoint logging found Boot's server observation with Micrometer Tracing - the HttpWebHandlerAdapter observes every request outside all WebFilters, so every exchange runs inside the server observation: the handler lines carry the bridge's traceId and spanId, the exchange line the trace context of the incoming traceparent
+```
+
+The bean line is identical on both stacks — one properties class, one namespace — and only the wiring
+around it differs: the servlet stack registers the filter and the completion listener itself and
+reports both; the reactive stack hands its `WebFilter` bean to WebFlux, which collects it without a
+registration, so the report has no registration line, but names the variant that won and, in the
+Reactor variant, whether handler MDC is wired — the coroutine variant has handler MDC natively through
+`MDCContext` and needs no such line. Exactly one of the two bean lines appears; the variant that lost
+backs off silently. How to read it:
+
+- The bean line is the **complete effective configuration**: every key of the
+  [reference configuration](endpoint-logging-reference.yml), whether set by the host or left at its
+  default — the two set values above are `excludePathPrefixes` and `slowRequestThreshold`, everything
+  else is the default. A value you set that does not show up here was never bound: a typo in the key,
+  a profile that is not active, a file that is not on the config path.
+- `maskingKey` renders empty when unkeyed and `<redacted>` when a key is set, whatever its source
+  ([§6.3](#63-masking-is-a-fingerprint-not-a-secret)); the bean line is safe to keep in a startup log.
+- The **observation line** states whether Boot's server observation and a tracing bridge sit around
+  the filter. Neither decides the exchange identity — the filter parses the incoming `traceparent`
+  itself ([§5.6](#56-trace-correlation)) — but they decide what an operator sees next to the exchange
+  line, and neither has a property. Three renderings, on the servlet stack with Boot's filter order
+  against this filter's, on the reactive stack with the `HttpWebHandlerAdapter` that observes outside
+  all `WebFilter`s: 
+  - observation **with tracing** (above — the exchange runs inside the server span, the host's handler lines carry the bridge's `traceId`):
+    `Endpoint logging found Boot's server observation with Micrometer Tracing - the HttpWebHandlerAdapter observes every request outside all WebFilters, so every exchange runs inside the server observation: the handler lines carry the bridge's traceId and spanId, the exchange line the trace context of the incoming traceparent`
+  - observation **without tracing**, when `ObservationRegistry` exists but no bridge does:
+    `Endpoint logging found Boot's server observation but no Micrometer Tracing - the observation filter is registered at order -2147483647 against this filter's -2147483638, so every exchange runs inside the server observation: exchanges are measured, no server span is opened, and only the exchange line carries a trace context - that of the incoming traceparent`; 
+  - and **no observation**:
+    `Endpoint logging found no server observation - Boot's observation auto-configuration is not active (no ObservationRegistry bean, or the observation module is absent): exchanges run outside any server observation; the exchange line still carries the trace context of an incoming traceparent`.
+  - The **servlet stack** has a fourth: a host that registered `ServerHttpObservationFilter` itself, behind this filter, reads 
+    `… is registered at order 0 against this filter's -2147483638, so the exchange runs outside the server observation and its duration is not part of the server span …` — the one
+    rendering that names a deviation (the twins' guides, §2.2). The line is logged once every singleton
+    exists and appears also when a host replaced the filter bean; it describes the wiring, not the fate
+    of a request. An operator whose handler lines carry no `traceId`, or whose server spans miss the exchange time, reads the reason here.
+- **No report at all** means the auto-configuration did not run: `endpoint-logging.enabled=false`, the
+  wrong web application type, or the module not on the classpath. Boot's condition evaluation report
+  (DEBUG on `org.springframework.boot.autoconfigure`) then names the reason.
+- The bean line is missing while the other lines appear when a host supplies its own filter bean
+  (the twins' guides on replacing the filter bean): the module's bean method did not run, and with it
+  neither the bean line nor the TRACE origins below.
+
+**TRACE — where each value came from.** The same host, now with an `application-prod.yml` that
+renames the logger, a masking key from the container environment and a body limit passed on the
+command line, additionally logs — directly after the bean line:
+
+```
+Endpoint logging property endpoint-logging.exclude-path-prefixes[0] = /actuator/health (origin: class path resource [application.yml] - 3:7)
+Endpoint logging property endpoint-logging.logger-name = inbound (origin: class path resource [application-prod.yml] - 2:16)
++- Endpoint logging property endpoint-logging.logger-name = endpoint-http-exchange (origin: class path resource [application.yml] - 5:16) is shadowed by class path resource [application-prod.yml] - 2:16
+Endpoint logging property endpoint-logging.masking-key = <redacted> (origin: System Environment Property "ENDPOINT_LOGGING_MASKING_KEY")
+Endpoint logging property endpoint-logging.max-body-bytes = 4096 (origin: "endpoint-logging.max-body-bytes" from property source "commandLineArgs")
+Endpoint logging property endpoint-logging.slow-request-threshold = 2s (origin: class path resource [application.yml] - 4:27)
+```
+
+How to read it:
+
+- **One line per key that some source sets**, sorted by name, so the report reads like the reference
+  configuration. The value is the raw text of the source (`2s`, not `PT2S`); the bean line above shows
+  the converted value.
+- The **origin** is Boot's: file and `line:column` for a YAML or properties file, the variable name
+  for the environment, `"key" from property source "…"` for command-line arguments, test properties
+  and other programmatic sources.
+- A line indented with `+- ` is a value that **lost**: a lower-precedence source also sets the key,
+  and the line names the origin that won. This is the answer to "why is my `application.yml` value not
+  in effect" — here the profile file overrides the logger name. Several shadowed values of one key
+  appear as several `+- ` lines under the same winner.
+- **Keys no source sets are not listed** — their defaults are in the bean line. A host that sets
+  nothing gets one line instead of the list:
+  `Endpoint logging properties: no endpoint-logging.* key is set in any property source - every key is at its default`.
+- The masking key is redacted here too; the raw secret never reaches the log, whichever source holds it.
+
+**When the origins are unavailable.** A host that binds `RequestLoggingProperties` by hand — without
+`@EnableConfigurationProperties` or `@ConfigurationPropertiesScan` — has no origin tracking, and the
+TRACE stage says so instead of staying silent:
+
+```
+Endpoint logging cannot tell where its endpoint-logging.* values came from (which file, environment variable or command-line argument set them); the values above are in effect nonetheless. Endpoint logging property origins are unavailable - no BoundConfigurationProperties bean in this context
+```
+
+The DEBUG stage is unaffected: the bean line still shows what is in effect, only the "where from" is
+missing. Silence at TRACE therefore always means "TRACE is off", never "nothing to report".
+
+The TRACE report carries the same information the actuator's `env` endpoint shows per property
+source (`/actuator/env/endpoint-logging.logger-name`); the lines put it into the startup log of a host
+without the actuator. Both stages are rendered once in `limesium-common`
+([§6.4](#64-shared-code-limesium-common-inlined-by-shade)).
+
+### 4.7 Validation at startup
 
 `RequestLoggingProperties.init` and `HeaderLogProperties.init` reject, with a message naming the
 property:
@@ -769,7 +938,7 @@ property:
 - `*` in an `excludes` or an `unmasked` list;
 - an unparsable `include-path-patterns` entry (parsed once at filter construction).
 
-### 4.7 Example configurations
+### 4.8 Example configurations
 
 **Minimal production profile** — everything logged, health probes excluded, slow threshold tightened:
 
@@ -988,7 +1157,10 @@ unparsed one is removed for the scope's lifetime, so a stale id on a pooled emis
 join the event to a foreign trace or span. Without a (valid) `traceparent`, nothing is decorated — a
 trace the bridge mints locally is deliberately not joined; such an exchange carries a generated request
 id instead. Both modules pin this against a real Brave bridge running beside them; what each stack's
-threads carry at filter time and at emission is the module guide's §5.6.
+threads carry at filter time and at emission is the module guide's §5.6. Whether a bridge and Boot's
+server observation are present at all is readable at startup: the observation line of the wiring
+report ([§4.6](#46-the-configuration-report-at-debug-and-trace)) names both and, on the servlet stack,
+whether the observation wraps the filter.
 
 ---
 
@@ -1048,16 +1220,19 @@ the amendment of 2026-09-05 — the field enum `EndpointLogField`, the meters `E
 (parameterized with the stack's third outcome) and `ExchangeLine`, the stack-neutral core of the
 emitters (message texts, header rendering, the arrival line, the body measurements) over the two small
 interfaces `LoggedExchange` and `MeasuredBody` that both twins' `Exchange` and `BoundedBodyCapture`
-implement. The Maven Shade plugin inlines those
+implement, and — since 2026-09-18 — `EndpointLoggingPropertyOrigins`, the TRACE half of the wiring
+report ([§4.5](#45-logger-levels)), and `RequestLoggingProperties` itself, the `endpoint-logging.*`
+binding with its unit test and the shared reference's `EndpointLoggingReferenceConfigTest` (the
+reactive-only `variant` key binds beside it as that module's `RequestLoggingVariantProperties`). The
+Maven Shade plugin inlines those
 classes into each module's jar at package time, the dependency-reduced POM drops the dependency, and
 `limesium-common` is never published — consumers keep adding exactly one artifact, and the shared
 classes stay `internal` (`-Xfriend-paths`).
 
 Everything whose twin copies genuinely differ stays deliberately duplicated, per the original
 architecture-review decision: the field enum and metrics (per-stack outcome vocabulary and meter
-descriptions), the emitters and exchanges, the properties (`variant` is reactive-only; the header
-sections themselves are the shared `HeaderLogProperties`), and `BoundedBodyCapture` (two different
-concurrency designs). For those the accepted cost is unchanged: a change is a conscious port in **both**
+descriptions), the emitters and exchanges, and `BoundedBodyCapture` (two different concurrency
+designs). For those the accepted cost is unchanged: a change is a conscious port in **both**
 directions, and the lockstep tests catch *named* contract drift (keys, field names, meter names,
 message text), not behavioural drift inside near-identical code.
 

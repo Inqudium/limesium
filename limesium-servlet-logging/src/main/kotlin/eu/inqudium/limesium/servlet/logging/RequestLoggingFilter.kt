@@ -8,6 +8,7 @@ import eu.inqudium.limesium.common.HeaderValueMasker
 import eu.inqudium.limesium.common.MdcKeys
 import eu.inqudium.limesium.common.MdcScope
 import eu.inqudium.limesium.common.NanoTimeSource
+import eu.inqudium.limesium.common.RequestLoggingProperties
 import eu.inqudium.limesium.common.Traceparent
 import eu.inqudium.limesium.common.addKeyValue
 import eu.inqudium.limesium.common.addKeyValueIfPresent

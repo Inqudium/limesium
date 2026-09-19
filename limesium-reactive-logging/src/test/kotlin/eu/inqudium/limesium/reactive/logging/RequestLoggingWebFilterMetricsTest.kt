@@ -10,6 +10,7 @@ import ch.qos.logback.core.spi.FilterReply
 import eu.inqudium.limesium.common.BodyLogMode
 import eu.inqudium.limesium.common.CapturedLogger
 import eu.inqudium.limesium.common.EndpointLoggingMetrics
+import eu.inqudium.limesium.common.RequestLoggingProperties
 import io.micrometer.core.instrument.Counter
 import io.micrometer.core.instrument.Gauge
 import io.micrometer.core.instrument.Meter

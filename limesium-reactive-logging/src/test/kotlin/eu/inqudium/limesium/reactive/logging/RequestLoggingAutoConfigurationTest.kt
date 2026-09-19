@@ -4,11 +4,13 @@ import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
+import eu.inqudium.limesium.common.CapturedLogger
 import eu.inqudium.limesium.common.CorrelationIdGenerator
 import eu.inqudium.limesium.common.EndpointLoggingMetrics
 import eu.inqudium.limesium.common.HeaderValueMasker
 import eu.inqudium.limesium.common.MdcKeys
 import eu.inqudium.limesium.common.NanoTimeSource
+import eu.inqudium.limesium.common.RequestLoggingProperties
 import io.micrometer.context.ContextRegistry
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
@@ -17,12 +19,17 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.RegisterExtension
 import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.AutoConfigurations
+import org.springframework.boot.micrometer.observation.autoconfigure.ObservationAutoConfiguration
+import org.springframework.boot.micrometer.tracing.autoconfigure.MicrometerTracingAutoConfiguration
+import org.springframework.boot.micrometer.tracing.brave.autoconfigure.BraveAutoConfiguration
 import org.springframework.boot.test.context.FilteredClassLoader
 import org.springframework.boot.test.context.runner.ReactiveWebApplicationContextRunner
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.core.env.MapPropertySource
 import org.springframework.web.server.CoWebFilter
 
 /**
@@ -51,6 +58,11 @@ class RequestLoggingAutoConfigurationTest {
     // the three accessors into the JVM-global ContextRegistry; the guard restores the registry after
     // EVERY method, not only the one asserting on it.
     private val accessorRegistry = EndpointAccessorRegistryGuard()
+
+    /** The twin's wiring-report logger - both auto-configurations report on it - captured at TRACE for every test. */
+    @JvmField
+    @RegisterExtension
+    val wiringLog = CapturedLogger(RequestLoggingAutoConfiguration::class.java.name, Level.TRACE)
 
     @BeforeEach
     fun setUp() {
@@ -92,6 +104,136 @@ class RequestLoggingAutoConfigurationTest {
             assertThat(context).hasSingleBean(NanoTimeSource::class.java)
             assertThat(context).hasSingleBean(CorrelationIdGenerator::class.java)
             assertThat(context).hasSingleBean(HeaderValueMasker::class.java)
+        }
+    }
+
+    @Test
+    fun `should report at DEBUG that it is enabled and which variant it wired`() {
+        // What is tested: the wiring report on the twin's one wiring logger, across both shipped
+        //   auto-configurations - the enabled line from the Reactor configuration, the bean line from
+        //   whichever variant claimed the slot (the coroutine one on this classpath), the accessor
+        //   line only for the Reactor variant, and the observation line for a context without Boot's
+        //   server observation.
+        // Success criteria: on the shipped pair the DEBUG events contain the enabled line, the
+        //   coroutine bean line with the bound logger name and a redacted masking key and the
+        //   no-observation line, no Reactor bean line and no accessor line; on the Reactor configuration
+        //   alone, the Reactor bean line and the accessor line.
+        // Why it matters: "which variant is in the chain, and is handler MDC wired?" is the first
+        //   question on the reactive stack; the report answers it from the host's log at DEBUG.
+        // Given/When: the shipped pair on the full classpath (coroutine variant)
+        shippedContextRunner.withPropertyValues("endpoint-logging.masking-key=k").run { context ->
+            assertThat(context).hasNotFailed()
+
+            // Then
+            val messages = wiringLog.events.filter { it.level == Level.DEBUG }.map { it.formattedMessage }
+            assertThat(messages).contains(
+                "Endpoint logging is enabled - the auto-configuration is active (endpoint-logging.enabled is not false)",
+                "Endpoint logging found no server observation - Boot's observation auto-configuration is not active (no ObservationRegistry bean, or the observation module is absent): exchanges run outside any server observation; the exchange line still carries the trace context of an incoming traceparent",
+            )
+            assertThat(messages).anySatisfy { message ->
+                assertThat(message)
+                    .startsWith("Endpoint logging registered its CoRequestLoggingWebFilter bean (coroutine variant, ordered at HIGHEST_PRECEDENCE + 10, collected by WebFlux) with RequestLoggingProperties(")
+                    .contains("loggerName=endpoint-http-exchange")
+                    .contains("maskingKey=<redacted>")
+                    .doesNotContain("maskingKey=k")
+            }
+            assertThat(messages).noneMatch { it.contains("RequestLoggingWebFilter bean (Reactor variant") || it.contains("MDC accessors") }
+        }
+
+        // And when: the Reactor configuration alone
+        wiringLog.clear()
+        contextRunner.run { context ->
+            assertThat(context).hasNotFailed()
+            val messages = wiringLog.events.filter { it.level == Level.DEBUG }.map { it.formattedMessage }
+            assertThat(messages).anySatisfy { message ->
+                assertThat(message).startsWith("Endpoint logging registered its RequestLoggingWebFilter bean (Reactor variant, ordered at HIGHEST_PRECEDENCE + 10, collected by WebFlux) with RequestLoggingProperties(")
+            }
+            assertThat(messages).contains("Endpoint logging registered the endpoint_* MDC accessors with Micrometer's ContextRegistry (Reactor variant)")
+        }
+    }
+
+    @Test
+    fun `should report at DEBUG whether Boot's server observation and a bridge are wired`() {
+        // What is tested: the observation line of the wiring report against Boot's REAL observation
+        //   and tracing auto-configurations - with a Brave bridge, and with the observation registry
+        //   alone. On this stack the observation is the HttpWebHandlerAdapter's, outside every WebFilter,
+        //   so the line compares no order.
+        // Success criteria: with tracing, the line says the adapter observes every request outside
+        //   all WebFilters, "inside", and that the handler lines carry the bridge's ids; without a
+        //   tracer, the measured-only line with the exchange line as the only traced one.
+        // Why it matters: whether a server span exists and whether handler lines carry a traceId has
+        //   no property; this line is where an operator reads it from the startup log.
+        // Given: Boot's observation auto-configuration on the Reactor configuration
+        val observed = contextRunner.withConfiguration(AutoConfigurations.of(ObservationAutoConfiguration::class.java))
+
+        // When: with a tracing bridge
+        observed
+            .withConfiguration(AutoConfigurations.of(BraveAutoConfiguration::class.java, MicrometerTracingAutoConfiguration::class.java))
+            .run { context ->
+                assertThat(context).hasNotFailed()
+                assertThat(wiringLog.events.map { it.formattedMessage }).contains("Endpoint logging found Boot's server observation with Micrometer Tracing - the HttpWebHandlerAdapter observes every request outside all WebFilters, so every exchange runs inside the server observation: the handler lines carry the bridge's traceId and spanId, the exchange line the trace context of the incoming traceparent")
+            }
+
+        // And when: the observation registry alone
+        wiringLog.clear()
+        observed.run { context ->
+            assertThat(context).hasNotFailed()
+            assertThat(wiringLog.events.map { it.formattedMessage }).contains("Endpoint logging found Boot's server observation but no Micrometer Tracing - the HttpWebHandlerAdapter observes every request outside all WebFilters, so every exchange runs inside the server observation: exchanges are measured, no server span is opened, and only the exchange line carries a trace context - that of the incoming traceparent")
+        }
+    }
+
+    @Test
+    fun `should report at TRACE where every endpoint-logging value came from`() {
+        // What is tested: the TRACE half of the wiring report - the origin of each bound
+        //   endpoint-logging.* value, a shadowed value from a lower-precedence source, the redacted
+        //   masking key, and the empty report when nothing is set.
+        // Success criteria: with the logger name and the masking key inlined and a lower source
+        //   setting the logger name too, the TRACE events name the runner's inlined source ("test")
+        //   for the effective values, mark the lower value as shadowed, render the key redacted and
+        //   never raw; with no property set, exactly the one "every key is at its default" line.
+        // Why it matters: "which file set this, and why is my value not in effect" is answered from
+        //   the host's log at TRACE instead of from the actuator's env endpoint in production.
+        // Given/When: two sources, the inlined test properties above a host source
+        contextRunner
+            .withPropertyValues("endpoint-logging.logger-name=inbound", "endpoint-logging.masking-key=k")
+            .withInitializer { it.environment.propertySources.addLast(MapPropertySource("host-defaults", mapOf("endpoint-logging.logger-name" to "base"))) }
+            .run { context ->
+                assertThat(context).hasNotFailed()
+
+                // Then
+                val traces = wiringLog.events.filter { it.level == Level.TRACE }.map { it.formattedMessage }
+                assertThat(traces).anySatisfy { line ->
+                    assertThat(line).startsWith("Endpoint logging property endpoint-logging.logger-name = inbound (origin: ").contains("from property source \"test\"")
+                }
+                assertThat(traces).anySatisfy { line ->
+                    assertThat(line).startsWith("+- Endpoint logging property endpoint-logging.logger-name = base (origin: ").contains("host-defaults").contains(") is shadowed by ")
+                }
+                assertThat(traces).anySatisfy { line ->
+                    assertThat(line).startsWith("Endpoint logging property endpoint-logging.masking-key = <redacted> (origin: ")
+                }
+                assertThat(traces).noneMatch { it.contains("masking-key = k") }
+            }
+
+        // And when: nothing set at all
+        wiringLog.clear()
+        contextRunner.run { context ->
+            assertThat(context).hasNotFailed()
+            val traces = wiringLog.events.filter { it.level == Level.TRACE }.map { it.formattedMessage }
+            assertThat(traces).containsExactly("Endpoint logging properties: no endpoint-logging.* key is set in any property source - every key is at its default")
+        }
+    }
+
+    @Test
+    fun `should report nothing when disabled by the identical property`() {
+        // What is tested: the wiring report's negative - with the switch off neither auto-configuration
+        //   is instantiated, so not even the "enabled" line appears.
+        // Success criteria: no event at all on the wiring logger, with both shipped configurations.
+        // Why it matters: the absence of the report is the documented signal for "switched off".
+        // Given/When
+        shippedContextRunner.withPropertyValues("endpoint-logging.enabled=false").run { context ->
+            // Then
+            assertThat(context).hasNotFailed()
+            assertThat(wiringLog.events).isEmpty()
         }
     }
 
@@ -167,6 +309,33 @@ class RequestLoggingAutoConfigurationTest {
             val keys = ContextRegistry.getInstance().threadLocalAccessors.map { it.key() }
             assertThat(keys).contains(MdcKeys.REQUEST_ID, MdcKeys.REQUEST_METHOD, MdcKeys.ROUTE)
         }
+    }
+
+    @Test
+    fun `should wire no MDC accessors and report none when context-propagation is missing`() {
+        // What is tested: the classpath branch of the handler-MDC parity - io.micrometer:context-
+        //   propagation is an OPTIONAL dependency, and @ConditionalOnClass decides against the
+        //   context's class loader.
+        // Success criteria: with ContextRegistry hidden from the class loader, the initializer bean is
+        //   absent, the Reactor bean line is reported, the accessor line is not, and the JVM-global
+        //   registry carries no endpoint_* accessor.
+        // Why it matters: a host without the library must start with the Reactor variant and read from
+        //   its log that handler MDC is not wired - never fail on a missing class, never claim accessors
+        //   it did not register.
+        // Given/When: the context-propagation class hidden from the class loader, the Reactor variant active
+        contextRunner
+            .withClassLoader(FilteredClassLoader(ContextRegistry::class.java))
+            .run { context ->
+                // Then
+                assertThat(context).hasNotFailed()
+                assertThat(context).doesNotHaveBean("endpointMdcContextPropagationInitializer")
+                val messages = wiringLog.events.filter { it.level == Level.DEBUG }.map { it.formattedMessage }
+                assertThat(messages).anySatisfy { message ->
+                    assertThat(message).startsWith("Endpoint logging registered its RequestLoggingWebFilter bean (Reactor variant, ordered at HIGHEST_PRECEDENCE + 10, collected by WebFlux) with RequestLoggingProperties(")
+                }
+                assertThat(messages).noneMatch { it.contains("MDC accessors") }
+                assertThat(ContextRegistry.getInstance().threadLocalAccessors.map { it.key() }).doesNotContain(MdcKeys.REQUEST_ID, MdcKeys.REQUEST_METHOD, MdcKeys.ROUTE)
+            }
     }
 
     @Test
