@@ -142,8 +142,11 @@ internal object ExchangeLine {
      * counter, which is what tells an unread body from an absent one (the size sample cannot: both are
      * zero bytes and record nothing). Recorded BEFORE the level gate - a metric must not depend on how
      * loud the logger is configured - and guarded on their own: a host registry that rejects the
-     * body-size summary (meter-id conflict) costs the sample, never the event; the loss is counted
-     * `stage=wiring` and reported on [internalLog].
+     * body-size summary (meter-id conflict) costs the sample, never the event. The owner handles the
+     * meter-level failures itself (a rejected id is kept private with one warning, a meter that throws
+     * on update is counted `stage=wiring` per hit and warned once per meter); this guard is the outer
+     * layer for anything else the measurement step may throw, counted `stage=wiring` and reported on
+     * [internalLog] per exchange.
      */
     fun recordBodySizesQuietly(
         internalLog: Logger,

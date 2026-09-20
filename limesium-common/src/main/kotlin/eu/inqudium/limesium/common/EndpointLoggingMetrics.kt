@@ -80,6 +80,7 @@ internal class EndpointLoggingMetrics private constructor(
 ) {
     private val fallbackRegistry = SimpleMeterRegistry()
     private val reportedConflicts: MutableSet<String> = ConcurrentHashMap.newKeySet()
+    private val reportedUpdateFailures: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
     /**
      * The tag set of one dynamic body meter, already folded the way the tags are (the `UNKNOWN` fallback
@@ -248,10 +249,15 @@ internal class EndpointLoggingMetrics private constructor(
         }
 
     /**
-     * Isolates an OPERATIONAL counter update from the exchange it observes: registration succeeded, but
-     * a host `Counter` may still throw on increment. The failure is counted `stage=wiring` (bookkeeping
-     * lost, event unaffected) and warned; the fail-open counter itself is reported through [reportQuietly],
-     * so a registry broken as a whole is silently dropped rather than escaping.
+     * Isolates an OPERATIONAL meter update from the exchange it observes: registration succeeded, but a
+     * host `Counter` or `DistributionSummary` may still throw on update. The failure is counted
+     * `stage=wiring` on EVERY call (bookkeeping lost, event unaffected - the count is the measure of the
+     * loss) but warned ONCE per meter name, like a registration conflict: a permanently broken host
+     * meter is hit up to five times per measured exchange (the two fixed counters and the three body
+     * meters), and a warning per hit would drown the module's curated one-time warnings under load
+     * (legatium's defect analyses of 2026-09-16, finding 5, and 2026-09-19). The fail-open counter itself
+     * is reported through [reportQuietly], so a registry broken as a whole is silently dropped rather
+     * than escaping.
      */
     private inline fun updateQuietly(
         meterName: String,
@@ -262,7 +268,13 @@ internal class EndpointLoggingMetrics private constructor(
         } catch (e: Exception) {
             reportQuietly {
                 wiringFailure()
-                internalLog.warn("Meter {} could not be updated - the exchange is logged without it: {}", meterName, e.toString())
+                if (reportedUpdateFailures.add(meterName)) {
+                    internalLog.warn(
+                        "Meter {} could not be updated - the exchange is logged without it; further failures of this meter are counted, not logged: {}",
+                        meterName,
+                        e.toString(),
+                    )
+                }
             }
         }
     }
@@ -277,12 +289,13 @@ internal class EndpointLoggingMetrics private constructor(
      * low-cardinality handler pattern - see [REQUEST_BODY_READ_METER]. Resolved per `uri`/`state` on
      * first use and cached, like the body-size summaries (class KDoc); recorded whenever a request
      * capture exists in measuring mode, INCLUDING bodyless requests the application never touched -
-     * that is exactly the `unread` share the counter exists to show.
+     * that is exactly the `unread` share the counter exists to show. Guarded like the fixed counters
+     * ([updateQuietly]): a host counter that throws on increment is counted per hit and warned once.
      */
     fun requestBodyRead(
         template: String?,
         state: BodyReadState,
-    ) {
+    ) = updateQuietly(REQUEST_BODY_READ_METER) {
         val key = BodyMeterKey(REQUEST_BODY_READ_METER, template ?: UNTEMPLATED_URI, state.tagValue)
         // The plain get first: on the hit path - every exchange but the first per tag set - the key is
         // then the only allocation; the resolver's lambdas are built on a miss alone.
@@ -308,7 +321,8 @@ internal class EndpointLoggingMetrics private constructor(
     /**
      * Bytes that ACTUALLY flowed, tagged by the low-cardinality handler pattern. A zero-byte body records
      * no sample - the distribution describes bodies that exist, and the sum stays exact either way. The
-     * summaries are resolved per `uri` tag on first use and cached (class KDoc).
+     * summaries are resolved per `uri` tag on first use and cached (class KDoc). Guarded like the fixed
+     * counters ([updateQuietly]): a host summary that throws on record is counted per hit and warned once.
      */
     private fun recordBodySize(
         meterName: String,
@@ -318,20 +332,22 @@ internal class EndpointLoggingMetrics private constructor(
         if (bytes == 0L) {
             return
         }
-        val key = BodyMeterKey(meterName, template ?: UNTEMPLATED_URI)
-        // The plain get first, as in requestBodyRead: the key is the hit path's only allocation.
-        val summary =
-            bodySizeSummaries[key] ?: cacheBodyMeter(bodySizeSummaries, key) {
-                registerOrFallback(meterName) { registry ->
-                    DistributionSummary
-                        .builder(meterName)
-                        .baseUnit("bytes")
-                        .description("Bytes of the body that actually flowed through the exchange")
-                        .tag("uri", key.uriTemplate)
-                        .register(registry)
+        updateQuietly(meterName) {
+            val key = BodyMeterKey(meterName, template ?: UNTEMPLATED_URI)
+            // The plain get first, as in requestBodyRead: the key is the hit path's only allocation.
+            val summary =
+                bodySizeSummaries[key] ?: cacheBodyMeter(bodySizeSummaries, key) {
+                    registerOrFallback(meterName) { registry ->
+                        DistributionSummary
+                            .builder(meterName)
+                            .baseUnit("bytes")
+                            .description("Bytes of the body that actually flowed through the exchange")
+                            .tag("uri", key.uriTemplate)
+                            .register(registry)
+                    }
                 }
-            }
-        summary.record(bytes.toDouble())
+            summary.record(bytes.toDouble())
+        }
     }
 
     companion object {

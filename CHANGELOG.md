@@ -78,6 +78,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in its first shape. Pinned by the new `EndpointLoggingMetricsTest` in `limesium-common` (removed
   meter, rejected id, lock order, denied meter not cached, key discrimination). No observable change
   to the meters themselves.
+- Both twins: a host meter that throws on update is warned about **once per meter name** on the
+  module's logger instead of on every hit - `endpoint.logging.failopen{stage=wiring}` still counts
+  every failure, the count being the measure of the loss. The opt-in body meters
+  (`endpoint.request.body.size`, `endpoint.response.body.size`, `endpoint.request.body.read`) now
+  take that guard inside the metrics owner, like the fixed counters; before, a host summary or counter
+  that threw on record surfaced in the twins' emitters and produced a warning per measured exchange,
+  proportional to the traffic (legatium's defect analyses of 2026-09-16, finding 5, and 2026-09-19,
+  ported). The emitters' own guard around the measurement step stays as the outer layer. Pinned by
+  four tests in `EndpointLoggingMetricsTest`.
 
 ## [3.0.1] - 2026-09-17
 
