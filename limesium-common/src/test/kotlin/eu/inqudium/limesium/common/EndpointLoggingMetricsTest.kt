@@ -1,11 +1,13 @@
 package eu.inqudium.limesium.common
 
 import ch.qos.logback.classic.Level
+import io.micrometer.core.instrument.Counter
 import io.micrometer.core.instrument.DistributionSummary
 import io.micrometer.core.instrument.Gauge
 import io.micrometer.core.instrument.Meter
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.config.MeterFilter
+import io.micrometer.core.instrument.distribution.DistributionStatisticConfig
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.catchThrowable
@@ -18,10 +20,11 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * The body-meter cache of the shared metrics owner, driven directly - once here, for both twins: the
- * two ways a cache of meter references can be wrong against a live registry (a removed meter, a
- * rejected id), the lock order its miss path must keep, the meters it must NOT keep, and the key's
- * discrimination. Ported with the cache from legatium's `ClientLoggingMetricsTest`
+ * The shared metrics owner, driven directly - once here, for both twins: the body-meter cache (the two
+ * ways a cache of meter references can be wrong against a live registry - a removed meter, a rejected
+ * id -, the lock order its miss path must keep, the meters it must NOT keep, the key's discrimination)
+ * and the guarded meter updates (a host meter that throws on update is counted per hit and warned
+ * once). Ported with the cache and the guard from legatium's `ClientLoggingMetricsTest`
  * (`docs/assessment/BENCH_REPORT-2026-09-20T10-23-42.md`, section 4.5). The twins' metrics tests keep
  * the lifecycle facts only their filter can show (what the emitter records, when the gauge moves).
  */
@@ -31,6 +34,42 @@ class EndpointLoggingMetricsTest {
     val metricsLog = CapturedLogger(EndpointLoggingMetrics::class.java.name)
 
     private val things = "/api/things/{id}"
+
+    /** A host registry whose counters under [breakingMeters] register fine but throw on every increment. */
+    private fun registryWithBreakingCounters(vararg breakingMeters: String): MeterRegistry =
+        object : SimpleMeterRegistry() {
+            override fun newCounter(id: Meter.Id): Counter {
+                val real = super.newCounter(id)
+                if (id.name !in breakingMeters) return real
+                return object : Counter by real {
+                    override fun increment(amount: Double) = error("counter broke")
+                }
+            }
+        }
+
+    /** A host registry whose distribution summaries register fine but throw on every record. */
+    private fun registryWithBreakingSummaries(): MeterRegistry =
+        object : SimpleMeterRegistry() {
+            override fun newDistributionSummary(
+                id: Meter.Id,
+                distributionStatisticConfig: DistributionStatisticConfig,
+                scale: Double,
+            ): DistributionSummary {
+                val real = super.newDistributionSummary(id, distributionStatisticConfig, scale)
+                return object : DistributionSummary by real {
+                    override fun record(amount: Double) = error("summary broke")
+                }
+            }
+        }
+
+    private fun wiringFailures(registry: MeterRegistry): Double =
+        registry
+            .get(EndpointLoggingMetrics.FAIL_OPEN_METER)
+            .tags("stage", "wiring")
+            .counter()
+            .count()
+
+    private fun updateWarnings() = metricsLog.events.filter { it.level == Level.WARN && it.formattedMessage.contains("could not be updated") }
 
     /** The owner's two body-meter caches, read through their private fields: the size of the cache is the subject of the leak test. */
     private fun cachedBodyMeters(metrics: EndpointLoggingMetrics): Map<Any, Meter> =
@@ -253,5 +292,89 @@ class EndpointLoggingMetricsTest {
         assertThat(summary(registry, EndpointLoggingMetrics.REQUEST_BODY_SIZE_METER, things).totalAmount()).isEqualTo(10.0)
         assertThat(summary(registry, EndpointLoggingMetrics.REQUEST_BODY_SIZE_METER, other).totalAmount()).isEqualTo(11.0)
         assertThat(registry.get(EndpointLoggingMetrics.REQUEST_BODY_READ_METER).counters()).hasSize(3).allSatisfy { assertThat(it.count()).isEqualTo(1.0) }
+    }
+
+    @Test
+    fun `should warn once per meter for a permanently throwing host counter and keep counting every failure`() {
+        // What is tested: the warning throttle in updateQuietly - a host counter that throws on EVERY
+        //   increment is hit on every exchange (here the request-id origin).
+        // Success criteria: after six updates the fail-open counter shows stage=wiring at 6, but the
+        //   module logger carries exactly ONE warning for the meter.
+        // Why it matters: a warning per hit would flood the internal logger proportionally to the
+        //   traffic and drown the curated one-time warnings; the counter is the measure of the loss.
+        // Given: a registry whose correlation counter always throws
+        val hostile = registryWithBreakingCounters(EndpointLoggingMetrics.CORRELATION_METER)
+        val metrics = EndpointLoggingMetrics.forRegistry(hostile, EndpointLoggingMetrics.OUTCOME_TIMEOUT)
+
+        // When
+        repeat(6) { metrics.requestId(EndpointLoggingMetrics.REQUEST_ID_SOURCE_TRACE) }
+
+        // Then
+        assertThat(wiringFailures(hostile)).isEqualTo(6.0)
+        assertThat(updateWarnings()).hasSize(1)
+    }
+
+    @Test
+    fun `should drop the update report silently when the fail-open counter itself throws`() {
+        // What is tested: updateQuietly's own diagnostics channel - the fail-open counter it reports a
+        //   throwing host meter to is a host meter as well, and here it throws too.
+        // Success criteria: requestId against a registry whose correlation AND fail-open counters
+        //   throw neither throws nor warns - the secondary failure is dropped, nothing escapes.
+        // Why it matters: the filters guard this one layer further out, so an escape here would still
+        //   not fail a request - but it would turn a counted bookkeeping loss into an unlogged
+        //   pass-through of the whole exchange, the worse degradation for a broken registry.
+        // Given: correlation and fail-open counters that throw
+        val hostile = registryWithBreakingCounters(EndpointLoggingMetrics.CORRELATION_METER, EndpointLoggingMetrics.FAIL_OPEN_METER)
+        val metrics = EndpointLoggingMetrics.forRegistry(hostile, EndpointLoggingMetrics.OUTCOME_TIMEOUT)
+
+        // When
+        val thrown = catchThrowable { metrics.requestId(EndpointLoggingMetrics.REQUEST_ID_SOURCE_GENERATED) }
+
+        // Then
+        assertThat(thrown).isNull()
+        assertThat(metricsLog.events.filter { it.level == Level.WARN }).isEmpty()
+    }
+
+    @Test
+    fun `should count a throwing host body summary per hit and warn once, like the fixed counters`() {
+        // What is tested: updateQuietly around the dynamic body meters - a host DistributionSummary
+        //   that registered fine but throws on every record.
+        // Success criteria: six samples neither throw nor reach the caller; the fail-open counter shows
+        //   stage=wiring at 6 and the module logger carries exactly ONE warning for the meter.
+        // Why it matters: the body meters are recorded per measured exchange; unguarded here, a
+        //   permanently throwing host summary surfaced in the twins' emitters and produced a warning per
+        //   exchange there, proportional to the traffic.
+        // Given: a registry whose summaries always throw
+        val hostile = registryWithBreakingSummaries()
+        val metrics = EndpointLoggingMetrics.forRegistry(hostile, EndpointLoggingMetrics.OUTCOME_CANCELLED)
+
+        // When
+        val thrown = catchThrowable { repeat(6) { metrics.requestBodySize(things, 5) } }
+
+        // Then
+        assertThat(thrown).isNull()
+        assertThat(wiringFailures(hostile)).isEqualTo(6.0)
+        assertThat(updateWarnings()).hasSize(1)
+    }
+
+    @Test
+    fun `should count a throwing host read-state counter per hit and warn once, like the size summaries`() {
+        // What is tested: updateQuietly around requestBodyRead - a host Counter under the read-state
+        //   meter that registered fine but throws on every increment.
+        // Success criteria: three recordings neither throw nor reach the caller; the fail-open counter
+        //   shows stage=wiring at 3 and the module logger carries exactly ONE warning for the meter.
+        // Why it matters: the read state is counted per measured exchange; unguarded, a broken host
+        //   counter surfaced in the emitter and warned per exchange, proportional to the traffic.
+        // Given: a registry whose read-state counter always throws
+        val hostile = registryWithBreakingCounters(EndpointLoggingMetrics.REQUEST_BODY_READ_METER)
+        val metrics = EndpointLoggingMetrics.forRegistry(hostile, EndpointLoggingMetrics.OUTCOME_CANCELLED)
+
+        // When
+        val thrown = catchThrowable { repeat(3) { metrics.requestBodyRead(things, BodyReadState.COMPLETE) } }
+
+        // Then
+        assertThat(thrown).isNull()
+        assertThat(wiringFailures(hostile)).isEqualTo(3.0)
+        assertThat(updateWarnings()).hasSize(1)
     }
 }
