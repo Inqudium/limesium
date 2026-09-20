@@ -4,7 +4,6 @@ import eu.inqudium.limesium.common.BodyReadState;
 import eu.inqudium.limesium.common.EndpointLoggingMetrics;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -26,27 +25,27 @@ import org.openjdk.jmh.annotations.Warmup;
  * {@code registrySize} axis of that run is settled and no longer swept). Re-measured for
  * BENCH_REPORT-2026-09-20T10-23-42 after legatium built the cache the first report declined
  * (legatium's BENCH_REPORT-2026-09-19T19-11-09) and then paid a lock-order defect for it
- * (its DEFECT_ANALYSIS-2026-09-19T20-24-59, finding 1). Three cases, rotating over {@code tagSets}
- * distinct URI templates so a single hot cache entry is not what gets measured:
+ * (its DEFECT_ANALYSIS-2026-09-19T20-24-59, finding 1); that report reversed the refutation, and the
+ * owner now carries the cache. Three cases, rotating over {@code tagSets} distinct URI templates so a
+ * single hot cache entry is not what gets measured:
  *
  * <ul>
- *   <li>{@link #registerPerCall}: the owner's {@code requestBodyRead} - the production path, which
- *       builds builder, two tags and a {@code Meter.Id} per call and lets Micrometer's deduplicating
- *       lookup find the existing counter;</li>
- *   <li>{@link #cached}: the same counter behind a benchmark-local cache in the shape legatium
- *       ended up with - a key record of the folded tag values, a plain {@code get} on the hit path,
- *       the miss resolved OUTSIDE the map and published with {@code putIfAbsent} (never
- *       {@code computeIfAbsent}: its mapping function runs under the map's bin lock, and Micrometer
- *       notifies removal listeners under its registry lock - the inversion of legatium's finding 1),
- *       plus the removal listener that keeps cache and registry in step;</li>
+ *   <li>{@link #owner}: the owner's {@code requestBodyRead} - the production path, which resolves the
+ *       counter once per tag set and caches it (a key of the folded tag values, a plain {@code get}
+ *       on the hit path, the miss resolved OUTSIDE the map and published with {@code putIfAbsent},
+ *       plus the removal listener that keeps cache and registry in step). Before the port this cell
+ *       was the {@code registerPerCall} shape, and the benchmark-local {@code cached} cell of the
+ *       2026-09-20 run was the candidate the owner now is;</li>
+ *   <li>{@link #registerPerCall}: the path the owner took before the cache - builder, two tags and a
+ *       {@code Meter.Id} per call, resolved through Micrometer's deduplicating lookup;</li>
  *   <li>{@link #incrementOnly}: {@code Counter.increment} on a pre-resolved counter - the floor
  *       nothing above it can go below.</li>
  * </ul>
  *
  * <p>All three have a real side effect (the increment lands in the registry), so no Blackhole is
  * needed. {@code -prof gc} is the metric that matters: the per-call allocations the cache removes are
- * short-lived and the JIT hides much of their time. The cache is warmed for every tag set in setup,
- * so the measurement is the steady state a long-running host sees.
+ * short-lived and the JIT hides much of their time. The owner's cache is warmed for every tag set in
+ * setup, so the measurement is the steady state a long-running host sees.
  */
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
@@ -68,26 +67,16 @@ public class BodyMeterBenchmark {
     private Counter[] resolved;
     private int next;
 
-    /** The folded tag values of one read-state counter - two references, 24 B with compressed oops. */
-    private record BodyMeterKey(String uriTemplate, String state) {}
-
-    private final ConcurrentHashMap<BodyMeterKey, Counter> readStateCounters = new ConcurrentHashMap<>();
-
     @Setup
     public void setup() {
         registry = new SimpleMeterRegistry();
         metrics = EndpointLoggingMetrics.Companion.forRegistry(registry, EndpointLoggingMetrics.OUTCOME_CANCELLED);
-        // The listener is part of the cache's shape (a host removing a meter must not leave the owner
-        // recording into the detached instance); it costs nothing on the hit path but belongs to the
-        // candidate, so it is installed as it would be in production.
-        registry.config().onMeterRemoved(removed -> readStateCounters.values().removeIf(it -> it == removed));
         templates = new String[tagSets];
         resolved = new Counter[tagSets];
         for (int i = 0; i < tagSets; i++) {
             templates[i] = "/api/things/" + i + "/{id}";
             resolved[i] = counterFor(templates[i]);
             metrics.requestBodyRead(templates[i], STATE);
-            cachedCounter(templates[i]);
         }
     }
 
@@ -97,7 +86,7 @@ public class BodyMeterBenchmark {
         return i;
     }
 
-    /** The owner's builder chain, verbatim - the same {@code Meter.Id}, so every variant hits the identical counter. */
+    /** What the owner did per call before the cache; the same builder chain, so every variant hits the identical counter. */
     private Counter counterFor(String template) {
         return Counter.builder(EndpointLoggingMetrics.REQUEST_BODY_READ_METER)
                 .description("Exchanges by how far the application consumed the request body: unread, partial, or complete")
@@ -106,26 +95,14 @@ public class BodyMeterBenchmark {
                 .register(registry);
     }
 
-    /** Variant B's resolution: the key is the hit path's only allocation; a miss registers outside the map. */
-    private Counter cachedCounter(String template) {
-        BodyMeterKey key = new BodyMeterKey(template == null ? EndpointLoggingMetrics.UNTEMPLATED_URI : template, STATE.getTagValue());
-        Counter hit = readStateCounters.get(key);
-        if (hit != null) {
-            return hit;
-        }
-        Counter fresh = counterFor(key.uriTemplate());
-        Counter raced = readStateCounters.putIfAbsent(key, fresh);
-        return raced != null ? raced : fresh;
-    }
-
     @Benchmark
-    public void registerPerCall() {
+    public void owner() {
         metrics.requestBodyRead(templates[slot()], STATE);
     }
 
     @Benchmark
-    public void cached() {
-        cachedCounter(templates[slot()]).increment();
+    public void registerPerCall() {
+        counterFor(templates[slot()]).increment();
     }
 
     @Benchmark

@@ -5,6 +5,7 @@ import io.micrometer.core.instrument.DistributionSummary
 import io.micrometer.core.instrument.Gauge
 import io.micrometer.core.instrument.Meter
 import io.micrometer.core.instrument.MeterRegistry
+import io.micrometer.core.instrument.noop.NoopMeter
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.slf4j.LoggerFactory
 import java.lang.ref.WeakReference
@@ -36,6 +37,41 @@ import java.util.concurrent.atomic.AtomicLong
  * body-size registration would suppress the exchange event. Every registration therefore falls back to a
  * private [SimpleMeterRegistry] for the conflicting meter, logged once per meter name: the module keeps
  * working and the affected meter is simply not exported.
+ *
+ * The DYNAMIC body meters (the two size summaries and the read-state counter, tagged per handler
+ * pattern) are resolved ONCE per tag set and kept in a cache that mirrors the registry's entries under
+ * those three names - one entry per meter the registry HOLDS, so the cache adds no cardinality and needs
+ * no size policy of its own; the framework's folding of the path to the handler pattern (`UNKNOWN`
+ * without one) bounds both alike. A meter the registry did NOT keep - a denying `MeterFilter` (Boot's
+ * `management.metrics.enable.*`, a tag cap) or a closed registry answers with a detached no-op instance
+ * - is used for its exchange but never cached: nothing would ever release it, and the cache would grow
+ * per tag set exactly where the operator bounded the registry. Without the cache every measured exchange
+ * rebuilt the builder, the tags and the `Meter.Id` three times only to hit Micrometer's deduplicating
+ * lookup (measured in `benchmarks/`: `BodyMeterBenchmark`, `docs/assessment/BENCH_REPORT-2026-09-20T10-23-42.md`;
+ * the shape is legatium's `ClientLoggingMetrics` cache with the `host` and `name` dimensions dropped).
+ * The one way cache and registry could drift apart - a host removing one of the dynamic meters - is
+ * closed by a removal listener that drops the entry, so the next exchange registers anew instead of
+ * recording into a detached instance. The listener covers the dynamic meters ONLY: the fixed meters are
+ * registered once at construction, and a host that removes one of them (a `clear()` on a test registry)
+ * has decided against it - the owner keeps counting into the detached instance rather than
+ * re-registering behind the host's back.
+ *
+ * LOCK ORDER: Micrometer notifies removal listeners while holding its registry-wide meter-map lock, and
+ * registering a new id takes that same lock. The cache is therefore never written from inside a
+ * `ConcurrentHashMap.computeIfAbsent` - its mapping function runs under the map's bin lock, and a
+ * registration in there would wait for the registry lock while the listener, holding it, waits for the
+ * bin lock to drop the removed entry (legatium's defect analysis of 2026-09-19, night, finding 1). A
+ * miss resolves the meter OUTSIDE the map and publishes it with `putIfAbsent` ([cacheBodyMeter]); a
+ * lost race registers the same id twice, which Micrometer deduplicates to one instance anyway.
+ *
+ * ACCEPTED RESIDUE of that order: between the registration returning and the `putIfAbsent` lies a window
+ * of microseconds in which a host removal of that very meter runs the listener against a cache that
+ * holds no entry yet; the detached instance is then published and takes every later sample of its tag
+ * set, unseen by any exporter, until the owner is recreated. It needs a host that removes meters at
+ * runtime (a `clear()`, a pruner) AND the removal inside that window, and it costs the samples of one
+ * tag set - never an event, never a request. Closing it would take a registry-wide lookup after every
+ * first-time registration; the trade against the deadlock the order removed is deliberate, and the
+ * residue is documented rather than paid for.
  */
 internal class EndpointLoggingMetrics private constructor(
     private val meterRegistry: MeterRegistry,
@@ -44,6 +80,54 @@ internal class EndpointLoggingMetrics private constructor(
 ) {
     private val fallbackRegistry = SimpleMeterRegistry()
     private val reportedConflicts: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    /**
+     * The tag set of one dynamic body meter, already folded the way the tags are (the `UNKNOWN` fallback
+     * of the handler pattern), so every raw input that yields the same meter id shares one entry.
+     */
+    private data class BodyMeterKey(
+        val meterName: String,
+        val uriTemplate: String,
+        val state: String? = null,
+    )
+
+    /** [REQUEST_BODY_SIZE_METER] and [RESPONSE_BODY_SIZE_METER], resolved once per tag set (class KDoc). */
+    private val bodySizeSummaries = ConcurrentHashMap<BodyMeterKey, DistributionSummary>()
+
+    /** [REQUEST_BODY_READ_METER], resolved once per tag set and state (class KDoc). */
+    private val readStateCounters = ConcurrentHashMap<BodyMeterKey, Counter>()
+
+    init {
+        // A host that removes one of the cached meters (`MeterRegistry.remove`) gets it registered anew
+        // on the next exchange; without this the owner would keep recording into the detached instance.
+        // Runs UNDER the registry's meter-map lock and takes the maps' bin locks - the lock order the
+        // class KDoc fixes; the registry also holds this lambda, and with it the owner, as long as it lives.
+        meterRegistry.config().onMeterRemoved { removed ->
+            bodySizeSummaries.values.removeIf { it === removed }
+            readStateCounters.values.removeIf { it === removed }
+        }
+    }
+
+    /**
+     * The miss path of the body-meter caches: resolves the meter through [resolve] OUTSIDE [cache] and
+     * publishes it with `putIfAbsent`, never `computeIfAbsent` (the lock order of the class KDoc); a
+     * racing resolver's instance is the same registry-deduplicated meter, so either one serves. A meter
+     * the host registry did not keep ([NoopMeter]: a denying filter or a closed registry) is returned
+     * for this exchange but NOT cached - the removal listener could never release it, and one entry per
+     * denied tag set would grow the cache exactly where the operator bounded the registry. The window
+     * between [resolve] returning and the `putIfAbsent` is the accepted residue of the class KDoc.
+     */
+    private fun <M : Meter> cacheBodyMeter(
+        cache: ConcurrentHashMap<BodyMeterKey, M>,
+        key: BodyMeterKey,
+        resolve: () -> M,
+    ): M {
+        val meter = resolve()
+        if (meter is NoopMeter) {
+            return meter
+        }
+        return cache.putIfAbsent(key, meter) ?: meter
+    }
 
     /**
      * Registers through [register] against the host registry; on rejection the meter lands in the
@@ -190,22 +274,31 @@ internal class EndpointLoggingMetrics private constructor(
 
     /**
      * Counts one exchange under how far the application consumed the request body, tagged by the
-     * low-cardinality handler pattern - see [REQUEST_BODY_READ_METER]. Created per `uri`/`state` on
-     * first use, like the body-size summaries (Micrometer deduplicates by id); recorded whenever a
-     * request capture exists in measuring mode, INCLUDING bodyless requests the application never
-     * touched - that is exactly the `unread` share the counter exists to show.
+     * low-cardinality handler pattern - see [REQUEST_BODY_READ_METER]. Resolved per `uri`/`state` on
+     * first use and cached, like the body-size summaries (class KDoc); recorded whenever a request
+     * capture exists in measuring mode, INCLUDING bodyless requests the application never touched -
+     * that is exactly the `unread` share the counter exists to show.
      */
     fun requestBodyRead(
         template: String?,
         state: BodyReadState,
-    ) = registerOrFallback(REQUEST_BODY_READ_METER) { registry ->
-        Counter
-            .builder(REQUEST_BODY_READ_METER)
-            .description("Exchanges by how far the application consumed the request body: unread, partial, or complete")
-            .tag("uri", template ?: UNTEMPLATED_URI)
-            .tag("state", state.tagValue)
-            .register(registry)
-    }.increment()
+    ) {
+        val key = BodyMeterKey(REQUEST_BODY_READ_METER, template ?: UNTEMPLATED_URI, state.tagValue)
+        // The plain get first: on the hit path - every exchange but the first per tag set - the key is
+        // then the only allocation; the resolver's lambdas are built on a miss alone.
+        val counter =
+            readStateCounters[key] ?: cacheBodyMeter(readStateCounters, key) {
+                registerOrFallback(REQUEST_BODY_READ_METER) { registry ->
+                    Counter
+                        .builder(REQUEST_BODY_READ_METER)
+                        .description("Exchanges by how far the application consumed the request body: unread, partial, or complete")
+                        .tag("uri", key.uriTemplate)
+                        .tag("state", state.tagValue)
+                        .register(registry)
+                }
+            }
+        counter.increment()
+    }
 
     fun responseBodySize(
         template: String?,
@@ -215,7 +308,7 @@ internal class EndpointLoggingMetrics private constructor(
     /**
      * Bytes that ACTUALLY flowed, tagged by the low-cardinality handler pattern. A zero-byte body records
      * no sample - the distribution describes bodies that exist, and the sum stays exact either way. The
-     * summaries are created per `uri` tag on first use; Micrometer's registry deduplicates by id.
+     * summaries are resolved per `uri` tag on first use and cached (class KDoc).
      */
     private fun recordBodySize(
         meterName: String,
@@ -225,14 +318,20 @@ internal class EndpointLoggingMetrics private constructor(
         if (bytes == 0L) {
             return
         }
-        registerOrFallback(meterName) { registry ->
-            DistributionSummary
-                .builder(meterName)
-                .baseUnit("bytes")
-                .description("Bytes of the body that actually flowed through the exchange")
-                .tag("uri", template ?: UNTEMPLATED_URI)
-                .register(registry)
-        }.record(bytes.toDouble())
+        val key = BodyMeterKey(meterName, template ?: UNTEMPLATED_URI)
+        // The plain get first, as in requestBodyRead: the key is the hit path's only allocation.
+        val summary =
+            bodySizeSummaries[key] ?: cacheBodyMeter(bodySizeSummaries, key) {
+                registerOrFallback(meterName) { registry ->
+                    DistributionSummary
+                        .builder(meterName)
+                        .baseUnit("bytes")
+                        .description("Bytes of the body that actually flowed through the exchange")
+                        .tag("uri", key.uriTemplate)
+                        .register(registry)
+                }
+            }
+        summary.record(bytes.toDouble())
     }
 
     companion object {
