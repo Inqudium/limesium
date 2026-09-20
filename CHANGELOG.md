@@ -62,6 +62,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   moved to `limesium-common` and are pinned once; the reactive module keeps a test of that name for
   its own `variant` reference file. The shared reference YAML is a test resource of
   `limesium-common` now.
+- Both twins: the opt-in body meters (`endpoint.request.body.size`, `endpoint.response.body.size`,
+  `endpoint.request.body.read`) are resolved once per tag set and cached in the metrics owner instead
+  of being rebuilt - builder, tags and `Meter.Id` - on every measured exchange for Micrometer's
+  deduplicating lookup; the cache legatium built for its `ClientLoggingMetrics`, ported in the shape
+  its lock-order fix left it in (`docs/assessment/BENCH_REPORT-2026-09-20T10-23-42.md` and its addendum, `benchmarks/`,
+  `BodyMeterBenchmark`: 37 ns and 288 B per sample before, 7 ns and 24 B - the cache key - after,
+  floor 4.3 ns; three samples per measured exchange). A host that removes one of these meters from its registry gets it registered anew on the
+  next exchange. The cache holds only meters the registry holds: a meter a denying `MeterFilter`
+  (Boot's `management.metrics.enable.*`, a tag cap) or a closed registry answered with a no-op is used
+  for its exchange and not kept, so the cache cannot grow where the operator bounded the registry. A
+  miss registers the meter OUTSIDE the cache's own lock - Micrometer notifies removal listeners under
+  its registry lock, and a registration from inside the map's compute would have waited for that lock
+  while the listener waited for the map's: the deadlock legatium's defect analysis of 2026-09-19 found
+  in its first shape. Pinned by the new `EndpointLoggingMetricsTest` in `limesium-common` (removed
+  meter, rejected id, lock order, denied meter not cached, key discrimination). No observable change
+  to the meters themselves.
 
 ## [3.0.1] - 2026-09-17
 
