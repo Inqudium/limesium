@@ -45,6 +45,50 @@ jobs:
         if: always()
         run: python3 .github/scripts/surefire-summary.py
 
+  # The reactor's tests run BEFORE packaging, against the limesium-common
+  # module; the jars a consumer receives - common classes inlined,
+  # dependency-reduced POM - are never loaded by them. The standalone
+  # consumers under consumer-smoke/ (one per twin: a host carries exactly one
+  # limesium module) depend on the installed jars like an application does.
+  # The removal of limesium-common from the local repository is the point: a
+  # dependency-reduced POM that still named the unpublished module fails here,
+  # not at the first consumer. See ADR-0003.
+  consumer-smoke:
+    name: Consumer smoke tests of the shaded jars
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
+        with:
+          distribution: temurin
+          java-version: 25
+          cache: maven
+
+      - name: Install the twins (tests already gated by the build job)
+        run: mvn --batch-mode --no-transfer-progress -DskipTests -Djacoco.skip=true install
+
+      - name: Remove the unpublished module from the local repository
+        run: rm -rf ~/.m2/repository/eu/inqudium/limesium-common
+
+      # The consumers' POM pins the twins' version by hand for a local run; here it is derived from
+      # the reactor's root POM so the pin cannot drift from `revision` without anyone noticing.
+      - name: Resolve the reactor's version
+        id: reactor
+        run: echo "version=$(mvn --batch-mode --no-transfer-progress -q org.apache.maven.plugins:maven-help-plugin:3.5.1:evaluate -Dexpression=project.version -DforceStdout)" >> "$GITHUB_OUTPUT"
+
+      - name: Build and test the consumers against the installed jars
+        run: mvn --batch-mode --no-transfer-progress -f consumer-smoke/pom.xml -Dlimesium.version="${{ steps.reactor.outputs.version }}" verify
+
+      # From consumer-smoke/, not from the repository root: the script globs
+      # `*/target/surefire-reports`, one module component before `target`, and
+      # the two consumers sit one level below consumer-smoke/.
+      - name: Publish test summary
+        if: always()
+        run: python3 ../.github/scripts/surefire-summary.py
+        working-directory: consumer-smoke
+
   # The standalone JMH module is deliberately no reactor child, so `mvn verify`
   # never compiles it - a renamed or moved production type can silently break
   # the PERF_ANALYSIS verification trail (it did once: a stale BodyReadState

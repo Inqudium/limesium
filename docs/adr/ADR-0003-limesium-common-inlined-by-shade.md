@@ -117,6 +117,22 @@ Portal bundle. The published twin POMs mention no `limesium-common`.
 The test-jar is unpublished like the module itself, test scope only,
 never shaded.
 
+### Verification on the consumer's side
+
+The standalone project `consumer-smoke/` (no reactor child, like
+`benchmarks/`) holds one consumer per twin - a host carries exactly one
+limesium module, the servlet or the reactive one, so unlike the outbound
+sibling legatium there is no both-twins context to start. Each consumer
+depends on its twin exactly as an application does and starts a Boot
+context with an embedded server on the installed jar: the inlined common
+classes must resolve from exactly that jar and from no `limesium-common`
+artifact, the auto-configuration must wire up through the jar's own
+imports file, and one request must end in one exchange line. The CI job
+`consumer-smoke` installs the reactor, DELETES `limesium-common` from
+the local repository and only then builds the consumers: a
+dependency-reduced POM that still named the unpublished module fails
+there, not at the first consumer.
+
 ### Documentation
 
 Each twin's Dokka run includes the common sources as an additional
@@ -278,3 +294,9 @@ Dokka runs, so the dependency resolves.
   so a 4xx is `rejected` on the servlet line and the reactive line by
   construction, and the `on-failure` gate of both emitters reads
   `outcome != success` again.
+- **2026-09-21:** the evidence for this decision sat on the wrong side of
+  it, as legatium's review of 2026-09-05 had found there: Surefire tests
+  the twins in `test` against the module, Shade inlines and writes the
+  dependency-reduced POM in `package`, and nothing loaded the jars a
+  consumer receives. `consumer-smoke/` with the CI job `consumer-smoke`
+  closes that - one consumer per twin, since a host never carries both.

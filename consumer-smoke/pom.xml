@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>4.1.1</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>eu.inqudium</groupId>
+    <artifactId>limesium-consumer-smoke</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+
+    <name>limesium-consumer-smoke</name>
+    <!-- The tests that run on the CONSUMER's side of the Shade boundary (ADR-0003). Surefire in the
+         reactor tests the twins against the limesium-common module in the `test` phase; Shade inlines
+         the common classes and writes the dependency-reduced POM only afterwards, in `package`. Nothing
+         in the reactor therefore ever loads the jars a consumer receives. These standalone consumers do:
+         ONE PER TWIN, because a host carries exactly one limesium module - the servlet one or the
+         reactive one, never both (unlike the outbound sibling legatium, whose consumer starts both twins
+         in one context). Each consumer depends on its twin exactly like an application would, resolves
+         it from the local repository, and checks that the shaded classes are there, that the
+         auto-configuration wires up through the jar's own imports file, and that one request ends in
+         one exchange line.
+
+         DELIBERATELY not a reactor child (like benchmarks/): `mvn verify` at the root must not depend on
+         its own install, and a consumer resolves POMs, not reactor projects. Build with
+
+             mvn -DskipTests -Djacoco.skip=true install
+             rm -rf ~/.m2/repository/eu/inqudium/limesium-common     # what a consumer never has
+             mvn -f consumer-smoke/pom.xml verify
+
+         The removal is the point: a dependency-reduced POM that still named limesium-common would fail
+         resolution here instead of at the first consumer. The CI job `consumer-smoke` runs exactly this.
+         Java sources: the consumer view needs no Kotlin plugin - the twins bring kotlin-stdlib themselves. -->
+    <description>Consumer-side smoke tests of the shaded limesium twins, one consumer per twin, as an application receives them</description>
+
+    <modules>
+        <module>servlet</module>
+        <module>reactive</module>
+    </modules>
+
+    <properties>
+        <java.version>21</java.version>
+        <!-- The reactor's `revision` for a local run; CI overrides it with -Dlimesium.version derived
+             from the root POM, so the two cannot drift there. -->
+        <limesium.version>3.0.2-SNAPSHOT</limesium.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Not applications: nothing to repackage, and no main classes to jar. -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <skipIfEmpty>true</skipIfEmpty>
+                </configuration>
+            </plugin>
+            <!-- Warning-free test JVM on JDK 21+: Mockito's inline agent (starter-test) and Netty's
+                 native access would otherwise print JDK warnings the build cannot act on. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>-XX:+EnableDynamicAgentLoading --enable-native-access=ALL-UNNAMED</argLine>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

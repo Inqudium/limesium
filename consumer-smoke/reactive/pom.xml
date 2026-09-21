@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>eu.inqudium</groupId>
+        <artifactId>limesium-consumer-smoke</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>limesium-consumer-smoke-reactive</artifactId>
+    <packaging>jar</packaging>
+
+    <name>limesium-consumer-smoke-reactive</name>
+    <description>A reactive host with the shaded limesium-reactive-logging jar, as an application receives it</description>
+
+    <dependencies>
+        <!-- The product under test, as a consumer declares it: one artifact, no BOM entry, no
+             limesium-common. Compile scope on purpose - that is what a consumer uses. -->
+        <dependency>
+            <groupId>eu.inqudium</groupId>
+            <artifactId>limesium-reactive-logging</artifactId>
+            <version>${limesium.version}</version>
+        </dependency>
+        <!-- The host's own web starter, so Boot serves the one endpoint the test calls. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>
