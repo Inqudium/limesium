@@ -18,7 +18,7 @@ import org.slf4j.LoggerFactory
  * appender is event-driven ([awaitEvents]) for integration tests and synchronous for unit tests, so one
  * fixture serves both. [logger] stays reachable for tests that move the level mid-test.
  */
-class CapturedLogger(
+internal class CapturedLogger(
     private val loggerName: String,
     private val level: Level = Level.INFO,
 ) : BeforeEachCallback,
@@ -55,4 +55,4 @@ class CapturedLogger(
 }
 
 /** The structured key-values of an event as a map - what every exchange-line assertion reads. */
-fun ILoggingEvent.keyValues(): Map<String, Any?> = keyValuePairs?.associate { it.key to it.value } ?: emptyMap()
+internal fun ILoggingEvent.keyValues(): Map<String, Any?> = keyValuePairs?.associate { it.key to it.value } ?: emptyMap()

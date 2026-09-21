@@ -75,7 +75,7 @@ class RequestLoggingWebFilterIntegrationTest {
 
     @JvmField
     @RegisterExtension
-    final val exchangeLog = CapturedLogger("endpoint-http-exchange-reactive-integration-test")
+    internal final val exchangeLog = CapturedLogger("endpoint-http-exchange-reactive-integration-test")
 
     @AfterEach
     fun tearDown() {

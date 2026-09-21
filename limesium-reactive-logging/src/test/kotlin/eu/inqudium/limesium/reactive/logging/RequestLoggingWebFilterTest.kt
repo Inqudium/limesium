@@ -59,7 +59,7 @@ class RequestLoggingWebFilterTest {
 
     @JvmField
     @RegisterExtension
-    val exchangeLog = CapturedLogger(properties.loggerName)
+    internal val exchangeLog = CapturedLogger(properties.loggerName)
 
     private fun okChain(): WebFilterChain =
         WebFilterChain { exchange ->

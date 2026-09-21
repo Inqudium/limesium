@@ -50,7 +50,7 @@ class RequestLoggingFilterAsyncTest {
 
     @JvmField
     @RegisterExtension
-    val exchangeLog = CapturedLogger(properties.loggerName)
+    internal val exchangeLog = CapturedLogger(properties.loggerName)
 
     private fun asyncRequest(): MockHttpServletRequest = MockHttpServletRequest("GET", "/api/async").apply { isAsyncSupported = true }
 

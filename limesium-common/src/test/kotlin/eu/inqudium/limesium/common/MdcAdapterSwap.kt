@@ -11,7 +11,7 @@ import org.slf4j.spi.MDCAdapter
  * setter, so the package-private `MDC.setMDCAdapter` is invoked reflectively; callers restore the
  * original adapter (`MDC.getMDCAdapter()` taken beforehand) in their teardown.
  */
-fun installMdcAdapter(adapter: MDCAdapter) {
+internal fun installMdcAdapter(adapter: MDCAdapter) {
     MDC::class.java
         .getDeclaredMethod("setMDCAdapter", MDCAdapter::class.java)
         .apply { isAccessible = true }

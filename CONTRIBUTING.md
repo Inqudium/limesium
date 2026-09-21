@@ -103,7 +103,7 @@ the UI with a written reason.
   contract tests in **both** modules updated.
 - Test classes follow the existing `*Test.kt` naming (Surefire picks up `**/*Test.kt`).
 - Log output is observed through the shared `CapturedLogger` JUnit extension
-  (`@JvmField @RegisterExtension val exchangeLog = CapturedLogger(name)`, from
+  (`@JvmField @RegisterExtension internal val exchangeLog = CapturedLogger(name)`, from
   `limesium-common`'s test-jar - `events`, `awaitEvents(n)`, `logger` for level
   changes) and the `ILoggingEvent.keyValues()` extension; do not re-create the
   Logback attach/detach fixture per class.

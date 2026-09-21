@@ -46,7 +46,7 @@ class ExchangeLogEmitterTest {
 
     @JvmField
     @RegisterExtension
-    val exchangeLog = CapturedLogger(properties.loggerName)
+    internal val exchangeLog = CapturedLogger(properties.loggerName)
 
     private fun exchange(status: Int = 200): Exchange =
         Exchange(

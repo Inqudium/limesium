@@ -46,6 +46,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The shared test helpers of `limesium-common`'s test-jar (`AwaitingAppender`, `CapturedLogger`,
+  `keyValues`, `installMdcAdapter`) are `internal` like every production class of the module; the
+  twins' test compilation resolves them through the same friend paths as the shared code. The one
+  shape difference to the outbound sibling legatium's shared layer is gone. No consumer-visible
+  change (the test-jar is unpublished).
+
 - Both twins: the fail-open breadcrumbs of stage `wiring` follow one rule for their level and stack
   trace, written once in `limesium-common` (`reportWiringFailure`, `WiringCost`, replacing
   `reportFailOpen`, whose level and cause were free arguments per site): ERROR with the stack trace

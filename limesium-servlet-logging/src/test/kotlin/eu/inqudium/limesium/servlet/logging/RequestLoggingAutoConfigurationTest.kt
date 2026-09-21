@@ -41,7 +41,7 @@ class RequestLoggingAutoConfigurationTest {
     /** The auto-configuration's own logger - the wiring report - captured at TRACE for every test. */
     @JvmField
     @RegisterExtension
-    val wiringLog = CapturedLogger(RequestLoggingAutoConfiguration::class.java.name, Level.TRACE)
+    internal val wiringLog = CapturedLogger(RequestLoggingAutoConfiguration::class.java.name, Level.TRACE)
 
     @Test
     fun `should report at DEBUG that it is enabled and what it wired`() {

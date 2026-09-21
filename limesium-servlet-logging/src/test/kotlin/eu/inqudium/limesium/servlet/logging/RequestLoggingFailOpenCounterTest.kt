@@ -59,7 +59,7 @@ class RequestLoggingFailOpenCounterTest {
 
     @JvmField
     @RegisterExtension
-    val exchangeLog = CapturedLogger(properties.loggerName)
+    internal val exchangeLog = CapturedLogger(properties.loggerName)
 
     private fun stageCount(stage: String): Double =
         meterRegistry

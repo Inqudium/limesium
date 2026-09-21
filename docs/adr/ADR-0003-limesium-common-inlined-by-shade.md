@@ -2,7 +2,7 @@
 
 **Status:** Accepted  
 **Date:** 2026-08-30  
-**Last updated:** 2026-09-05  
+**Last updated:** 2026-09-21  
 **Deciders:** Dirk Haase (maintainer)  
 **Related:** ADR-0002 (the change that grew the byte-identical set and
 triggered the extraction), ADR-0004 (`CorrelationIdGenerator` is one
@@ -108,14 +108,25 @@ classpath.
 The twins compile with `-Xfriend-paths` (own output dir, common's
 classes dir AND jar; the reactor resolves the dependency as a directory
 before packaging and as a jar afterwards), so the shared classes stay
-`internal`.
+`internal`. Since 2026-09-21 the twins' TEST compilation adds the
+test-classes directory and the tests jar to the same list, so the
+test-jar's helpers (`AwaitingAppender`, `CapturedLogger` with
+`keyValues`, `installMdcAdapter`) are `internal` as well - the shape
+the outbound sibling legatium chose when it adopted the test-jar the
+same day; a `@RegisterExtension` property holding one is `internal`
+in its test class, which JUnit reads as it read the public one.
 
 ### Not published
 
 `maven.deploy.skip=true` plus `skipPublishing=true` for the Central
-Portal bundle. The published twin POMs mention no `limesium-common`.
-The test-jar is unpublished like the module itself, test scope only,
-never shaded.
+Portal bundle; both cover the test-jar as well. The published twin
+POMs carry no compile dependency on `limesium-common` (Shade removes
+the inlined one); what remains, since the test-jar of 2026-09-05, is
+the TEST-scoped dependency on it, which Shade neither inlines nor
+removes. A test-scoped dependency of a dependency is never resolved by
+Maven or Gradle, so a consumer's build does not look for the
+unpublished artifact - the consumer-smoke job proves that with the
+module deleted from the local repository.
 
 ### Verification on the consumer's side
 
@@ -300,3 +311,12 @@ Dokka runs, so the dependency resolves.
   dependency-reduced POM in `package`, and nothing loaded the jars a
   consumer receives. `consumer-smoke/` with the CI job `consumer-smoke`
   closes that - one consumer per twin, since a host never carries both.
+- **2026-09-21 (second):** the test-jar's helpers were public while
+  every production class of the module is `internal` - the one place
+  the two twin projects differed in the shape of their shared layer,
+  legatium having adopted the test-jar with `internal` helpers the same
+  day. The helpers are `internal` now; the twins' test compilation adds
+  common's test-classes and tests jar to the friend paths. The "Not
+  published" section also states precisely what the published POMs
+  carry: no compile dependency on the module, but the test-scoped
+  test-jar dependency, which no consumer resolves.

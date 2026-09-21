@@ -57,7 +57,7 @@ class CoRequestLoggingWebFilterTest {
 
     @JvmField
     @RegisterExtension
-    val exchangeLog = CapturedLogger(properties.loggerName)
+    internal val exchangeLog = CapturedLogger(properties.loggerName)
 
     @BeforeEach
     fun setUp() {

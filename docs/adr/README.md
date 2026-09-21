@@ -29,7 +29,7 @@ each exchange line carries, and finally the cluster you are touching.
 
 | ADR | Title | Status |
 |-----|-------|--------|
-| [0003](ADR-0003-limesium-common-inlined-by-shade.md) | Byte-identical twin code moves to limesium-common, inlined by Shade | Accepted; last updated 2026-09-05 |
+| [0003](ADR-0003-limesium-common-inlined-by-shade.md) | Byte-identical twin code moves to limesium-common, inlined by Shade | Accepted; last updated 2026-09-21 |
 
 ### Configuration & logged content
 

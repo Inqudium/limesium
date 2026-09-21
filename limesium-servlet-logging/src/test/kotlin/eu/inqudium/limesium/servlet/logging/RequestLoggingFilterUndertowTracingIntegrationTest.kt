@@ -49,7 +49,7 @@ class RequestLoggingFilterUndertowTracingIntegrationTest {
 
     @JvmField
     @RegisterExtension
-    final val exchangeLog = CapturedLogger("endpoint-http-exchange-undertow-tracing-integration-test")
+    internal final val exchangeLog = CapturedLogger("endpoint-http-exchange-undertow-tracing-integration-test")
 
     @AfterEach
     fun tearDown() {

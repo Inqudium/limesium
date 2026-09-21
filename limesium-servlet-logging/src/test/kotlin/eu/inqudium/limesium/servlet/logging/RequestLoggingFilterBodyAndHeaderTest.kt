@@ -52,7 +52,7 @@ class RequestLoggingFilterBodyAndHeaderTest {
 
     @JvmField
     @RegisterExtension
-    val exchangeLog = CapturedLogger(properties.loggerName)
+    internal val exchangeLog = CapturedLogger(properties.loggerName)
 
     private fun keyValues(): Map<String, Any?> = exchangeLog.events.single().keyValues()
 

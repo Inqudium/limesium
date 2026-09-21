@@ -64,7 +64,7 @@ class RequestLoggingFilterUndertowIntegrationTest {
 
     @JvmField
     @RegisterExtension
-    final val exchangeLog = CapturedLogger("endpoint-http-exchange-undertow-integration-test")
+    internal final val exchangeLog = CapturedLogger("endpoint-http-exchange-undertow-integration-test")
 
     @AfterEach
     fun tearDown() {

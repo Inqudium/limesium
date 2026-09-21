@@ -21,7 +21,7 @@ import org.springframework.core.env.SystemEnvironmentPropertySource
 class EndpointLoggingPropertyOriginsTest {
     @JvmField
     @RegisterExtension
-    val log = CapturedLogger(LOGGER_NAME, Level.TRACE)
+    internal val log = CapturedLogger(LOGGER_NAME, Level.TRACE)
 
     private val contextRunner = ApplicationContextRunner().withUserConfiguration(PropertiesConfiguration::class.java)
 
