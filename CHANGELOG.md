@@ -23,7 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `limesium-common`, one rendering for both twins, ported from legatium; `limesium-common` now
   depends on `spring-boot`, which both twins already bring). Nothing is logged with
   `endpoint-logging.enabled=false`. The auto-configuration tests pin the lines and the silence, the
-  common module's test the rendering.
+  common module's test the rendering. The decision, the admission rule for a report line
+  and its bounds are [ADR-0008](docs/adr/ADR-0008-startup-wiring-report-is-a-bounded-diagnostic.md).
 - Both twins: the wiring report states whether Boot's **server observation** and Micrometer Tracing
   sit around the filter - what decides whether the exchange runs inside a server span and whether the
   host's handler lines carry a `traceId`, which has no property and was so far readable nowhere at
