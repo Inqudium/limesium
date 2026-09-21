@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Consumer smoke tests (`consumer-smoke/`, CI job `consumer-smoke`): the shaded twin jars are
+  started as an application receives them - one consumer per twin, since a host carries exactly one
+  limesium module - after `limesium-common` was deleted from the local repository: the inlined
+  classes must resolve from the twin jar alone, the auto-configuration must wire up through the
+  jar's own imports file, and one request must end in one exchange line. The reactor's own tests
+  run before packaging and never load those jars; the dependency-reduced POM is verified here for
+  the first time (ADR-0003, ported from legatium).
+
 - Both twins: a **wiring report** at DEBUG on the auto-configuration's own logger
   (`eu.inqudium.limesium.<twin>.logging.RequestLoggingAutoConfiguration`; on the reactive stack the
   coroutine auto-configuration reports on the same one), so a host can read from its log whether the

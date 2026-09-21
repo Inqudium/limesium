@@ -155,6 +155,28 @@ JAZZER_FUZZ=1 mvn -Dtest=TraceparentFuzzTest \
   -Dsurefire.failIfNoSpecifiedTests=false test
 ```
 
+### Consumer smoke tests (the shaded jars)
+
+The reactor's tests run BEFORE packaging, against the `limesium-common` module;
+the jars a consumer receives - common classes inlined, dependency-reduced POM -
+are never loaded by them. The standalone project `consumer-smoke/` (not a
+reactor child) holds one consumer per twin - a host carries exactly one
+limesium module, so there is no both-twins case to start - and checks, on the
+installed jars, that the shared classes resolve from exactly the twin jar,
+that the auto-configuration wires up, and that one request ends in one
+exchange line. CI runs it on every push (`consumer-smoke` job); locally:
+
+```bash
+mvn -DskipTests -Djacoco.skip=true install
+rm -rf ~/.m2/repository/eu/inqudium/limesium-common   # a consumer never has it
+mvn -f consumer-smoke/pom.xml verify
+```
+
+Keep `limesium.version` in `consumer-smoke/pom.xml` and in `benchmarks/pom.xml`
+equal to the reactor's `revision`. CI derives the version from the root POM for
+both standalone builds, so a stale pin is visible only in a local build against
+a clean `~/.m2` - the rule keeps the two builds the same.
+
 ## Submitting changes
 
 1. Fork the repository and create a topic branch from `main`.
@@ -183,7 +205,7 @@ makes it a major one.
    - `pom.xml`: `<revision>` to the version, `<project.build.outputTimestamp>`
      to the release date at midnight UTC (`YYYY-MM-DDT00:00:00Z`) - the
      timestamp is what makes the jars reproducible, see the README;
-   - `benchmarks/pom.xml`: `<limesium.version>` to the version;
+   - `benchmarks/pom.xml` and `consumer-smoke/pom.xml`: `<limesium.version>` to the version;
    - `README.md`: a new first row in the compatibility table;
    - `CHANGELOG.md`: a `## [3.0.1] - YYYY-MM-DD` heading directly under the
      (then empty) `## [Unreleased]` heading, the `[Unreleased]:` link changed
