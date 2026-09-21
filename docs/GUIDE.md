@@ -920,7 +920,8 @@ missing. Silence at TRACE therefore always means "TRACE is off", never "nothing 
 The TRACE report carries the same information the actuator's `env` endpoint shows per property
 source (`/actuator/env/endpoint-logging.logger-name`); the lines put it into the startup log of a host
 without the actuator. Both stages are rendered once in `limesium-common`
-([§6.4](#64-shared-code-limesium-common-inlined-by-shade)).
+([§6.4](#64-shared-code-limesium-common-inlined-by-shade)). The report's reason, the admission rule for a line and its bounds
+are [ADR-0008](adr/ADR-0008-startup-wiring-report-is-a-bounded-diagnostic.md).
 
 ### 4.7 Validation at startup
 
