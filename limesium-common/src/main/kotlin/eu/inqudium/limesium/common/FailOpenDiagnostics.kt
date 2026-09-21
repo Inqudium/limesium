@@ -51,24 +51,61 @@ internal inline fun failOpen(
 }
 
 /**
- * The REPORTING half every fail-open catch shares (code-style audit of 2026-09-05, pattern S1): the
- * stage counter ([count], e.g. `metrics::wiringFailure`) and ONE line on the module's own [log] at
- * [level], both inside [reportQuietly]. The catch keeps its own control flow - a rethrow, a produced
- * value, work that must still happen - only the report is shared, which is why this is not [failOpen].
- * [cause] rides the event as its throwable (stack trace) when given; what the line shows inline (the
- * exchange coordinates, `e.toString()`) travels as [args].
+ * What a failure of stage `wiring` COST the exchange - the one choice a wiring guard makes when it
+ * reports. The level of its breadcrumb and whether the stack trace goes along follow from the cost, so
+ * the guards of both twins share one form and cannot drift apart in it (they had, until 2026-09-21:
+ * the level and the trace were free arguments of the shared report, chosen per site without a rule
+ * behind the difference). The sentence stays the guard's own. Ported from the outbound sibling
+ * legatium, where the rule was decided the same day; the two projects keep it identical.
  */
-internal fun reportFailOpen(
-    count: () -> Unit,
+internal enum class WiringCost(
+    /** The breadcrumb's level. */
+    val level: Level,
+    /** Whether the breadcrumb carries the stack trace beside the exception's `toString`. */
+    val withStackTrace: Boolean,
+) {
+    /**
+     * The request runs without a feature the guard was wiring - the logging altogether, the identity on
+     * the serving or the async worker thread, the deferred error path: ERROR, with the stack trace,
+     * because the operator has to find the cause to get the feature back and nothing else will show it.
+     */
+    LOST_FEATURE(Level.ERROR, true),
+
+    /**
+     * The line is out (or the worker task is done), but a scope's teardown failed and the pooled thread
+     * may keep keys that are not its own: WARN - the exchange IS logged - with the stack trace, because
+     * the stale keys outlive the exchange and join the thread's next lines to the wrong request.
+     */
+    DIRTY_TEARDOWN(Level.WARN, true),
+
+    /**
+     * The event follows, degraded - without a sample, the handler template, the async marker, the
+     * breadcrumb or the handler's ambient MDC: WARN with the exception's `toString` only; the event
+     * itself shows what is missing.
+     */
+    DEGRADED_EVENT(Level.WARN, false),
+}
+
+/**
+ * The report of a `stage=wiring` guard, in ONE shape for every such guard of both twins: the fail-open
+ * counter, then the breadcrumb on [log] - [message] with its [args] as SLF4J placeholders, the
+ * exception's `toString` appended as the last placeholder, level and stack trace per [cost] - the whole
+ * under [reportQuietly], so a broken diagnostics channel cannot escape either. The catch keeps its own
+ * control flow - a rethrow, a produced value, work that must still happen - only the report is shared,
+ * which is why this is not [failOpen]. The metrics owner's own once-per-meter warning keeps its shape:
+ * it throttles, which no other wiring guard does; an interrupt keeps its DEBUG line beside the counter.
+ */
+internal fun reportWiringFailure(
+    metrics: EndpointLoggingMetrics,
     log: Logger,
-    level: Level,
-    cause: Throwable?,
+    cost: WiringCost,
+    e: Exception,
     message: String,
     vararg args: Any?,
-) {
-    reportQuietly {
-        count()
-        val line = log.atLevel(level)
-        (if (cause == null) line else line.setCause(cause)).log(message, *args)
-    }
+) = reportQuietly {
+    metrics.wiringFailure()
+    log
+        .atLevel(cost.level)
+        .setCauseIfPresent(e.takeIf { cost.withStackTrace })
+        .log("$message: {}", *args, e.toString())
 }
