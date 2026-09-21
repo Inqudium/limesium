@@ -215,7 +215,7 @@ name and contract whose code genuinely differs:
 | `NanoTimeSource` / `CorrelationIdGenerator` / `HeaderValueMasker` | Injectable time, id and header masking ([§2.5](#25-injectable-collaborators)) | byte-identical |
 | `EndpointObservationWiring` | The observation line of the auto-configurations' wiring report ([§4.6](#46-the-configuration-report-at-debug-and-trace)): whether Boot's server observation and a Micrometer `Tracer` sit around the filter, rendered from the context's beans and the placement the twin resolved (Boot's filter order on the servlet stack, the `HttpWebHandlerAdapter` on the reactive stack) — the classes are named as strings, so the common module compiles without the optional observation and tracing libraries. |
 | `EndpointLoggingPropertyOrigins` | The TRACE half of the auto-configurations' wiring report ([§4.5](#45-logger-levels)): renders every `endpoint-logging.*` value Boot bound with its origin, plus the shadowed values of lower-precedence sources, masking key redacted | byte-identical (`limesium-common`), ported from legatium |
-| `reportQuietly` / `reportFailOpen` | `reportQuietly` guards the diagnostics channel (counter + internal log) of every catch block; `reportFailOpen` is the one report every catch shares - the stage counter plus one line on the module's own logger, inside that guard | byte-identical |
+| `reportQuietly` / `reportWiringFailure` / `WiringCost` | `reportQuietly` guards the diagnostics channel (counter + internal log) of every catch block; `reportWiringFailure` is the one report every `stage=wiring` guard shares - the stage counter plus one line on the module's own logger, its level and stack trace decided by the `WiringCost` the guard names ([§5.2](#52-fail-open-contract)) | byte-identical (`limesium-common`) |
 
 The per-stack component overviews — the filter classes, the async and variant machinery, the capture
 wrappers and decorators — are §2.1 of the
@@ -281,11 +281,17 @@ by **stage**, and reported on the module's own logger:
 | emission | `logExchange` — everything after the exactly-once gate | the exchange event is **lost** | `failopen{stage=emission}` |
 | registration | `EndpointLoggingMetrics.registerOrFallback` | the conflicting meter lives in a private registry, warned once per name ([§5.4](#54-meters)) | — |
 
-Every catch block reports through `reportFailOpen` - the stage counter plus one line on the module's own
-logger - inside `reportQuietly`, which swallows a failure of the diagnostics channel
+Every `wiring` catch block reports through `reportWiringFailure` - the stage counter plus one line on
+the module's own logger - inside `reportQuietly`, which swallows a failure of the diagnostics channel
 itself (a throwing `Counter`, a throwing appender that also covers the internal logger) — there is
-nothing left to report to. `InterruptedException` is caught separately and the interrupt flag is
-restored before the failure is recorded.
+nothing left to report to. The line's level follows what the failure **cost** (`WiringCost`, one rule
+for both twins and for the outbound sibling legatium): **ERROR with the stack trace** when the request
+lost a feature (no logging at all, no identity on the serving or the async worker thread, no deferred
+error path), **WARN with the stack trace** when a scope's teardown may have left stale keys on a pooled
+thread, **WARN with the exception's `toString` only** when the event merely follows degraded (no
+sample, no handler template, no async marker, no breadcrumb, no ambient MDC for the handler).
+`InterruptedException` is caught separately, the interrupt flag is restored and the counter still
+counts; its line stays at DEBUG.
 
 Failures of the logging are reported on the module's **own** loggers under
 `eu.inqudium.limesium.servlet.logging` resp. `eu.inqudium.limesium.reactive.logging` (the filter, the

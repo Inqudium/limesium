@@ -8,12 +8,12 @@ import eu.inqudium.limesium.common.MdcKeys
 import eu.inqudium.limesium.common.NanoTimeSource
 import eu.inqudium.limesium.common.RequestLoggingProperties
 import eu.inqudium.limesium.common.Traceparent
+import eu.inqudium.limesium.common.WiringCost
 import eu.inqudium.limesium.common.failOpen
-import eu.inqudium.limesium.common.reportFailOpen
 import eu.inqudium.limesium.common.reportQuietly
+import eu.inqudium.limesium.common.reportWiringFailure
 import io.micrometer.core.instrument.MeterRegistry
 import org.slf4j.LoggerFactory
-import org.slf4j.event.Level
 import org.springframework.http.HttpHeaders
 import org.springframework.http.InvalidMediaTypeException
 import org.springframework.http.server.PathContainer
@@ -89,15 +89,14 @@ internal class ExchangeLifecycle(
         try {
             wireExchange(webExchange)
         } catch (e: Exception) {
-            reportFailOpen(
-                metrics::wiringFailure,
+            reportWiringFailure(
+                metrics,
                 internalLog,
-                Level.ERROR,
+                WiringCost.LOST_FEATURE,
                 e,
-                "Request logging could not be wired for {} {} - continuing without logging: {}",
+                "Request logging could not be wired for {} {} - continuing without logging",
                 webExchange.request.method,
                 webExchange.request.uri.rawPath,
-                e.toString(),
             )
             null
         }
@@ -137,13 +136,14 @@ internal class ExchangeLifecycle(
                 internalLog.debug("Interrupted while registering the commit callback; the error path will not defer", e)
             },
             onFailure = { e ->
-                metrics.wiringFailure()
-                internalLog.error(
-                    "Could not register the commit callback for {} {} - the error path will not defer: {}",
+                reportWiringFailure(
+                    metrics,
+                    internalLog,
+                    WiringCost.LOST_FEATURE,
+                    e,
+                    "Could not register the commit callback for {} {} - the error path will not defer",
                     exchange.method,
                     exchange.path,
-                    e.toString(),
-                    e,
                 )
             },
         ) {
@@ -230,27 +230,23 @@ internal class ExchangeLifecycle(
         } catch (e: InterruptedException) {
             // Restore what the JVM cleared when it threw, so the interrupt still reaches its addressee.
             Thread.currentThread().interrupt()
-            reportFailOpen(
-                metrics::wiringFailure,
-                internalLog,
-                Level.DEBUG,
-                e,
-                "Interrupted in the terminal callback",
-            )
+            reportQuietly {
+                metrics.wiringFailure()
+                internalLog.debug("Interrupted in the terminal callback", e)
+            }
             if (exchange.state != ExchangeState.AWAITING_COMMIT) {
                 complete(exchange)
             }
         } catch (e: Exception) {
-            reportFailOpen(
-                metrics::wiringFailure,
+            reportWiringFailure(
+                metrics,
                 internalLog,
-                Level.WARN,
+                WiringCost.DEGRADED_EVENT,
                 e,
-                "Request logging failed for {} {} (requestId={}): {}",
+                "Request logging failed for {} {} (requestId={})",
                 exchange.method,
                 exchange.path,
                 exchange.requestId,
-                e.toString(),
             )
             if (exchange.state != ExchangeState.AWAITING_COMMIT) {
                 complete(exchange)

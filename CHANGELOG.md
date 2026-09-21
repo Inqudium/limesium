@@ -38,6 +38,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Both twins: the fail-open breadcrumbs of stage `wiring` follow one rule for their level and stack
+  trace, written once in `limesium-common` (`reportWiringFailure`, `WiringCost`, replacing
+  `reportFailOpen`, whose level and cause were free arguments per site): ERROR with the stack trace
+  when the request lost a feature, WARN with the stack trace when a scope's teardown may have left
+  stale keys on a pooled thread, WARN with the exception's `toString` alone when the event merely
+  follows degraded. Ported from legatium, decided the same day. Six breadcrumbs change under the
+  rule - **servlet twin:** the async worker's MDC install (`Endpoint MDC could not be installed on
+  the async worker`) from DEBUG to ERROR and its restore (`... could not be restored on the async
+  worker`) from DEBUG to WARN, both now with the stack trace; the async propagation registration
+  (`Async MDC propagation could not be registered`) from WARN to ERROR; the bookkeeping after the
+  chain and the async dispatch's breadcrumb (`Request logging failed for ...`) keep WARN but drop the
+  stack trace; **reactive twin:** the terminal bookkeeping (`Request logging failed for ...`) keeps
+  WARN and drops the stack trace. Every other breadcrumb keeps its level and trace; the sentences are
+  unchanged.
+
 - Both twins: a 4xx response is **`endpoint_outcome=rejected`**, a new value of the outcome
   vocabulary, in place of `success` — the outcome names who is responsible for the disposition
   (nobody, the caller, the application, the clock or the caller's disconnect), and a refused request

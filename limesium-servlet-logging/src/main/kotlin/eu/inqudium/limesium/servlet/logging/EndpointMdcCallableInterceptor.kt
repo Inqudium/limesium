@@ -2,10 +2,10 @@ package eu.inqudium.limesium.servlet.logging
 
 import eu.inqudium.limesium.common.EndpointLoggingMetrics
 import eu.inqudium.limesium.common.MdcScope
-import eu.inqudium.limesium.common.reportFailOpen
+import eu.inqudium.limesium.common.WiringCost
 import eu.inqudium.limesium.common.reportQuietly
+import eu.inqudium.limesium.common.reportWiringFailure
 import org.slf4j.LoggerFactory
-import org.slf4j.event.Level
 import org.springframework.web.context.request.NativeWebRequest
 import org.springframework.web.context.request.async.CallableProcessingInterceptor
 import java.util.concurrent.Callable
@@ -44,10 +44,10 @@ internal class EndpointMdcCallableInterceptor(
             scope.set(MdcScope(exchange.requestId, exchange.method, exchange.path))
         } catch (e: Exception) {
             scope.remove()
-            reportFailOpen(
-                metrics::wiringFailure,
+            reportWiringFailure(
+                metrics,
                 internalLog,
-                Level.DEBUG,
+                WiringCost.LOST_FEATURE,
                 e,
                 "Endpoint MDC could not be installed on the async worker; handler logs lose the identity",
             )
@@ -62,10 +62,10 @@ internal class EndpointMdcCallableInterceptor(
         try {
             scope.get()?.close()
         } catch (e: Exception) {
-            reportFailOpen(
-                metrics::wiringFailure,
+            reportWiringFailure(
+                metrics,
                 internalLog,
-                Level.DEBUG,
+                WiringCost.DIRTY_TEARDOWN,
                 e,
                 "Endpoint MDC could not be restored on the async worker",
             )
