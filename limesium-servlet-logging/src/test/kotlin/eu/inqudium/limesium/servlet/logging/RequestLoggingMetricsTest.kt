@@ -54,7 +54,7 @@ class RequestLoggingMetricsTest {
 
     @JvmField
     @RegisterExtension
-    val exchangeLog = CapturedLogger(properties.loggerName)
+    internal val exchangeLog = CapturedLogger(properties.loggerName)
 
     private fun handle(
         request: MockHttpServletRequest,

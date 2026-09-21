@@ -25,8 +25,9 @@
             <artifactId>limesium-common</artifactId>
             <version>${revision}</version>
         </dependency>
-        <!-- The shared TEST helpers of limesium-common (AwaitingAppender, installMdcAdapter) - a
-             test-scoped test-jar, unpublished and never shaded. -->
+        <!-- The shared TEST helpers of limesium-common (AwaitingAppender, CapturedLogger, keyValues,
+             installMdcAdapter) - a test-scoped test-jar, unpublished and never shaded; its `internal`
+             helpers resolve through the friend paths below. -->
         <dependency>
             <groupId>eu.inqudium</groupId>
             <artifactId>limesium-common</artifactId>
@@ -191,8 +192,10 @@
                              basedir-relative (not session/execution-root properties): the IDE's
                              Maven import resolves ${project.basedir} into the Kotlin facet, while
                              session properties exist only at build time - an unresolved friend
-                             path leaves every shared `internal` red in the editor. -->
-                        <arg>-Xfriend-paths=${project.build.outputDirectory},${project.basedir}/../limesium-common/target/classes,${project.basedir}/../limesium-common/target/limesium-common-${project.version}.jar</arg>
+                             path leaves every shared `internal` red in the editor. The test-classes
+                             directory and the tests jar are the same pair for the shared TEST helpers
+                             (the test-jar dependency above). -->
+                        <arg>-Xfriend-paths=${project.build.outputDirectory},${project.basedir}/../limesium-common/target/classes,${project.basedir}/../limesium-common/target/limesium-common-${project.version}.jar,${project.basedir}/../limesium-common/target/test-classes,${project.basedir}/../limesium-common/target/limesium-common-${project.version}-tests.jar</arg>
                     </args>
                 </configuration>
                 <executions>

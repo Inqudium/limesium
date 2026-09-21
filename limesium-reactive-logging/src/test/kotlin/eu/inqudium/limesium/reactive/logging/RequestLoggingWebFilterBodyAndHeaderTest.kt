@@ -57,7 +57,7 @@ class RequestLoggingWebFilterBodyAndHeaderTest {
 
     @JvmField
     @RegisterExtension
-    val exchangeLog = CapturedLogger(properties.loggerName)
+    internal val exchangeLog = CapturedLogger(properties.loggerName)
 
     private fun bytes(text: String) = text.toByteArray(StandardCharsets.UTF_8)
 

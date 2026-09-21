@@ -265,7 +265,7 @@ class EndpointLogFieldTest {
     inner class `Drop the field not the event` {
         @JvmField
         @RegisterExtension
-        val exchangeLog = CapturedLogger("endpoint-log-field-test")
+        internal val exchangeLog = CapturedLogger("endpoint-log-field-test")
 
         @Test
         fun `should drop a badly typed field but keep the event and its other fields`() {

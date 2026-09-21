@@ -53,7 +53,7 @@ class RequestLoggingFilterTomcatTracingIntegrationTest {
 
     @JvmField
     @RegisterExtension
-    final val exchangeLog = CapturedLogger("endpoint-http-exchange-tracing-integration-test")
+    internal final val exchangeLog = CapturedLogger("endpoint-http-exchange-tracing-integration-test")
 
     @AfterEach
     fun tearDown() {

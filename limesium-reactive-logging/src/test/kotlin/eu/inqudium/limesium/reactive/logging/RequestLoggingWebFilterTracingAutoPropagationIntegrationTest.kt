@@ -58,7 +58,7 @@ class RequestLoggingWebFilterTracingAutoPropagationIntegrationTest {
 
     @JvmField
     @RegisterExtension
-    final val exchangeLog = CapturedLogger("endpoint-http-exchange-reactive-tracing-auto-integration-test")
+    internal final val exchangeLog = CapturedLogger("endpoint-http-exchange-reactive-tracing-auto-integration-test")
 
     @AfterEach
     fun tearDown() {

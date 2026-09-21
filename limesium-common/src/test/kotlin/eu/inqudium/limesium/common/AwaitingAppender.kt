@@ -19,7 +19,7 @@ import java.util.concurrent.TimeUnit
  * negative wait on the semaphore, not a synchronization sleep - it never delays a test whose events are
  * already complete by more than [SETTLE_MILLIS].
  */
-class AwaitingAppender : AppenderBase<ILoggingEvent>() {
+internal class AwaitingAppender : AppenderBase<ILoggingEvent>() {
     val events = CopyOnWriteArrayList<ILoggingEvent>()
     private val arrivals = Semaphore(0)
 

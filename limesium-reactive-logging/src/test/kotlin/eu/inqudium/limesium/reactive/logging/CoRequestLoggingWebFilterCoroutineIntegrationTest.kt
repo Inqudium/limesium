@@ -87,11 +87,11 @@ class CoRequestLoggingWebFilterCoroutineIntegrationTest(
 
     @JvmField
     @RegisterExtension
-    final val exchangeLog = CapturedLogger("endpoint-http-exchange-coroutine-integration-test")
+    internal final val exchangeLog = CapturedLogger("endpoint-http-exchange-coroutine-integration-test")
 
     @JvmField
     @RegisterExtension
-    final val handlerLog = CapturedLogger(HANDLER_LOGGER)
+    internal final val handlerLog = CapturedLogger(HANDLER_LOGGER)
 
     @AfterEach
     fun tearDown() {

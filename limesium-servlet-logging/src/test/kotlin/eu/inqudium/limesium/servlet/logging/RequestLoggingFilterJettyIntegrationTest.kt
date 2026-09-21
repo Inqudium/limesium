@@ -63,7 +63,7 @@ class RequestLoggingFilterJettyIntegrationTest {
 
     @JvmField
     @RegisterExtension
-    final val exchangeLog = CapturedLogger("endpoint-http-exchange-jetty-integration-test")
+    internal final val exchangeLog = CapturedLogger("endpoint-http-exchange-jetty-integration-test")
 
     @AfterEach
     fun tearDown() {

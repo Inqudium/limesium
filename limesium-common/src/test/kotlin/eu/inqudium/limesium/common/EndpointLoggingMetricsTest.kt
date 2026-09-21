@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicReference
 class EndpointLoggingMetricsTest {
     @JvmField
     @RegisterExtension
-    val metricsLog = CapturedLogger(EndpointLoggingMetrics::class.java.name)
+    internal val metricsLog = CapturedLogger(EndpointLoggingMetrics::class.java.name)
 
     private val things = "/api/things/{id}"
 

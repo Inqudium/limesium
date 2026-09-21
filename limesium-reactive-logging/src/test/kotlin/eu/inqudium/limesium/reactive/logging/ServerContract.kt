@@ -87,7 +87,7 @@ abstract class ServerContract(
 
     @JvmField
     @RegisterExtension
-    final val exchangeLog = CapturedLogger("endpoint-http-exchange-server-contract")
+    internal final val exchangeLog = CapturedLogger("endpoint-http-exchange-server-contract")
 
     @AfterEach
     fun tearDown() {

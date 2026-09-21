@@ -49,7 +49,7 @@ class RequestLoggingWebFilterMetricsTest {
 
     @JvmField
     @RegisterExtension
-    val exchangeLog = CapturedLogger(properties.loggerName)
+    internal val exchangeLog = CapturedLogger(properties.loggerName)
 
     private fun eventCount(outcome: String): Double =
         meterRegistry

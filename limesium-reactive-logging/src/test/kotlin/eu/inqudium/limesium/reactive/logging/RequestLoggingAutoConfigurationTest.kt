@@ -62,7 +62,7 @@ class RequestLoggingAutoConfigurationTest {
     /** The twin's wiring-report logger - both auto-configurations report on it - captured at TRACE for every test. */
     @JvmField
     @RegisterExtension
-    val wiringLog = CapturedLogger(RequestLoggingAutoConfiguration::class.java.name, Level.TRACE)
+    internal val wiringLog = CapturedLogger(RequestLoggingAutoConfiguration::class.java.name, Level.TRACE)
 
     @BeforeEach
     fun setUp() {
