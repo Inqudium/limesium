@@ -20,33 +20,49 @@ and a WebFlux/coroutines web filter. No starter, no forced transitives.
 
 ## What sets it apart
 
-- **One line, when the request is truly over.** The servlet twin emits at request destruction, after
+### One line per exchange
+
+- **Emitted when the request is truly over.** The servlet twin emits at request destruction, after
   the container's error dispatch and after async completion; the reactive twin at the terminal signal,
   deferred to the commit when an error leaves the response uncommitted. Status, headers and bodies are
   final on the line, and `endpoint_duration_ms` is request occupancy including error rendering, not
   bare handler time.
-- **Two paradigm twins, one contract.** The servlet filter and the WebFlux filter, in a Reactor and a
-  coroutines variant, emit the same fields under the same names with the same shapes, bound by the
+- **An outcome that names who is responsible.** `success`, `rejected` (a 4xx), `failure`, and
+  `timeout` or `cancelled` say which side the disposition belongs to; the level carries severity
+  separately, so the meaning of a line never depends on how loud it was logged.
+
+### Two stacks, one contract
+
+- **Two paradigm twins, identical fields.** The servlet filter and the WebFlux filter, in a Reactor and
+  a coroutines variant, emit the same fields under the same names with the same shapes, bound by the
   same `endpoint-logging.*` keys, and lockstep tests pin every literal: a field, a message format or a
   meter that drifts between the twins fails the build.
-- **Fail-open, and the loss reports itself.** A logging failure never reaches the handler and never
-  changes the response. It is swallowed, counted in `endpoint.logging.failopen` by stage, and the
-  events counter is the ground truth to reconcile against the log index, so a lost line is visible
-  through a channel that does not depend on the line.
+
+### Correlation
+
 - **Identity across every thread of the exchange.** The trace id is the request id, and the
   `endpoint_*` identity is in the MDC for the whole chain, on the async worker of a `Callable` or
   `DeferredResult`, in the async re-dispatch, and in the Reactor context of the reactive stack, so every
   application log line of a request carries it. A client line the sibling Legatium emits during the
   request inherits it, and the two join in one document.
-- **Header values masked by default, bodies teed as they flow.** A logged header value is a stable keyed
-  fingerprint unless it is on an explicit plaintext allowlist; the same `masking-key` on both sides of
-  the family makes a masked token read identically on the inbound and the outbound line. Bodies are
-  never pre-read or replayed: they are teed as the application reads and writes them, bounded by
-  `max-body-bytes`, `on-failure` logs them only for the exchanges that went wrong, and a read-state
-  meter shows whether an endpoint left a payload unread or half read.
-- **An outcome that names who is responsible, meters that are consumed, not exported.** `success`,
-  `rejected` (a 4xx), `failure`, and `timeout` or `cancelled` say which side the disposition belongs to;
-  the level carries severity separately. Six meters are fed into the host's own registry,
+
+### Headers and bodies
+
+- **Header values masked by default.** A logged header value is a stable keyed fingerprint unless it
+  is on an explicit plaintext allowlist; the same `masking-key` on both sides of the family makes a
+  masked token read identically on the inbound and the outbound line.
+- **Bodies teed as they flow.** Bodies are never pre-read or replayed: they are teed as the
+  application reads and writes them, bounded by `max-body-bytes`, `on-failure` logs them only for the
+  exchanges that went wrong, and a read-state meter shows whether an endpoint left a payload unread
+  or half read.
+
+### Operating it
+
+- **Fail-open, and the loss reports itself.** A logging failure never reaches the handler and never
+  changes the response. It is swallowed, counted in `endpoint.logging.failopen` by stage, and the
+  events counter is the ground truth to reconcile against the log index, so a lost line is visible
+  through a channel that does not depend on the line.
+- **Meters that are consumed, not exported.** Six meters are fed into the host's own registry,
   pre-registered at zero so a `rate()` alert sees the baseline before the first occurrence; rates,
   latencies and status distributions are left to `http.server.requests` on purpose.
 - **The logger level is the volume control, at runtime.** Because the level carries severity only, the
@@ -58,6 +74,62 @@ and a WebFlux/coroutines web filter. No starter, no forced transitives.
   backend (Boot's loggers endpoint included) and down again, no restart, no redeploy; the module's own
   logger under `eu.inqudium.limesium` reports at `DEBUG` how it is wired and at `TRACE` where every
   property value came from.
+
+## Quickstart
+
+1. **Add the twin for the host's stack.** There is no BOM; the version is declared on the dependency
+   (the current release is in the compatibility table below and on the Maven Central badge).
+
+   Servlet (Spring MVC on Tomcat 11+ or Jetty 12.1+):
+
+   ```xml
+   <dependency>
+       <groupId>eu.inqudium</groupId>
+       <artifactId>limesium-servlet-logging</artifactId>
+       <version>3.0.1</version>
+   </dependency>
+   ```
+
+   Reactive (Spring WebFlux, Reactor or coroutines):
+
+   ```xml
+   <dependency>
+       <groupId>eu.inqudium</groupId>
+       <artifactId>limesium-reactive-logging</artifactId>
+       <version>3.0.1</version>
+   </dependency>
+   ```
+
+2. **Start the application.** Nothing to inject, nothing to configure: the auto-configuration registers
+   the filter for its own web application type, and every exchange is one `INFO` event on the
+   `endpoint-http-exchange` logger:
+
+   ```
+   Endpoint http exchange GET /api/things/42 -> 200 [endpoint_request_id=4bf92f3577b34da6a3ce929d0e0e4736 traceId=4bf92f3577b34da6a3ce929d0e0e4736 parentSpanId=00f067aa0ba902b7]
+   ```
+
+   Every application log line written while the request is served carries `endpoint_request_id` in
+   its MDC. With Boot's structured logging (`logging.structured.format.console=ecs`) the same event is
+   one JSON document with the `endpoint_*` fields as flat, typed top-level fields.
+
+3. **Tune it, if the defaults are not yours.** Every key lives under `endpoint-logging.*` and is the
+   same for both twins; the [configuration reference](docs/endpoint-logging-reference.yml) lists them
+   all with their defaults. The usual first adjustments:
+
+   ```yaml
+   endpoint-logging:
+     exclude-path-prefixes: [/actuator/]       # skip health probes and metrics scrapes
+     log-request-body: on-failure              # bodies only for exchanges that went wrong
+     log-response-body: on-failure
+     masking-key: ${ENDPOINT_MASKING_KEY}      # key the header fingerprint; a secret, share it with Legatium
+   logging:
+     level:
+       endpoint-http-exchange: WARN            # or INFO for every exchange; change it at runtime
+   ```
+
+The module READMEs carry the details: prerequisites, the automatic wiring and when to wire by hand,
+and what one exchange looks like as text and as JSON:
+[servlet](limesium-servlet-logging/README.md#usage), [reactive](limesium-reactive-logging/README.md#usage).
 
 ## The name
 
@@ -134,7 +206,7 @@ guides, Elasticsearch mapping, generated [test evidence](https://inqudium.github
   because both mask header values with the same stable fingerprint (the same `masking-key` on
   both sides keeps it so), a masked token reads identically on the inbound and the outbound line.
 
-### Quick start
+### Compatibility
 
 Each Limesium release is built and tested against one Spring Boot line, one Kotlin line and one Java
 target; the table is the history of those lines, newest first. The Java column is the bytecode target the
