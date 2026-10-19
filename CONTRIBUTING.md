@@ -206,7 +206,8 @@ makes it a major one.
      to the release date at midnight UTC (`YYYY-MM-DDT00:00:00Z`) - the
      timestamp is what makes the jars reproducible, see the README;
    - `benchmarks/pom.xml` and `consumer-smoke/pom.xml`: `<limesium.version>` to the version;
-   - `README.md`: a new first row in the compatibility table;
+   - `README.md`: a new first row in the compatibility table, and the version in the
+     two Quickstart dependency snippets (one per twin);
    - `CHANGELOG.md`: a `## [3.0.1] - YYYY-MM-DD` heading directly under the
      (then empty) `## [Unreleased]` heading, the `[Unreleased]:` link changed
      to `compare/3.0.1...HEAD`, and a `[3.0.1]:` link to the release tag.
