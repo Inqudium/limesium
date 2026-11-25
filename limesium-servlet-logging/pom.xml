@@ -18,7 +18,7 @@
     <properties>
         <!-- Test-only: the Undertow capture-boundary suite. Boot 4 dropped Undertow (no Servlet 6.1
              release exists), so the version is pinned here, not BOM-managed. -->
-        <undertow.version>2.3.26.Final</undertow.version>
+        <undertow.version>2.3.27.Final</undertow.version>
     </properties>
 
     <dependencies>
