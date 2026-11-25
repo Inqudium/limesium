@@ -109,7 +109,7 @@ internal class BoundedBodyCapture(
     }
 
     /**
-     * Bytes the buffer can still take before [maxBytes]; 0 in count-only mode, once the cap is reached,
+     * Bytes the buffer can still take before `maxBytes`; 0 in count-only mode, once the cap is reached,
      * or once frozen. The reactive tee sizes its bounded prefix copy from this - the reason the tee's
      * transient allocation is bounded by the configured cap instead of the buffer size.
      */
